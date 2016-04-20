@@ -1,0 +1,51 @@
+#!/usr/bin/make -f
+#export DH_VERBOSE = 1
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+export DH_OPTIONS
+CPUBITS ?= $(shell dpkg-architecture -qDEB_BUILD_ARCH_BITS)
+INSTALL := install -o root -g root -m 755
+# testing AMD64 for xop instructions
+XOP := $(shell grep -c '^flags.* xop' /proc/cpuinfo)
+
+%:
+	dh $@ 
+
+override_dh_auto_build:
+ifeq ($(CPUBITS),64)
+ifeq ($(XOP),0)
+	dh_auto_build -- posix64
+else
+	dh_auto_build -- posix64 posixXOP
+endif
+else 
+	dh_auto_build -- posix32
+endif
+
+override_dh_install:
+ifeq ($(CPUBITS),64)
+ifeq ($(XOP),0)
+	dh_install
+else
+	$(INSTALL) $(CURDIR)/hashcat-xop $(CURDIR)/debian/hashcat/usr/bin
+	dh_install
+endif
+else
+	dh_install
+endif
+
+override_dh_installman:
+ifeq ($(CPUBITS),64)
+ifeq ($(XOP),0)
+	dh_installman 
+else
+	dh_installman debian/hashcat-xop.1
+endif
+else
+	dh_installman
+endif
+
+override_dh_installexamples:
+	dh_installexamples -XA0.M1600.word -XA0.M1700.word
+
+override_dh_installchangelogs:
+	dh_installchangelogs docs/changes.txt

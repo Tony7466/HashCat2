@@ -1,0 +1,5 @@
+hashcat (2.00-1) unstable; urgency=medium
+
+  * Initial release (Closes: #819459)
+
+ -- Daniel Echeverry <epsilon77@gmail.com>  Tue, 19 Apr 2016 23:08:10 -0500

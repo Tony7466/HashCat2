@@ -1,0 +1,4 @@
+charsets usr/share/hashcat/
+rules usr/share/hashcat/
+salts usr/share/hashcat/
+tables usr/share/hashcat/

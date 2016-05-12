@@ -7,7 +7,7 @@ Standards-Version: 3.9.8
 Homepage: http://hashcat.net/hashcat/
 
 Package: hashcat
-Architecture: linux-any
+Architecture: i386 amd64
 Depends: hashcat-data (>= ${source:Version}), ${shlibs:Depends}, ${misc:Depends}
 Description: Advanced CPU-based password recovery utility
  Hashcat is the self-proclaimed world’s fastest CPU-based password

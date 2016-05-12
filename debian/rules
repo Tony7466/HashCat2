@@ -26,6 +26,7 @@ ifeq ($(CPUBITS),64)
 ifeq ($(XOP),0)
 	dh_install
 else
+	mkdir -p $(CURDIR)/debian/hashcat/usr/bin
 	$(INSTALL) $(CURDIR)/hashcat-xop $(CURDIR)/debian/hashcat/usr/bin
 	dh_install
 endif

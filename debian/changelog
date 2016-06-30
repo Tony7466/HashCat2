@@ -1,3 +1,30 @@
+hashcat (3.00-1) unstable; urgency=medium
+
+  * New upstream release.
+  * debian/control
+    + Add Debian Security Tools Packaging Team as maintainer.
+    + Add Vcs-* Field.
+    + Add opencl-headers in B-D.
+    + Add mesa-opencl-icd | opencl-icd in Depends.
+  * Remove hashcat-xop.1 file.
+    + Because this version doesn't have hashcat-xop binary.
+  * Add new extra documentation.
+  * Update hashcat-data.examples to install new examples.
+  * Update hashcat-data.install to install new files.
+  * debian/patches
+    + Update fix_makefile.patch.
+  * debian/copyright
+    + Add copyright holders.
+    + Use License-Grant field.
+  * debian/rules
+    + Now hashcat doesn't have hashcat-xop feature
+    + Remove override_dh_install because isn't necessary
+    + Remove override_dh_installman because isn't necessary
+    + Add override_dh_fixperms to fix some lintian warning
+  * Add README.Debian File
+    
+ -- Daniel Echeverry <epsilon77@gmail.com>  Thu, 30 Jun 2016 11:07:00 -0500
+
 hashcat (2.00-2) unstable; urgency=medium
 
   * debian/control

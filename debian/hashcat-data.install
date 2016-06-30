@@ -1,4 +1,6 @@
 charsets usr/share/hashcat/
 rules usr/share/hashcat/
-salts usr/share/hashcat/
-tables usr/share/hashcat/
+masks  /usr/share/hashcat
+OpenCL /usr/share/hashcat/
+hashcat.hcstat /usr/share/hashcat
+hashcat.hctune /usr/share/hashcat

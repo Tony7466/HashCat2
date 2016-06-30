@@ -1,1 +1,7 @@
-examples/*
+example0.sh
+example400.sh
+example500.sh
+example.dict
+example0.hash
+example400.hash
+example500.hash

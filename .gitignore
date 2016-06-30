@@ -1,0 +1,14 @@
+*.exe
+*.bin
+*.app
+hashcat
+*.restore
+*.dictstat
+*.pot
+*.log
+*.dSYM
+deps/**
+kernels/**
+lib/*.a
+obj/*.o
+include/CL

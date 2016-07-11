@@ -1,526 +1,277 @@
 ##
-## Author......: Jens Steube <jens.steube@gmail.com>
+## Authors.....: Jens Steube <jens.steube@gmail.com>
+##               Gabriele Gristina <matrix@hashcat.net>
+##               magnum <john.magnum@hushmail.com>
+##
 ## License.....: MIT
 ##
 
-##
-##  Makefile for hashcat
-##
+PROG_NAME                := hashcat
 
 ##
-## Detect number of processors
+## Detect Operating System
 ##
 
-NPROCS   := 1
-OS       := $(shell uname)
+UNAME                    := $(shell uname -s)
 
-ifeq ($(OS),Linux)
-  NPROCS := $(shell grep -c ^processor /proc/cpuinfo)
-else ifeq ($(OS),Darwin)
-  NPROCS := $(shell system_profiler | awk '/Number of CPUs/ {print $$4}{next;}')
+# we need to strip the windows version number to be able to build hashcat on cygwin hosts
+UNAME                    := $(patsubst CYGWIN_NT-%,CYGWIN_NT-,$(UNAME))
+
+ifeq (,$(filter $(UNAME),Linux Darwin CYGWIN_NT-))
+$(error "! Your Operating System ($(UNAME)) is not supported by $(PROG_NAME) Makefile")
+endif
+
+ifeq ($(DEBUG),1)
+$(warning "## Detected Operating System : $(UNAME)")
 endif
 
 ##
 ## Makefile flags
 ##
 
-MAKEFLAGS += -l -j $(NPROCS) -rR --no-print-directory
+MAKEFLAGS                += -l -j -rR --no-print-directory
 
 ifneq ($(findstring clean,$(MAKECMDGOALS)),)
-MAKEFLAGS += -j 1
+MAKEFLAGS                += -j 1
 endif
 
-# -mstackrealign is required otherwise crashes on windows xp, see hashcat v0.41 and v0.42
+##
+## Installation paths (Linux only)
+##
 
-CFLAGS  := -W -Wall -pipe -I include/ -O2 -s -fomit-frame-pointer -funroll-loops
-#CFLAGS  := -W -Wall -pipe -I include/ -g
-LDFLAGS :=
+DESTDIR                  ?=
+PREFIX                   ?= /usr/local
 
-all: binaries
+INSTALL_FOLDER           ?= $(PREFIX)/bin
+SHARED_FOLDER            ?= $(PREFIX)/share/$(PROG_NAME)
+DOCUMENT_FOLDER          ?= $(PREFIX)/share/doc/$(PROG_NAME)
+
+##
+## Dependencies
+## You may ignore them if you're compiling only a native binary and
+## You have your own headers somewhere, for example: apt-get install opencl-headers
+##
+
+OPENCL_HEADERS_KHRONOS   := deps/OpenCL-Headers
+
+##
+## Native compiler paths
+##
+
+CC                       := gcc
+FIND                     := find
+INSTALL                  := install
+RM                       := rm
+SED                      := sed
+
+##
+## Cross compiler paths
+##
+
+CC_LINUX_32              := gcc
+CC_LINUX_64              := gcc
+
+CC_WIN_32                := i686-w64-mingw32-gcc
+CC_WIN_64                := x86_64-w64-mingw32-gcc
+
+##
+## Misc stuff
+##
+
+COMPTIME                 := $(shell date +%s)
+
+VERSION_EXPORT           := tag: v3.00
+VERSION_TAG              := $(shell test -d .git && git describe --tags --dirty=+ || echo "$(VERSION_EXPORT)"|cut -d, -f2|sed -r 's|.* (\w+/)?([^ ]+)|\2|')
+
+##
+## Compiler flags
+##
+
+CFLAGS                   := -pipe -W -Wall -std=c99 -Iinclude/ -IOpenCL/ -I$(OPENCL_HEADERS_KHRONOS)/
+
+ifndef DEBUG
+CFLAGS                   += -O2
+else
+CFLAGS                   += -DDEBUG -g -ggdb
+ifeq ($(DEBUG),2)
+CFLAGS                   += -fsanitize=address -fno-omit-frame-pointer
+endif
+endif
+
+##
+## Native compilation target
+##
+
+BINARY_NATIVE            := $(PROG_NAME)
+
+ifeq ($(UNAME),Darwin)
+export MACOSX_DEPLOYMENT_TARGET=10.9
+BINARY_NATIVE            := $(BINARY_NATIVE).app
+CFLAGS_NATIVE            := -D_POSIX -DDARWIN
+CFLAGS_NATIVE            += $(CFLAGS)
+LFLAGS_NATIVE            := -lpthread
+endif # darwin
+
+ifeq ($(UNAME),Linux)
+CFLAGS_NATIVE            := -D_POSIX -DLINUX
+ifndef DEBUG
+CFLAGS_NATIVE            += -s
+endif
+CFLAGS_NATIVE            += $(CFLAGS)
+LFLAGS_NATIVE            := -lpthread -ldl
+CFLAGS_NATIVE            += -DHAVE_HWMON
+endif # linux
+
+##
+## Cross compilation target
+##
+
+CFLAGS_CROSS_LINUX       := -D_POSIX -DLINUX
+ifndef DEBUG
+CFLAGS_CROSS_LINUX       += -s
+endif
+CFLAGS_CROSS_LINUX       += $(CFLAGS)
+CFLAGS_CROSS_LINUX       += -DHAVE_HWMON
+
+CFLAGS_CROSS_WIN         := -D_WIN -DWIN -D__MSVCRT__ -D__USE_MINGW_ANSI_STDIO=1
+ifndef DEBUG
+CFLAGS_CROSS_WIN         += -s
+endif
+CFLAGS_CROSS_WIN         += $(filter-out -fsanitize=address,$(CFLAGS))
+CFLAGS_CROSS_WIN         += -DHAVE_HWMON
+
+CFLAGS_CROSS_32          := -m32
+CFLAGS_CROSS_64          := -m64
+
+LFLAGS_CROSS_LINUX       := -lpthread -ldl
+LFLAGS_CROSS_WIN         := -lpsapi
+
+##
+## Objects
+##
+
+NATIVE_OBJS              := obj/ext_OpenCL.NATIVE.o obj/shared.NATIVE.o obj/rp_kernel_on_cpu.NATIVE.o
+
+ifeq ($(UNAME),Linux)
+NATIVE_OBJS              += obj/ext_ADL.NATIVE.o
+NATIVE_OBJS              += obj/ext_nvapi.NATIVE.o
+NATIVE_OBJS              += obj/ext_nvml.NATIVE.o
+NATIVE_OBJS              += obj/ext_xnvctrl.NATIVE.o
+endif
+
+LINUX_32_OBJS            := obj/ext_OpenCL.LINUX.32.o obj/shared.LINUX.32.o obj/rp_kernel_on_cpu.LINUX.32.o obj/ext_ADL.LINUX.32.o obj/ext_nvml.LINUX.32.o obj/ext_nvapi.LINUX.32.o obj/ext_xnvctrl.LINUX.32.o
+LINUX_64_OBJS            := obj/ext_OpenCL.LINUX.64.o obj/shared.LINUX.64.o obj/rp_kernel_on_cpu.LINUX.64.o obj/ext_ADL.LINUX.64.o obj/ext_nvml.LINUX.64.o obj/ext_nvapi.LINUX.64.o obj/ext_xnvctrl.LINUX.64.o
+
+## may need to adjust according to your mingw distribution
+CRT_GLOB_32              := /usr/i686-w64-mingw32/lib/CRT_glob.o
+CRT_GLOB_64              := /usr/x86_64-w64-mingw32/lib/CRT_glob.o
+
+WIN_32_OBJS              := obj/ext_OpenCL.WIN.32.o   obj/shared.WIN.32.o   obj/rp_kernel_on_cpu.WIN.32.o   obj/ext_ADL.WIN.32.o   obj/ext_nvml.WIN.32.o   obj/ext_nvapi.WIN.32.o   obj/ext_xnvctrl.WIN.32.o   $(CRT_GLOB_32)
+WIN_64_OBJS              := obj/ext_OpenCL.WIN.64.o   obj/shared.WIN.64.o   obj/rp_kernel_on_cpu.WIN.64.o   obj/ext_ADL.WIN.64.o   obj/ext_nvml.WIN.64.o   obj/ext_nvapi.WIN.64.o   obj/ext_xnvctrl.WIN.64.o   $(CRT_GLOB_64)
+
+##
+## Targets: Global
+##
+
+native: hashcat
+
+binaries: linux32 linux64 win32 win64
 
 clean:
-	rm -rf core out word hash release obj/* hashcat.pot hashcat-cli*
+	$(RM) -f obj/*.o *.bin *.exe *.app *.restore *.out *.pot *.dictstat *.log hashcat core
+	$(RM) -rf *.induct
+	$(RM) -rf *.outfiles
+	$(RM) -rf *.dSYM
+	$(RM) -rf kernels
 
-binaries: linux windows osx
+linux32: hashcat32.bin
+linux64: hashcat64.bin
 
-osx: osx64
-#linux: posix32 posix64 posixAVX posixAVX2 posixXOP
-#windows: windows32 windows64 windowsAVX windowsAVX2 windowsXOP
-linux: posix32 posix64 posixXOP
-windows: windows32 windows64 windowsXOP
-
-release:
-	rm -rf release
-	mkdir release
-	cp -a charsets docs rules tables salts examples hashcat-cli*.bin hashcat-cli*.exe hashcat-cli64.app release/
-	find release -type f -exec chmod 600 {} \;
-	find release -type d -exec chmod 700 {} \;
-	chmod 700 release/*.bin
-	chmod 700 release/*.app
-	unix2dos release/salts/*
-	unix2dos release/rules/*
-	unix2dos release/tables/*
-	unix2dos release/docs/*
-	unix2dos release/examples/*
+win32: hashcat32.exe
+win64: hashcat64.exe
 
 ##
-## OSX64
+## Targets: Linux install
+## How to make /usr/bin/install doing recursive??
 ##
 
-DIR_OSX64      = obj
-CC_OSX64       = i686-apple-darwin10-gcc
-LIBGMP_OSX64   = /opt/hashcat-deps/gmp/osx64
-CFLAGS_OSX64   = $(CFLAGS) -I$(LIBGMP_OSX64)/include -D__HC_x86_64__ -DPOSIX -DOSX -m64 -msse2 -fnested-functions -arch x86_64 -mmacosx-version-min=10.5
-LDFLAGS_OSX64  = $(LDFLAGS) -L$(LIBGMP_OSX64)/lib -lm -lpthread  -mmacosx-version-min=10.5 -lgmp
+install: native
+	$(INSTALL) -m 755 -d                                    $(DESTDIR)$(DOCUMENT_FOLDER)
+	$(INSTALL) -m 755 -d                                    $(DESTDIR)$(SHARED_FOLDER)
+	$(INSTALL) -m 755 -d                                    $(DESTDIR)$(INSTALL_FOLDER)
+	$(INSTALL) -m 755 -d                                    $(DESTDIR)$(DOCUMENT_FOLDER)/docs
+	$(INSTALL) -m 755 -d                                    $(DESTDIR)$(DOCUMENT_FOLDER)/extra
+	$(INSTALL) -m 755 -d                                    $(DESTDIR)$(DOCUMENT_FOLDER)/extra/tab_completion
+	$(INSTALL) -m 755 -d                                    $(DESTDIR)$(SHARED_FOLDER)/charsets
+	$(INSTALL) -m 755 -d                                    $(DESTDIR)$(SHARED_FOLDER)/masks
+	$(INSTALL) -m 755 -d                                    $(DESTDIR)$(SHARED_FOLDER)/OpenCL
+	$(INSTALL) -m 755 -d                                    $(DESTDIR)$(SHARED_FOLDER)/rules
+	$(INSTALL) -m 644 example.dict                          $(DESTDIR)$(DOCUMENT_FOLDER)/
+	$(INSTALL) -m 644 example0.hash                         $(DESTDIR)$(DOCUMENT_FOLDER)/
+	$(INSTALL) -m 644 example400.hash                       $(DESTDIR)$(DOCUMENT_FOLDER)/
+	$(INSTALL) -m 644 example500.hash                       $(DESTDIR)$(DOCUMENT_FOLDER)/
+	$(INSTALL) -m 755 example0.sh                           $(DESTDIR)$(DOCUMENT_FOLDER)/
+	$(INSTALL) -m 755 example400.sh                         $(DESTDIR)$(DOCUMENT_FOLDER)/
+	$(INSTALL) -m 755 example500.sh                         $(DESTDIR)$(DOCUMENT_FOLDER)/
+	$(INSTALL) -m 644 extra/tab_completion/hashcat.sh       $(DESTDIR)$(DOCUMENT_FOLDER)/extra/tab_completion/
+	$(INSTALL) -m 644 extra/tab_completion/howto.txt        $(DESTDIR)$(DOCUMENT_FOLDER)/extra/tab_completion/
+	$(INSTALL) -m 755 extra/tab_completion/install          $(DESTDIR)$(DOCUMENT_FOLDER)/extra/tab_completion/
+	$(INSTALL) -m 644 hashcat.hcstat                        $(DESTDIR)$(SHARED_FOLDER)/
+	$(INSTALL) -m 644 hashcat.hctune                        $(DESTDIR)$(SHARED_FOLDER)/
+	$(INSTALL) -m 755 $(BINARY_NATIVE)                      $(DESTDIR)$(INSTALL_FOLDER)/
+	$(FIND) docs/     -type d -exec $(INSTALL) -m 755 -d    $(DESTDIR)$(DOCUMENT_FOLDER)/{} \;
+	$(FIND) charsets/ -type d -exec $(INSTALL) -m 755 -d    $(DESTDIR)$(SHARED_FOLDER)/{}   \;
+	$(FIND) masks/    -type d -exec $(INSTALL) -m 755 -d    $(DESTDIR)$(SHARED_FOLDER)/{}   \;
+	$(FIND) OpenCL/   -type d -exec $(INSTALL) -m 755 -d    $(DESTDIR)$(SHARED_FOLDER)/{}   \;
+	$(FIND) rules/    -type d -exec $(INSTALL) -m 755 -d    $(DESTDIR)$(SHARED_FOLDER)/{}   \;
+	$(FIND) docs/     -type f -exec $(INSTALL) -m 644 {}    $(DESTDIR)$(DOCUMENT_FOLDER)/{} \;
+	$(FIND) charsets/ -type f -exec $(INSTALL) -m 644 {}    $(DESTDIR)$(SHARED_FOLDER)/{}   \;
+	$(FIND) masks/    -type f -exec $(INSTALL) -m 644 {}    $(DESTDIR)$(SHARED_FOLDER)/{}   \;
+	$(FIND) OpenCL/   -type f -exec $(INSTALL) -m 644 {}    $(DESTDIR)$(SHARED_FOLDER)/{}   \;
+	$(FIND) rules/    -type f -exec $(INSTALL) -m 644 {}    $(DESTDIR)$(SHARED_FOLDER)/{}   \;
+	$(SED) -i 's/\.\/hashcat/hashcat/'                      $(DESTDIR)$(DOCUMENT_FOLDER)/example0.sh
+	$(SED) -i 's/\.\/hashcat/hashcat/'                      $(DESTDIR)$(DOCUMENT_FOLDER)/example400.sh
+	$(SED) -i 's/\.\/hashcat/hashcat/'                      $(DESTDIR)$(DOCUMENT_FOLDER)/example500.sh
 
-osx64: hashcat-cli64.app
-
-rules-osx64: rules-debug64.app
-
-rules-debug64.app: $(DIR_OSX64)/rp.OSX.64.o src/rules-debug.c
-	$(CC_OSX64) $(filter-out -s,$(CFLAGS_OSX64)) $(DIR_OSX64)/*.OSX.64.o src/rules-debug.c -o rules-debug64.app $(LDFLAGS_OSX64)
-
-hashcat-osx64: hashcat-cli64.app
-
-hashcat-cli64.app: $(DIR_OSX64)/tsearch.OSX.64.o $(DIR_OSX64)/rp.OSX.64.o $(DIR_OSX64)/engine.OSX.64.o src/hashcat-cli.c
-	$(CC_OSX64) $(filter-out -s,$(CFLAGS_OSX64)) $(DIR_OSX64)/*.OSX.64.o src/hashcat-cli.c -o hashcat-cli64.app $(LDFLAGS_OSX64)
-
-engine-osx64: $(DIR_OSX64)/engine.OSX.64.o
-
-$(DIR_OSX64)/engine.OSX.64.o: $(DIR_OSX64)/common.OSX.64.o src/engine.c
-	$(CC_OSX64) $(CFLAGS_OSX64) -c src/engine.c -o $(DIR_OSX64)/engine.OSX.64.o
-
-rp-osx64: $(DIR_OSX64)/rp.OSX.64.o
-
-$(DIR_OSX64)/rp.OSX.64.o: $(DIR_OSX64)/common.OSX.64.o src/rp.c
-	$(CC_OSX64) $(CFLAGS_OSX64) -c src/rp.c -o $(DIR_OSX64)/rp.OSX.64.o
-
-tsearch-osx64: $(DIR_OSX64)/tsearch.OSX.64.o
-
-$(DIR_OSX64)/tsearch.OSX.64.o: $(DIR_OSX64)/common.OSX.64.o src/tsearch.c
-	$(CC_OSX64) $(CFLAGS_OSX64) -c src/tsearch.c -o $(DIR_OSX64)/tsearch.OSX.64.o
-
-common-osx64: $(DIR_OSX64)/common.OSX.64.o
-
-$(DIR_OSX64)/common.OSX.64.o: src/common.c
-	$(CC_OSX64) $(CFLAGS_OSX64) -c src/common.c -o $(DIR_OSX64)/common.OSX.64.o
-
-##
-## POSIX32
-##
-
-DIR_POSIX32      = obj
-LIBGMP_POSIX32   = /opt/hashcat-deps/gmp/linux32
-CC_POSIX32       = gcc
-CFLAGS_POSIX32   = $(CFLAGS) -I$(LIBGMP_POSIX32)/include -D__HC_x86_32__ -DPOSIX -m32 -msse2
-LDFLAGS_POSIX32  = $(LDFLAGS) -L$(LIBGMP_POSIX32)/lib -lm -lpthread -lgmp
-
-posix32: hashcat-cli32.bin
-
-rules-posix32: rules-debug32.bin
-
-rules-debug32.bin: $(DIR_POSIX32)/rp.LINUX.32.o src/rules-debug.c
-	$(CC_POSIX32) $(CFLAGS_POSIX32) $(DIR_POSIX32)/*.LINUX.32.o src/rules-debug.c -o rules-debug32.bin $(LDFLAGS_POSIX32)
-
-hashcat-posix32: hashcat-cli32.bin
-
-hashcat-cli32.bin: $(DIR_POSIX32)/tsearch.LINUX.32.o $(DIR_POSIX32)/rp.LINUX.32.o  $(DIR_POSIX32)/engine.LINUX.32.o src/hashcat-cli.c
-	$(CC_POSIX32) $(CFLAGS_POSIX32) $(DIR_POSIX32)/*.LINUX.32.o src/hashcat-cli.c -o hashcat-cli32.bin $(LDFLAGS_POSIX32)
-
-engine-posix32: $(DIR_POSIX32)/engine.LINUX.32.o
-
-$(DIR_POSIX32)/engine.LINUX.32.o: $(DIR_POSIX32)/common.LINUX.32.o src/engine.c
-	$(CC_POSIX32) $(CFLAGS_POSIX32) -c src/engine.c -o $(DIR_POSIX32)/engine.LINUX.32.o
-
-rp-posix32: $(DIR_POSIX32)/rp.LINUX.32.o
-
-$(DIR_POSIX32)/rp.LINUX.32.o: $(DIR_POSIX32)/common.LINUX.32.o src/rp.c
-	$(CC_POSIX32) $(CFLAGS_POSIX32) -c src/rp.c -o $(DIR_POSIX32)/rp.LINUX.32.o
-
-tsearch-posix32: $(DIR_POSIX32)/tsearch.LINUX.32.o
-
-$(DIR_POSIX32)/tsearch.LINUX.32.o: $(DIR_POSIX32)/common.LINUX.32.o src/tsearch.c
-	$(CC_POSIX32) $(CFLAGS_POSIX32) -c src/tsearch.c -o $(DIR_POSIX32)/tsearch.LINUX.32.o
-
-common-posix32: $(DIR_POSIX32)/common.LINUX.32.o
-
-$(DIR_POSIX32)/common.LINUX.32.o: src/common.c
-	$(CC_POSIX32) $(CFLAGS_POSIX32) -c src/common.c -o $(DIR_POSIX32)/common.LINUX.32.o
+uninstall:
+	$(RM) -f  $(DESTDIR)$(INSTALL_FOLDER)/$(BINARY_NATIVE)
+	$(RM) -rf $(DESTDIR)$(SHARED_FOLDER)
+	$(RM) -rf $(DESTDIR)$(DOCUMENT_FOLDER)
 
 ##
-## POSIX64
+## native compiled hashcat
 ##
 
-DIR_POSIX64      = obj
-LIBGMP_POSIX64   = /opt/hashcat-deps/gmp/linux64
-CC_POSIX64       = gcc
-CFLAGS_POSIX64   = $(CFLAGS) -I$(LIBGMP_POSIX64)/include -D__HC_x86_64__ -DPOSIX -m64 -msse2
-LDFLAGS_POSIX64  = $(LDFLAGS) -L$(LIBGMP_POSIX64)/lib -lm -lpthread -lgmp
+obj/%.NATIVE.o:   src/%.c
+	$(CC) $(CFLAGS_NATIVE) -c -o $@ $<
 
-posix64: hashcat-cli64.bin
-
-rules-posix64: $(DIR_POSIX64)/rp.LINUX.64.o
-
-rules-debug64.bin: $(DIR_POSIX64)/rp.LINUX.64.o src/rules-debug.c
-	$(CC_POSIX64) $(CFLAGS_POSIX64) $(DIR_POSIX64)/*.LINUX.64.o src/rules-debug.c -o rules-debug64.bin $(LDFLAGS_POSIX64)
-
-hashcat-posix64: hashcat-cli64.bin
-
-hashcat-cli64.bin: $(DIR_POSIX64)/tsearch.LINUX.64.o $(DIR_POSIX64)/rp.LINUX.64.o $(DIR_POSIX64)/engine.LINUX.64.o src/hashcat-cli.c
-	$(CC_POSIX64) $(CFLAGS_POSIX64) $(DIR_POSIX64)/*.LINUX.64.o src/hashcat-cli.c -o hashcat-cli64.bin $(LDFLAGS_POSIX64)
-
-engine-posix64: $(DIR_POSIX64)/engine.LINUX.64.o
-
-$(DIR_POSIX64)/engine.LINUX.64.o: $(DIR_POSIX64)/common.LINUX.64.o src/engine.c
-	$(CC_POSIX64) $(CFLAGS_POSIX64) -c src/engine.c -o $(DIR_POSIX64)/engine.LINUX.64.o
-
-rp-posix64: $(DIR_POSIX64)/rp.LINUX.64.o
-
-$(DIR_POSIX64)/rp.LINUX.64.o: $(DIR_POSIX64)/common.LINUX.64.o src/rp.c
-	$(CC_POSIX64) $(CFLAGS_POSIX64) -c src/rp.c -o $(DIR_POSIX64)/rp.LINUX.64.o
-
-tsearch-posix64: $(DIR_POSIX64)/tsearch.LINUX.64.o
-
-$(DIR_POSIX64)/tsearch.LINUX.64.o: $(DIR_POSIX64)/common.LINUX.64.o src/tsearch.c
-	$(CC_POSIX64) $(CFLAGS_POSIX64) -c src/tsearch.c -o $(DIR_POSIX64)/tsearch.LINUX.64.o
-
-common-posix64: $(DIR_POSIX64)/common.LINUX.64.o
-
-$(DIR_POSIX64)/common.LINUX.64.o: src/common.c
-	$(CC_POSIX64) $(CFLAGS_POSIX64) -c src/common.c -o $(DIR_POSIX64)/common.LINUX.64.o
+hashcat:       src/hashcat.c $(NATIVE_OBJS)
+	$(CC) $(CFLAGS_NATIVE)    -o $(BINARY_NATIVE) $^ $(LFLAGS_NATIVE) -DCOMPTIME=$(COMPTIME) -DVERSION_TAG=\"$(VERSION_TAG)\" -DINSTALL_FOLDER=\"$(INSTALL_FOLDER)\" -DSHARED_FOLDER=\"$(SHARED_FOLDER)\" -DDOCUMENT_FOLDER=\"$(DOCUMENT_FOLDER)\"
 
 ##
-## POSIXAVX
+## cross compiled hashcat for binary release version
 ##
 
-DIR_POSIXAVX      = obj
-LIBGMP_POSIXAVX   = /opt/hashcat-deps/gmp/linux64
-CC_POSIXAVX       = gcc
-CFLAGS_POSIXAVX   = $(CFLAGS) -I$(LIBGMP_POSIXAVX)/include -D__HC_AVX__ -DPOSIX -m64 -mavx
-LDFLAGS_POSIXAVX  = $(LDFLAGS) -L$(LIBGMP_POSIXAVX)/lib -lm -lpthread -lgmp
+obj/%.LINUX.32.o: src/%.c
+	$(CC_LINUX_32) -D_LINUX32 $(CFLAGS_CROSS_LINUX) $(CFLAGS_CROSS_32) -c -o $@ $<
 
-posixAVX: hashcat-cliAVX.bin
+obj/%.LINUX.64.o: src/%.c
+	$(CC_LINUX_64) -D_LINUX64 $(CFLAGS_CROSS_LINUX) $(CFLAGS_CROSS_64) -c -o $@ $<
 
-rules-posixAVX: rules-debugAVX.bin
+obj/%.WIN.32.o:   src/%.c
+	$(CC_WIN_32)   -D_WIN32   $(CFLAGS_CROSS_WIN)   $(CFLAGS_CROSS_32) -c -o $@ $<
 
-rules-debugAVX.bin: $(DIR_POSIXAVX)/rp.LINUX.AVX.o src/rules-debug.c
-	$(CC_POSIXAVX) $(CFLAGS_POSIXAVX) $(DIR_POSIXAVX)/*.LINUX.AVX.o src/rules-debug.c -o rules-debugAVX.bin $(LDFLAGS_POSIXAVX)
+obj/%.WIN.64.o:   src/%.c
+	$(CC_WIN_64)   -D_WIN64   $(CFLAGS_CROSS_WIN)   $(CFLAGS_CROSS_64) -c -o $@ $<
 
-hashcat-posixAVX: hashcat-cliAVX.bin
+hashcat32.bin: src/hashcat.c $(LINUX_32_OBJS)
+	$(CC_LINUX_32) -D_LINUX32 $(CFLAGS_CROSS_LINUX) $(CFLAGS_CROSS_32)    -o $@ $^ $(LFLAGS_CROSS_LINUX) -DCOMPTIME=$(COMPTIME) -DVERSION_TAG=\"$(VERSION_TAG)\" -DINSTALL_FOLDER=\"$(INSTALL_FOLDER)\" -DSHARED_FOLDER=\"$(SHARED_FOLDER)\" -DDOCUMENT_FOLDER=\"$(DOCUMENT_FOLDER)\"
 
-hashcat-cliAVX.bin: $(DIR_POSIXAVX)/tsearch.LINUX.AVX.o $(DIR_POSIXAVX)/rp.LINUX.AVX.o $(DIR_POSIXAVX)/engine.LINUX.AVX.o src/hashcat-cli.c
-	$(CC_POSIXAVX) $(CFLAGS_POSIXAVX) $(DIR_POSIXAVX)/*.LINUX.AVX.o src/hashcat-cli.c -o hashcat-cliAVX.bin $(LDFLAGS_POSIXAVX)
+hashcat64.bin: src/hashcat.c $(LINUX_64_OBJS)
+	$(CC_LINUX_64) -D_LINUX64 $(CFLAGS_CROSS_LINUX) $(CFLAGS_CROSS_64)    -o $@ $^ $(LFLAGS_CROSS_LINUX) -DCOMPTIME=$(COMPTIME) -DVERSION_TAG=\"$(VERSION_TAG)\" -DINSTALL_FOLDER=\"$(INSTALL_FOLDER)\" -DSHARED_FOLDER=\"$(SHARED_FOLDER)\" -DDOCUMENT_FOLDER=\"$(DOCUMENT_FOLDER)\"
 
-engine-posixAVX: $(DIR_POSIXAVX)/engine.LINUX.AVX.o
+hashcat32.exe: src/hashcat.c $(WIN_32_OBJS)
+	$(CC_WIN_32)   -D_WIN32   $(CFLAGS_CROSS_WIN)   $(CFLAGS_CROSS_32)    -o $@ $^ $(LFLAGS_CROSS_WIN)   -DCOMPTIME=$(COMPTIME) -DVERSION_TAG=\"$(VERSION_TAG)\" -static-libgcc
 
-$(DIR_POSIXAVX)/engine.LINUX.AVX.o: $(DIR_POSIXAVX)/common.LINUX.AVX.o src/engine.c
-	$(CC_POSIXAVX) $(CFLAGS_POSIXAVX) -c src/engine.c -o $(DIR_POSIXAVX)/engine.LINUX.AVX.o
-
-rp-posixAVX: $(DIR_POSIXAVX)/rp.LINUX.AVX.o
-
-$(DIR_POSIXAVX)/rp.LINUX.AVX.o: $(DIR_POSIXAVX)/common.LINUX.AVX.o src/rp.c
-	$(CC_POSIXAVX) $(CFLAGS_POSIXAVX) -c src/rp.c -o $(DIR_POSIXAVX)/rp.LINUX.AVX.o
-
-tsearch-posixAVX: $(DIR_POSIXAVX)/tsearch.LINUX.AVX.o
-
-$(DIR_POSIXAVX)/tsearch.LINUX.AVX.o: $(DIR_POSIXAVX)/common.LINUX.AVX.o src/tsearch.c
-	$(CC_POSIXAVX) $(CFLAGS_POSIXAVX) -c src/tsearch.c -o $(DIR_POSIXAVX)/tsearch.LINUX.AVX.o
-
-common-posixAVX: $(DIR_POSIXAVX)/common.LINUX.AVX.o
-
-$(DIR_POSIXAVX)/common.LINUX.AVX.o: src/common.c
-	$(CC_POSIXAVX) $(CFLAGS_POSIXAVX) -c src/common.c -o $(DIR_POSIXAVX)/common.LINUX.AVX.o
-
-##
-## POSIXAVX2
-##
-
-DIR_POSIXAVX2     = obj
-LIBGMP_POSIXAVX2  = /opt/hashcat-deps/gmp/linux64
-CC_POSIXAVX2      = gcc
-CFLAGS_POSIXAVX2  = $(CFLAGS) -I$(LIBGMP_POSIXAVX2)/include -D__HC_AVX2__ -DPOSIX -m64 -mavx2
-LDFLAGS_POSIXAVX2 = $(LDFLAGS) -L$(LIBGMP_POSIXAVX2)/lib -lm -lpthread -lgmp
-
-posixAVX2: hashcat-cliAVX2.bin
-
-rules-posixAVX2: rules-debugAVX2.bin
-
-rules-debugAVX2.bin: $(DIR_POSIXAVX2)/rp.LINUX.AVX2.o src/rules-debug.c
-	$(CC_POSIXAVX2) $(CFLAGS_POSIXAVX2) $(DIR_POSIXAVX2)/*.LINUX.AVX2.o src/rules-debug.c -o rules-debugAVX2.bin $(LDFLAGS_POSIXAVX2)
-
-hashcat-posixAVX2: hashcat-cliAVX2.bin
-
-hashcat-cliAVX2.bin: $(DIR_POSIXAVX2)/tsearch.LINUX.AVX2.o $(DIR_POSIXAVX2)/rp.LINUX.AVX2.o $(DIR_POSIXAVX2)/engine.LINUX.AVX2.o src/hashcat-cli.c
-	$(CC_POSIXAVX2) $(CFLAGS_POSIXAVX2) $(DIR_POSIXAVX2)/*.LINUX.AVX2.o src/hashcat-cli.c -o hashcat-cliAVX2.bin $(LDFLAGS_POSIXAVX2)
-
-engine-posixAVX2: $(DIR_POSIXAVX2)/engine.LINUX.AVX2.o
-
-$(DIR_POSIXAVX2)/engine.LINUX.AVX2.o: $(DIR_POSIXAVX2)/common.LINUX.AVX2.o src/engine.c
-	$(CC_POSIXAVX2) $(CFLAGS_POSIXAVX2) -c src/engine.c -o $(DIR_POSIXAVX2)/engine.LINUX.AVX2.o
-
-rp-posixAVX2: $(DIR_POSIXAVX2)/rp.LINUX.AVX2.o
-
-$(DIR_POSIXAVX2)/rp.LINUX.AVX2.o: $(DIR_POSIXAVX2)/common.LINUX.AVX2.o src/rp.c
-	$(CC_POSIXAVX2) $(CFLAGS_POSIXAVX2) -c src/rp.c -o $(DIR_POSIXAVX2)/rp.LINUX.AVX2.o
-
-tsearch-posixAVX2: $(DIR_POSIXAVX2)/tsearch.LINUX.AVX2.o
-
-$(DIR_POSIXAVX2)/tsearch.LINUX.AVX2.o: $(DIR_POSIXAVX2)/common.LINUX.AVX2.o src/tsearch.c
-	$(CC_POSIXAVX2) $(CFLAGS_POSIXAVX2) -c src/tsearch.c -o $(DIR_POSIXAVX2)/tsearch.LINUX.AVX2.o
-
-common-posixAVX2: $(DIR_POSIXAVX2)/common.LINUX.AVX2.o
-
-$(DIR_POSIXAVX2)/common.LINUX.AVX2.o: src/common.c
-	$(CC_POSIXAVX2) $(CFLAGS_POSIXAVX2) -c src/common.c -o $(DIR_POSIXAVX2)/common.LINUX.AVX2.o
-
-##
-## POSIXXOP
-##
-
-DIR_POSIXXOP      = obj
-LIBGMP_POSIXXOP   = /opt/hashcat-deps/gmp/linux64
-CC_POSIXXOP       = gcc
-CFLAGS_POSIXXOP   = $(CFLAGS) -I$(LIBGMP_POSIXXOP)/include -D__HC_XOP__ -DPOSIX -m64 -mxop
-LDFLAGS_POSIXXOP  = $(LDFLAGS) -L$(LIBGMP_POSIXXOP)/lib -lm -lpthread -lgmp
-
-posixXOP: hashcat-cliXOP.bin
-
-rules-posixXOP: rules-debugXOP.bin
-
-rules-debugXOP.bin: $(DIR_POSIXXOP)/rp.LINUX.XOP.o src/rules-debug.c
-	$(CC_POSIXXOP) $(CFLAGS_POSIXXOP) $(DIR_POSIXXOP)/*.LINUX.XOP.o src/rules-debug.c -o rules-debugXOP.bin $(LDFLAGS_POSIXXOP)
-
-hashcat-posixXOP: hashcat-cliXOP.bin
-
-hashcat-cliXOP.bin: $(DIR_POSIXXOP)/tsearch.LINUX.XOP.o $(DIR_POSIXXOP)/rp.LINUX.XOP.o $(DIR_POSIXXOP)/engine.LINUX.XOP.o src/hashcat-cli.c
-	$(CC_POSIXXOP) $(CFLAGS_POSIXXOP) $(DIR_POSIXXOP)/*.LINUX.XOP.o src/hashcat-cli.c -o hashcat-cliXOP.bin $(LDFLAGS_POSIXXOP)
-
-engine-posixXOP: $(DIR_POSIXXOP)/engine.LINUX.XOP.o
-
-$(DIR_POSIXXOP)/engine.LINUX.XOP.o: $(DIR_POSIXXOP)/common.LINUX.XOP.o src/engine.c
-	$(CC_POSIXXOP) $(CFLAGS_POSIXXOP) -c src/engine.c -o $(DIR_POSIXXOP)/engine.LINUX.XOP.o
-
-rp-posixXOP: $(DIR_POSIXXOP)/rp.LINUX.XOP.o
-
-$(DIR_POSIXXOP)/rp.LINUX.XOP.o: $(DIR_POSIXXOP)/common.LINUX.XOP.o src/rp.c
-	$(CC_POSIXXOP) $(CFLAGS_POSIXXOP) -c src/rp.c -o $(DIR_POSIXXOP)/rp.LINUX.XOP.o
-
-tsearch-posixXOP: $(DIR_POSIXXOP)/tsearch.LINUX.XOP.o
-
-$(DIR_POSIXXOP)/tsearch.LINUX.XOP.o: $(DIR_POSIXXOP)/common.LINUX.XOP.o src/tsearch.c
-	$(CC_POSIXXOP) $(CFLAGS_POSIXXOP) -c src/tsearch.c -o $(DIR_POSIXXOP)/tsearch.LINUX.XOP.o
-
-common-posixXOP: $(DIR_POSIXXOP)/common.LINUX.XOP.o
-
-$(DIR_POSIXXOP)/common.LINUX.XOP.o: src/common.c
-	$(CC_POSIXXOP) $(CFLAGS_POSIXXOP) -c src/common.c -o $(DIR_POSIXXOP)/common.LINUX.XOP.o
-
-##
-## WINDOWS32
-##
-
-DIR_WINDOWS32     = obj
-LIBGMP_WINDOW32   = /opt/hashcat-deps/gmp/win32
-CC_WINDOWS32      = i686-w64-mingw32-gcc
-CFLAGS_WINDOWS32  = $(CFLAGS) -I$(LIBGMP_WINDOW32)/include -D__HC_x86_32__ -DWINDOWS -m32 -msse2 -D__USE_MINGW_ANSI_STDIO=1 -mstackrealign
-LDFLAGS_WINDOWS32 = $(LDFLAGS) -L$(LIBGMP_WINDOW32)/lib -lm -lgmp
-
-windows32: hashcat-cli32.exe
-
-rules-windows32: rules-debug32.exe
-
-rules-debug32.exe: $(DIR_WINDOWS32)/rp.WIN.32.o src/rules-debug.c
-	$(CC_WINDOWS32) $(CFLAGS_WINDOWS32) $(DIR_WINDOWS32)/*.WIN.32.o src/rules-debug.c -o rules-debug32.exe $(LDFLAGS_WINDOWS32)
-
-hashcat-windows32: hashcat-cli32.exe
-
-hashcat-cli32.exe: $(DIR_WINDOWS32)/tsearch.WIN.32.o $(DIR_WINDOWS32)/rp.WIN.32.o $(DIR_WINDOWS32)/engine.WIN.32.o src/hashcat-cli.c
-	$(CC_WINDOWS32) $(CFLAGS_WINDOWS32) $(DIR_WINDOWS32)/*.WIN.32.o /usr/i686-w64-mingw32/lib/CRT_glob.o src/hashcat-cli.c -o hashcat-cli32.exe $(LDFLAGS_WINDOWS32)
-
-engine-windows32: $(DIR_WINDOWS32)/engine.WIN.32.o
-
-$(DIR_WINDOWS32)/engine.WIN.32.o: $(DIR_WINDOWS32)/common.WIN.32.o src/engine.c
-	$(CC_WINDOWS32) $(CFLAGS_WINDOWS32) -c src/engine.c -o $(DIR_WINDOWS32)/engine.WIN.32.o
-
-rp-windows32: $(DIR_WINDOWS32)/rp.WIN.32.o
-
-$(DIR_WINDOWS32)/rp.WIN.32.o: $(DIR_WINDOWS32)/common.WIN.32.o src/rp.c
-	$(CC_WINDOWS32) $(CFLAGS_WINDOWS32) -c src/rp.c -o $(DIR_WINDOWS32)/rp.WIN.32.o
-
-tsearch-windows32: $(DIR_WINDOWS32)/tsearch.WIN.32.o
-
-$(DIR_WINDOWS32)/tsearch.WIN.32.o: $(DIR_WINDOWS32)/common.WIN.32.o src/tsearch.c
-	$(CC_WINDOWS32) $(CFLAGS_WINDOWS32) -c src/tsearch.c -o $(DIR_WINDOWS32)/tsearch.WIN.32.o
-
-common-windows32: $(DIR_WINDOWS32)/common.WIN.32.o
-
-$(DIR_WINDOWS32)/common.WIN.32.o: src/common.c
-	$(CC_WINDOWS32) $(CFLAGS_WINDOWS32) -c src/common.c -o $(DIR_WINDOWS32)/common.WIN.32.o
-
-##
-## WINDOWS64
-##
-
-DIR_WINDOWS64     = obj
-LIBGMP_WINDOWS64  = /opt/hashcat-deps/gmp/win64
-CC_WINDOWS64      = x86_64-w64-mingw32-gcc
-CFLAGS_WINDOWS64  = $(CFLAGS) -I$(LIBGMP_WINDOWS64)/include -D__HC_x86_64__ -DWINDOWS -m64 -msse2 -D__USE_MINGW_ANSI_STDIO=1 -mstackrealign
-LDFLAGS_WINDOWS64 = $(LDFLAGS) -L$(LIBGMP_WINDOWS64)/lib -lm -lgmp
-
-windows64: hashcat-cli64.exe
-
-rules-windows64: rules-debug64.exe
-
-rules-debug64.exe: $(DIR_WINDOWS64)/rp.WIN.64.o src/rules-debug.c
-	$(CC_WINDOWS64) $(CFLAGS_WINDOWS64) $(DIR_WINDOWS64)/*.WIN.64.o src/rules-debug.c -o rules-debug64.exe $(LDFLAGS_WINDOWS64)
-
-hashcat-windows64: hashcat-cli64.exe
-
-hashcat-cli64.exe: $(DIR_WINDOWS64)/tsearch.WIN.64.o $(DIR_WINDOWS64)/rp.WIN.64.o $(DIR_WINDOWS64)/engine.WIN.64.o src/hashcat-cli.c
-	$(CC_WINDOWS64) $(CFLAGS_WINDOWS64) $(DIR_WINDOWS64)/*.WIN.64.o /usr/x86_64-w64-mingw32/lib/CRT_glob.o src/hashcat-cli.c -o hashcat-cli64.exe $(LDFLAGS_WINDOWS64)
-
-engine-windows64: $(DIR_WINDOWS64)/engine.WIN.64.o
-
-$(DIR_WINDOWS64)/engine.WIN.64.o: $(DIR_WINDOWS64)/common.WIN.64.o src/engine.c
-	$(CC_WINDOWS64) $(CFLAGS_WINDOWS64) -c src/engine.c -o $(DIR_WINDOWS64)/engine.WIN.64.o
-
-rp-windows64: $(DIR_WINDOWS64)/rp.WIN.64.o
-
-$(DIR_WINDOWS64)/rp.WIN.64.o: $(DIR_WINDOWS64)/common.WIN.64.o src/rp.c
-	$(CC_WINDOWS64) $(CFLAGS_WINDOWS64) -c src/rp.c -o $(DIR_WINDOWS64)/rp.WIN.64.o
-
-tsearch-windows64: $(DIR_WINDOWS64)/tsearch.WIN.64.o
-
-$(DIR_WINDOWS64)/tsearch.WIN.64.o: $(DIR_WINDOWS64)/common.WIN.64.o src/tsearch.c
-	$(CC_WINDOWS64) $(CFLAGS_WINDOWS64) -c src/tsearch.c -o $(DIR_WINDOWS64)/tsearch.WIN.64.o
-
-common-windows64: $(DIR_WINDOWS64)/common.WIN.64.o
-
-$(DIR_WINDOWS64)/common.WIN.64.o: src/common.c
-	$(CC_WINDOWS64) $(CFLAGS_WINDOWS64) -c src/common.c -o $(DIR_WINDOWS64)/common.WIN.64.o
-
-##
-## WINDOWSAVX
-##
-
-DIR_WINDOWSAVX     = obj
-LIBGMP_WINDOWSAVX  = /opt/hashcat-deps/gmp/win64
-CC_WINDOWSAVX      = x86_64-w64-mingw32-gcc
-CFLAGS_WINDOWSAVX  = $(CFLAGS) -I$(LIBGMP_WINDOWSAVX)/include -D__HC_AVX__ -DWINDOWS -m64 -mavx -D__USE_MINGW_ANSI_STDIO=1 -mstackrealign
-LDFLAGS_WINDOWSAVX = $(LDFLAGS) -L$(LIBGMP_WINDOWSAVX)/lib -lm -lgmp
-
-windowsAVX: hashcat-cliAVX.exe
-
-rules-windowsAVX: rules-debugAVX.exe
-
-rules-debugAVX.exe: $(DIR_WINDOWSAVX)/rp.WIN.AVX.o src/rules-debug.c
-	$(CC_WINDOWSAVX) $(CFLAGS_WINDOWSAVX) $(DIR_WINDOWSAVX)/*.WIN.AVX.o src/rules-debug.c -o rules-debugAVX.exe $(LDFLAGS_WINDOWSAVX)
-
-hashcat-windowsAVX: hashcat-cliAVX.exe
-
-hashcat-cliAVX.exe: $(DIR_WINDOWSAVX)/tsearch.WIN.AVX.o $(DIR_WINDOWSAVX)/rp.WIN.AVX.o $(DIR_WINDOWSAVX)/engine.WIN.AVX.o src/hashcat-cli.c
-	$(CC_WINDOWSAVX) $(CFLAGS_WINDOWSAVX) $(DIR_WINDOWSAVX)/*.WIN.AVX.o /usr/x86_64-w64-mingw32/lib/CRT_glob.o src/hashcat-cli.c -o hashcat-cliAVX.exe $(LDFLAGS_WINDOWSAVX)
-
-engine-windowsAVX: $(DIR_WINDOWSAVX)/engine.WIN.AVX.o
-
-$(DIR_WINDOWSAVX)/engine.WIN.AVX.o: $(DIR_WINDOWSAVX)/common.WIN.AVX.o src/engine.c
-	$(CC_WINDOWSAVX) $(CFLAGS_WINDOWSAVX) -c src/engine.c -o $(DIR_WINDOWSAVX)/engine.WIN.AVX.o
-
-rp-windowsAVX: $(DIR_WINDOWSAVX)/rp.WIN.AVX.o
-
-$(DIR_WINDOWSAVX)/rp.WIN.AVX.o: $(DIR_WINDOWSAVX)/common.WIN.AVX.o src/rp.c
-	$(CC_WINDOWSAVX) $(CFLAGS_WINDOWSAVX) -c src/rp.c -o $(DIR_WINDOWSAVX)/rp.WIN.AVX.o
-
-tsearch-windowsAVX: $(DIR_WINDOWSAVX)/tsearch.WIN.AVX.o
-
-$(DIR_WINDOWSAVX)/tsearch.WIN.AVX.o: $(DIR_WINDOWSAVX)/common.WIN.AVX.o src/tsearch.c
-	$(CC_WINDOWSAVX) $(CFLAGS_WINDOWSAVX) -c src/tsearch.c -o $(DIR_WINDOWSAVX)/tsearch.WIN.AVX.o
-
-common-windowsAVX: $(DIR_WINDOWSAVX)/common.WIN.AVX.o
-
-$(DIR_WINDOWSAVX)/common.WIN.AVX.o: src/common.c
-	$(CC_WINDOWSAVX) $(CFLAGS_WINDOWSAVX) -c src/common.c -o $(DIR_WINDOWSAVX)/common.WIN.AVX.o
-
-##
-## WINDOWSAVX2
-##
-
-DIR_WINDOWSAVX2     = obj
-LIBGMP_WINDOWSAVX2  = /opt/hashcat-deps/gmp/win64
-CC_WINDOWSAVX2      = x86_64-w64-mingw32-gcc
-CFLAGS_WINDOWSAVX2  = $(CFLAGS) -I$(LIBGMP_WINDOWSAVX2)/include -D__HC_AVX2__ -DWINDOWS -m64 -mavx2 -D__USE_MINGW_ANSI_STDIO=1 -mstackrealign
-LDFLAGS_WINDOWSAVX2 = $(LDFLAGS) -L$(LIBGMP_WINDOWSAVX2)/lib -lm -lgmp
-
-windowsAVX2: hashcat-cliAVX2.exe
-
-rules-windowsAVX2: rules-debugAVX2.exe
-
-rules-debugAVX2.exe: $(DIR_WINDOWSAVX2)/rp.WIN.AVX2.o src/rules-debug.c
-	$(CC_WINDOWSAVX2) $(CFLAGS_WINDOWSAVX2) $(DIR_WINDOWSAVX2)/*.WIN.AVX2.o src/rules-debug.c -o rules-debugAVX2.exe $(LDFLAGS_WINDOWSAVX2)
-
-hashcat-windowsAVX2: hashcat-cliAVX2.exe
-
-hashcat-cliAVX2.exe: $(DIR_WINDOWSAVX2)/tsearch.WIN.AVX2.o $(DIR_WINDOWSAVX2)/rp.WIN.AVX2.o $(DIR_WINDOWSAVX2)/engine.WIN.AVX2.o src/hashcat-cli.c
-	$(CC_WINDOWSAVX2) $(CFLAGS_WINDOWSAVX2) $(DIR_WINDOWSAVX2)/*.WIN.AVX2.o /usr/x86_64-w64-mingw32/lib/CRT_glob.o src/hashcat-cli.c -o hashcat-cliAVX2.exe $(LDFLAGS_WINDOWSAVX2)
-
-engine-windowsAVX2: $(DIR_WINDOWSAVX2)/engine.WIN.AVX2.o
-
-$(DIR_WINDOWSAVX2)/engine.WIN.AVX2.o: $(DIR_WINDOWSAVX2)/common.WIN.AVX2.o src/engine.c
-	$(CC_WINDOWSAVX2) $(CFLAGS_WINDOWSAVX2) -c src/engine.c -o $(DIR_WINDOWSAVX2)/engine.WIN.AVX2.o
-
-rp-windowsAVX2: $(DIR_WINDOWSAVX2)/rp.WIN.AVX2.o
-
-$(DIR_WINDOWSAVX2)/rp.WIN.AVX2.o: $(DIR_WINDOWSAVX2)/common.WIN.AVX2.o src/rp.c
-	$(CC_WINDOWSAVX2) $(CFLAGS_WINDOWSAVX2) -c src/rp.c -o $(DIR_WINDOWSAVX2)/rp.WIN.AVX2.o
-
-tsearch-windowsAVX2: $(DIR_WINDOWSAVX2)/tsearch.WIN.AVX2.o
-
-$(DIR_WINDOWSAVX2)/tsearch.WIN.AVX2.o: $(DIR_WINDOWSAVX2)/common.WIN.AVX2.o src/tsearch.c
-	$(CC_WINDOWSAVX2) $(CFLAGS_WINDOWSAVX2) -c src/tsearch.c -o $(DIR_WINDOWSAVX2)/tsearch.WIN.AVX2.o
-
-common-windowsAVX2: $(DIR_WINDOWSAVX2)/common.WIN.AVX2.o
-
-$(DIR_WINDOWSAVX2)/common.WIN.AVX2.o: src/common.c
-	$(CC_WINDOWSAVX2) $(CFLAGS_WINDOWSAVX2) -c src/common.c -o $(DIR_WINDOWSAVX2)/common.WIN.AVX2.o
-
-##
-## WINDOWSXOP
-##
-
-DIR_WINDOWSXOP     = obj
-LIBGMP_WINDOWSXOP  = /opt/hashcat-deps/gmp/win64
-CC_WINDOWSXOP      = x86_64-w64-mingw32-gcc
-CFLAGS_WINDOWSXOP  = $(CFLAGS) -I$(LIBGMP_WINDOWSXOP)/include -D__HC_XOP__ -DWINDOWS -m64 -mxop -D__USE_MINGW_ANSI_STDIO=1 -mstackrealign
-LDFLAGS_WINDOWSXOP = $(LDFLAGS) -L$(LIBGMP_WINDOWSXOP)/lib -lm -lgmp
-
-windowsXOP: hashcat-cliXOP.exe
-
-rules-windowsXOP: rules-debugXOP.exe
-
-rules-debugXOP.exe: $(DIR_WINDOWSXOP)/rp.WIN.XOP.o src/rules-debug.c
-	$(CC_WINDOWSXOP) $(CFLAGS_WINDOWSXOP) $(DIR_WINDOWSXOP)/*.WIN.XOP.o src/rules-debug.c -o rules-debugXOP.exe $(LDFLAGS_WINDOWSXOP)
-
-hashcat-windowsXOP: hashcat-cliXOP.exe
-
-hashcat-cliXOP.exe: $(DIR_WINDOWSXOP)/tsearch.WIN.XOP.o $(DIR_WINDOWSXOP)/rp.WIN.XOP.o $(DIR_WINDOWSXOP)/engine.WIN.XOP.o src/hashcat-cli.c
-	$(CC_WINDOWSXOP) $(CFLAGS_WINDOWSXOP) $(DIR_WINDOWSXOP)/*.WIN.XOP.o /usr/x86_64-w64-mingw32/lib/CRT_glob.o src/hashcat-cli.c -o hashcat-cliXOP.exe $(LDFLAGS_WINDOWSXOP)
-
-engine-windowsXOP: $(DIR_WINDOWSXOP)/engine.WIN.XOP.o
-
-$(DIR_WINDOWSXOP)/engine.WIN.XOP.o: $(DIR_WINDOWSXOP)/common.WIN.XOP.o src/engine.c
-	$(CC_WINDOWSXOP) $(CFLAGS_WINDOWSXOP) -c src/engine.c -o $(DIR_WINDOWSXOP)/engine.WIN.XOP.o
-
-rp-windowsXOP: $(DIR_WINDOWSXOP)/rp.WIN.XOP.o
-
-$(DIR_WINDOWSXOP)/rp.WIN.XOP.o: $(DIR_WINDOWSXOP)/common.WIN.XOP.o src/rp.c
-	$(CC_WINDOWSXOP) $(CFLAGS_WINDOWSXOP) -c src/rp.c -o $(DIR_WINDOWSXOP)/rp.WIN.XOP.o
-
-tsearch-windowsXOP: $(DIR_WINDOWSXOP)/tsearch.WIN.XOP.o
-
-$(DIR_WINDOWSXOP)/tsearch.WIN.XOP.o: $(DIR_WINDOWSXOP)/common.WIN.XOP.o src/tsearch.c
-	$(CC_WINDOWSXOP) $(CFLAGS_WINDOWSXOP) -c src/tsearch.c -o $(DIR_WINDOWSXOP)/tsearch.WIN.XOP.o
-
-common-windowsXOP: $(DIR_WINDOWSXOP)/common.WIN.XOP.o
-
-$(DIR_WINDOWSXOP)/common.WIN.XOP.o: src/common.c
-	$(CC_WINDOWSXOP) $(CFLAGS_WINDOWSXOP) -c src/common.c -o $(DIR_WINDOWSXOP)/common.WIN.XOP.o
+hashcat64.exe: src/hashcat.c $(WIN_64_OBJS)
+	$(CC_WIN_64)   -D_WIN64   $(CFLAGS_CROSS_WIN)   $(CFLAGS_CROSS_64)    -o $@ $^ $(LFLAGS_CROSS_WIN)   -DCOMPTIME=$(COMPTIME) -DVERSION_TAG=\"$(VERSION_TAG)\" -static-libgcc

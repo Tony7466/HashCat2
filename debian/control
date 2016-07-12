@@ -58,6 +58,7 @@ Package: hashcat-data
 Architecture: all
 Depends: ${misc:Depends}
 Suggests: hashcat
+Replaces: hashcat (<= 2.00-0kali3)
 Description: Data files for hashcat Advanced CPU-based password recovery utility
  Hashcat is Advanced CPU-based password recovery utility supporting 
  seven unique modes of attack for over  100 optimized hashing algorithms.

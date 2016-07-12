@@ -9,13 +9,16 @@ Homepage: http://hashcat.net/hashcat/
 Vcs-Git: https://anonscm.debian.org/git/pkg-security/hashcat.git
 Vcs-Browser: https://anonscm.debian.org/cgit/pkg-security/hashcat.git
 
-
 Package: hashcat
 Architecture: i386 amd64
 Depends: hashcat-data (>= ${source:Version}), ${shlibs:Depends}, ${misc:Depends}, mesa-opencl-icd | opencl-icd
-Description: Advanced CPU-based password recovery utility
- Hashcat is the self-proclaimed world’s fastest CPU-based password
- recovery tool. Examples of hashcat supported hashing algorithms are:
+Description: The world's fastest and most advanced password recovery utility
+ supporting five unique modes of attack for over 160 highly-optimized
+ hashing algorithms. hashcat currently supports CPU's, GPU's other
+ hardware-accelerators on Linux, and has facilities to help enable
+ distributed password cracking..
+ .
+ Examples of hashcat supported hashing algorithms are:
  MD5, HMAC-MD5, SHA1, HMAC-SHA1, MySQL323, MySQL4.1/MySQL5, phpass, 
  MD5(Wordpress), MD5(phpBB3), MD5(Joomla), md5crypt, MD5(Unix), 
  FreeBSD MD5, Cisco-IOS, MD4, NTLM, Domain Cached Credentials (DCC), 
@@ -59,8 +62,8 @@ Architecture: all
 Depends: ${misc:Depends}
 Suggests: hashcat
 Replaces: hashcat (<= 2.00-0kali3)
-Description: Data files for hashcat Advanced CPU-based password recovery utility
- Hashcat is Advanced CPU-based password recovery utility supporting 
+Description: Data files for hashcat advanced password recovery utility
+ Hashcat is Advanced CPU/GPU-based password recovery utility supporting 
  seven unique modes of attack for over  100 optimized hashing algorithms.
  .
  This package contains the data files for hashcat, including charsets, 

@@ -12,7 +12,7 @@ override_dh_auto_build:
 override_dh_installchangelogs:
 	dh_installchangelogs docs/changes.txt
 
-override_dh_fixperms:
+override_dh_fixperms-indep:
 	dh_fixperms
 	chmod 644 debian/hashcat-data/usr/share/doc/hashcat-data/examples/example0.sh
 	chmod 644 debian/hashcat-data/usr/share/doc/hashcat-data/examples/example400.sh

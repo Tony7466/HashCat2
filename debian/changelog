@@ -1,8 +1,12 @@
 hashcat (3.00-3) unstable; urgency=medium
 
+  [ Daniel Echeverry ]
   * debian/control
     + Add Replaces field in hashcat-data.
     + Improve description of hashcat and hashcat-data.
+
+  [ Raphaël Hertzog ]
+  * Further improve the description field.
 
  -- Daniel Echeverry <epsilon77@gmail.com>  Tue, 12 Jul 2016 15:57:02 -0500
 

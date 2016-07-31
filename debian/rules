@@ -7,7 +7,7 @@ INSTALL := install -o root -g root -m 755
 	dh $@ 
 
 override_dh_auto_build:
-	dh_auto_build -- PREFIX=/usr
+	dh_auto_build -- PREFIX=/usr COMPTIME=$(SOURCE_DATE_EPOCH)
 
 override_dh_installchangelogs:
 	dh_installchangelogs docs/changes.txt

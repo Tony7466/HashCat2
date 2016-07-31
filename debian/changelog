@@ -1,3 +1,11 @@
+hashcat (3.00-4) unstable; urgency=medium
+
+  * debian/rules
+    + Support reproducible builds. (Closes: #833056)
+      + Thanks to Reiner Herrmann for the patch!
+
+ -- Daniel Echeverry <epsilon77@gmail.com>  Sun, 31 Jul 2016 12:25:09 -0500
+
 hashcat (3.00-3) unstable; urgency=medium
 
   [ Daniel Echeverry ]

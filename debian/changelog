@@ -1,12 +1,10 @@
-hashcat (3.00-5) unstable; urgency=medium
+hashcat (3.00-4) UNRELEASED; urgency=medium
 
+  [ Gianfranco Costamagna ]
   * Team upload.
   * Add gbp.conf file
 
- -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 22 Aug 2016 17:37:38 +0200
-
-hashcat (3.00-4) unstable; urgency=medium
-
+  [ Daniel Echeverry ]
   * debian/rules
     + Support reproducible builds. (Closes: #833056)
       + Thanks to Reiner Herrmann for the patch!

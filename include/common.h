@@ -40,15 +40,21 @@
 #include <pwd.h>
 #include <limits.h>
 
-#ifdef LINUX
-#include <termio.h>
+#ifdef __linux__
+#include <termios.h>
+#include <sys/ioctl.h>
 #endif
 
-#ifdef DARWIN
+#ifdef __APPLE__
 #include <termios.h>
 #include <sys/ioctl.h>
 #include <mach-o/dyld.h>
 #include <mach/mach.h>
+#endif
+
+#ifdef __FreeBSD__
+#include <termios.h>
+#include <sys/ioctl.h>
 #endif
 
 typedef void *OCL_LIB;
@@ -58,7 +64,7 @@ typedef void *ADL_LIB;
 typedef void *NVAPI_LIB;
 typedef void *NVML_LIB;
 typedef void *XNVCTRL_LIB;
-#ifdef DARWIN
+#ifdef __APPLE__
 #define __stdcall
 #endif
 #endif

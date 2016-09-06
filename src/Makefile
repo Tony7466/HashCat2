@@ -17,7 +17,7 @@ UNAME                    := $(shell uname -s)
 # we need to strip the windows version number to be able to build hashcat on cygwin hosts
 UNAME                    := $(patsubst CYGWIN_NT-%,CYGWIN_NT-,$(UNAME))
 
-ifeq (,$(filter $(UNAME),Linux Darwin CYGWIN_NT-))
+ifeq (,$(filter $(UNAME),Linux Darwin CYGWIN_NT- FreeBSD))
 $(error "! Your Operating System ($(UNAME)) is not supported by $(PROG_NAME) Makefile")
 endif
 
@@ -63,6 +63,13 @@ FIND                     := find
 INSTALL                  := install
 RM                       := rm
 SED                      := sed
+ifeq ($(UNAME),Darwin)
+SED                      := gsed
+endif
+ifeq ($(UNAME),FreeBSD)
+CC                       := cc
+SED                      := gsed
+endif
 
 ##
 ## Cross compiler paths
@@ -80,14 +87,14 @@ CC_WIN_64                := x86_64-w64-mingw32-gcc
 
 COMPTIME                 := $(shell date +%s)
 
-VERSION_EXPORT           := tag: v3.00
-VERSION_TAG              := $(shell test -d .git && git describe --tags --dirty=+ || echo "$(VERSION_EXPORT)"|cut -d, -f2|sed -r 's|.* (\w+/)?([^ ]+)|\2|')
+VERSION_EXPORT           := tag: v3.10
+VERSION_TAG              := $(shell test -d .git && git describe --tags --dirty=+ || echo "$(VERSION_EXPORT)"|cut -d, -f2|$(SED) -r 's|.* (\w+/)?([^ ]+)|\2|')
 
 ##
 ## Compiler flags
 ##
 
-CFLAGS                   := -pipe -W -Wall -std=c99 -Iinclude/ -IOpenCL/ -I$(OPENCL_HEADERS_KHRONOS)/
+CFLAGS                   += -pipe -W -Wall -std=c99 -Iinclude/ -IOpenCL/ -I$(OPENCL_HEADERS_KHRONOS)/
 
 ifndef DEBUG
 CFLAGS                   += -O2
@@ -106,27 +113,35 @@ BINARY_NATIVE            := $(PROG_NAME)
 
 ifeq ($(UNAME),Darwin)
 export MACOSX_DEPLOYMENT_TARGET=10.9
-BINARY_NATIVE            := $(BINARY_NATIVE).app
-CFLAGS_NATIVE            := -D_POSIX -DDARWIN
+CFLAGS_NATIVE            := -D_POSIX
 CFLAGS_NATIVE            += $(CFLAGS)
 LFLAGS_NATIVE            := -lpthread
+LFLAGS_NATIVE            += $(LDFLAGS)
 endif # darwin
 
 ifeq ($(UNAME),Linux)
-CFLAGS_NATIVE            := -D_POSIX -DLINUX
+CFLAGS_NATIVE            := -D_POSIX
 ifndef DEBUG
 CFLAGS_NATIVE            += -s
 endif
 CFLAGS_NATIVE            += $(CFLAGS)
 LFLAGS_NATIVE            := -lpthread -ldl
 CFLAGS_NATIVE            += -DHAVE_HWMON
+LFLAGS_NATIVE            += $(LDFLAGS)
 endif # linux
+
+ifeq ($(UNAME),FreeBSD)
+CFLAGS_NATIVE            := -D_POSIX
+CFLAGS_NATIVE            += $(CFLAGS)
+LFLAGS_NATIVE            := -lpthread
+LFLAGS_NATIVE            += $(LDFLAGS)
+endif # freebsd
 
 ##
 ## Cross compilation target
 ##
 
-CFLAGS_CROSS_LINUX       := -D_POSIX -DLINUX
+CFLAGS_CROSS_LINUX       := -D_POSIX
 ifndef DEBUG
 CFLAGS_CROSS_LINUX       += -s
 endif
@@ -162,9 +177,13 @@ endif
 LINUX_32_OBJS            := obj/ext_OpenCL.LINUX.32.o obj/shared.LINUX.32.o obj/rp_kernel_on_cpu.LINUX.32.o obj/ext_ADL.LINUX.32.o obj/ext_nvml.LINUX.32.o obj/ext_nvapi.LINUX.32.o obj/ext_xnvctrl.LINUX.32.o
 LINUX_64_OBJS            := obj/ext_OpenCL.LINUX.64.o obj/shared.LINUX.64.o obj/rp_kernel_on_cpu.LINUX.64.o obj/ext_ADL.LINUX.64.o obj/ext_nvml.LINUX.64.o obj/ext_nvapi.LINUX.64.o obj/ext_xnvctrl.LINUX.64.o
 
-## may need to adjust according to your mingw distribution
-CRT_GLOB_32              := /usr/i686-w64-mingw32/lib/CRT_glob.o
-CRT_GLOB_64              := /usr/x86_64-w64-mingw32/lib/CRT_glob.o
+# Windows CRT file globbing:
+
+CRT_GLOB_32              :=
+CRT_GLOB_64              :=
+CRT_GLOB_INCLUDE_FOLDER  := $(dir $(lastword $(MAKEFILE_LIST)))
+
+include $(CRT_GLOB_INCLUDE_FOLDER)/win_file_globbing.mk
 
 WIN_32_OBJS              := obj/ext_OpenCL.WIN.32.o   obj/shared.WIN.32.o   obj/rp_kernel_on_cpu.WIN.32.o   obj/ext_ADL.WIN.32.o   obj/ext_nvml.WIN.32.o   obj/ext_nvapi.WIN.32.o   obj/ext_xnvctrl.WIN.32.o   $(CRT_GLOB_32)
 WIN_64_OBJS              := obj/ext_OpenCL.WIN.64.o   obj/shared.WIN.64.o   obj/rp_kernel_on_cpu.WIN.64.o   obj/ext_ADL.WIN.64.o   obj/ext_nvml.WIN.64.o   obj/ext_nvapi.WIN.64.o   obj/ext_xnvctrl.WIN.64.o   $(CRT_GLOB_64)
@@ -178,7 +197,7 @@ native: hashcat
 binaries: linux32 linux64 win32 win64
 
 clean:
-	$(RM) -f obj/*.o *.bin *.exe *.app *.restore *.out *.pot *.dictstat *.log hashcat core
+	$(RM) -f obj/*.o *.bin *.exe *.restore *.out *.pot *.log hashcat core
 	$(RM) -rf *.induct
 	$(RM) -rf *.outfiles
 	$(RM) -rf *.dSYM

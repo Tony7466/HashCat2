@@ -4,16 +4,7 @@ Origin: vendor
 Last-Update: 2016-06-30
 --- a/src/Makefile
 +++ b/src/Makefile
-@@ -87,7 +87,7 @@ VERSION_TAG              := $(shell test
- ## Compiler flags
- ##
- 
--CFLAGS                   := -pipe -W -Wall -std=c99 -Iinclude/ -IOpenCL/ -I$(OPENCL_HEADERS_KHRONOS)/
-+CFLAGS                   += -pipe -W -Wall -std=c99 -Iinclude/ -IOpenCL/ -I$(OPENCL_HEADERS_KHRONOS)/
- 
- ifndef DEBUG
- CFLAGS                   += -O2
-@@ -117,8 +117,8 @@ CFLAGS_NATIVE            := -D_POSIX -DL
+@@ -124,8 +124,8 @@ CFLAGS_NATIVE            := -D_POSIX
  ifndef DEBUG
  CFLAGS_NATIVE            += -s
  endif
@@ -22,5 +13,5 @@ Last-Update: 2016-06-30
 +CFLAGS_NATIVE            += $(CFLAGS) $(CPPFLAGS)
 +LFLAGS_NATIVE            := -lpthread -ldl $(LDFLAGS)
  CFLAGS_NATIVE            += -DHAVE_HWMON
+ LFLAGS_NATIVE            += $(LDFLAGS)
  endif # linux
- 

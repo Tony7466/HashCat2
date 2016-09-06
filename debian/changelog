@@ -1,17 +1,23 @@
-hashcat (3.00-4) UNRELEASED; urgency=medium
+hashcat (3.10-1) unstable; urgency=medium
 
   [ Gianfranco Costamagna ]
   * Team upload.
-  * Add gbp.conf file
+  * Add gbp.conf file.
 
   [ Daniel Echeverry ]
+  * New upstream release.
   * debian/rules
     + Support reproducible builds. (Closes: #833056)
-      + Thanks to Reiner Herrmann for the patch!
+      + Thanks to Reiner Herrmann for the patch!.
   * debian/control
-    + Remove article "The" from description to fix lintian warning
+    + Remove article "The" from description to fix lintian warning.
+    + Add support to kFreeBSD.
+  * debian/patches
+    + Refresh fix_makefile.diff patch.
+    + Add add_kfreebsd_support.diff patch.
+      + Thanks to Steven Chamberlain for the patch.
 
- -- Daniel Echeverry <epsilon77@gmail.com>  Sun, 31 Jul 2016 12:25:09 -0500
+ -- Daniel Echeverry <epsilon77@gmail.com>  Mon, 05 Sep 2016 19:35:27 -0500
 
 hashcat (3.00-3) unstable; urgency=medium
 

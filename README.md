@@ -2,8 +2,6 @@
 
 **hashcat** is the world's fastest and most advanced password recovery utility, supporting five unique modes of attack for over 160 highly-optimized hashing algorithms. hashcat currently supports CPU's, GPU's other hardware-accelerators on Linux, Windows and OSX, and has facilities to help enable distributed password cracking.
 
-** THE VERSION 3.00 IS CURRENTLY STILL IN BETA **
-
 ### License ###
 
 **hashcat** is licensed under the MIT license. Refer to [docs/license.txt](docs/license.txt) for more information. 
@@ -18,7 +16,7 @@ Please refer to the [Hashcat Wiki](https://hashcat.net/wiki/) and the output of 
 
 ### Building ###
 
-[![Hashcat Build status](https://travis-ci.org/hashcat/oclHashcat.svg?branch=master)](https://travis-ci.org/hashcat/oclHashcat)
+[![Hashcat Build status](https://travis-ci.org/hashcat/hashcat.svg?branch=master)](https://travis-ci.org/hashcat/hashcat)
 
 Refer to [BUILD.md](BUILD.md) for instructions on how to build **hashcat** from source.
 

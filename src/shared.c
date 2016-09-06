@@ -6,8 +6,13 @@
  * License.....: MIT
  */
 
-#ifdef DARWIN
+#ifdef __APPLE__
 #include <stdio.h>
+#endif
+
+#ifdef __FreeBSD__
+#include <stdio.h>
+#include <pthread_np.h>
 #endif
 
 #include <shared.h>
@@ -2333,15 +2338,15 @@ void drupal7_encode (u8 digest[64], u8 buf[43])
  * tty
  */
 
-#ifdef LINUX
-static struct termio savemodes;
+#ifdef __linux__
+static struct termios savemodes;
 static int havemodes = 0;
 
 int tty_break()
 {
-  struct termio modmodes;
+  struct termios modmodes;
 
-  if (ioctl (fileno (stdin), TCGETA, &savemodes) < 0) return -1;
+  if (tcgetattr (fileno (stdin), &savemodes) < 0) return -1;
 
   havemodes = 1;
 
@@ -2350,7 +2355,7 @@ int tty_break()
   modmodes.c_cc[VMIN] = 1;
   modmodes.c_cc[VTIME] = 0;
 
-  return ioctl (fileno (stdin), TCSETAW, &modmodes);
+  return tcsetattr (fileno (stdin), TCSANOW, &modmodes);
 }
 
 int tty_getchar()
@@ -2378,11 +2383,11 @@ int tty_fix()
 {
   if (!havemodes) return 0;
 
-  return ioctl (fileno (stdin), TCSETAW, &savemodes);
+  return tcsetattr (fileno (stdin), TCSADRAIN, &savemodes);
 }
 #endif
 
-#ifdef DARWIN
+#if defined(__APPLE__) || defined(__FreeBSD__)
 static struct termios savemodes;
 static int havemodes = 0;
 
@@ -2751,13 +2756,13 @@ int hm_get_adapter_index_nvapi (HM_ADAPTER_NVAPI nvapiGPUHandle[DEVICES_MAX])
 {
   NvU32 pGpuCount;
 
-  if (hm_NvAPI_EnumPhysicalGPUs (data.hm_nvapi, nvapiGPUHandle, &pGpuCount) != NVAPI_OK) return (0);
+  if (hm_NvAPI_EnumPhysicalGPUs (data.hm_nvapi, nvapiGPUHandle, &pGpuCount) != NVAPI_OK) return 0;
 
   if (pGpuCount == 0)
   {
     log_info ("WARN: No NvAPI adapters found");
 
-    return (0);
+    return 0;
   }
 
   return (pGpuCount);
@@ -2782,7 +2787,7 @@ int hm_get_adapter_index_nvml (HM_ADAPTER_NVML nvmlGPUHandle[DEVICES_MAX])
   {
     log_info ("WARN: No NVML adapters found");
 
-    return (0);
+    return 0;
   }
 
   return (pGpuCount);
@@ -3484,7 +3489,9 @@ int hm_set_fanspeed_with_device_id_nvapi (const uint device_id, const int fanspe
     {
       if (fanpolicy == 1)
       {
-        NV_GPU_COOLER_LEVELS CoolerLevels = { 0 };
+        NV_GPU_COOLER_LEVELS CoolerLevels;
+
+        memset (&CoolerLevels, 0, sizeof (NV_GPU_COOLER_LEVELS));
 
         CoolerLevels.Version = GPU_COOLER_LEVELS_VER | sizeof (NV_GPU_COOLER_LEVELS);
 
@@ -4346,7 +4353,7 @@ char *get_exec_path ()
 
   char *exec_path = (char *) mymalloc (exec_path_len);
 
-  #ifdef LINUX
+  #ifdef __linux__
 
   char tmp[32] = { 0 };
 
@@ -4358,7 +4365,7 @@ char *get_exec_path ()
 
   const int len = GetModuleFileName (NULL, exec_path, exec_path_len - 1);
 
-  #elif DARWIN
+  #elif __APPLE__
 
   uint size = exec_path_len;
 
@@ -4370,6 +4377,23 @@ char *get_exec_path ()
   }
 
   const int len = strlen (exec_path);
+
+  #elif __FreeBSD__
+
+  #include <sys/sysctl.h>
+
+  int mib[4];
+  mib[0] = CTL_KERN;
+  mib[1] = KERN_PROC;
+  mib[2] = KERN_PROC_PATHNAME;
+  mib[3] = -1;
+
+  char tmp[32] = { 0 };
+
+  size_t size = exec_path_len;
+  sysctl(mib, 4, exec_path, &size, NULL, 0);
+
+  const int len = readlink (tmp, exec_path, exec_path_len - 1);
 
   #else
   #error Your Operating System is not supported or detected
@@ -4495,7 +4519,7 @@ void truecrypt_crc32 (const char *filename, u8 keytab[64])
   myfree (buf);
 }
 
-#ifdef DARWIN
+#ifdef __APPLE__
 int pthread_setaffinity_np (pthread_t thread, size_t cpu_size, cpu_set_t *cpu_set)
 {
   int core;
@@ -4523,6 +4547,9 @@ void set_cpu_affinity (char *cpu_affinity)
 {
   #ifdef _WIN
   DWORD_PTR aff_mask = 0;
+  #elif __FreeBSD__
+  cpuset_t cpuset;
+  CPU_ZERO (&cpuset);
   #elif _POSIX
   cpu_set_t cpuset;
   CPU_ZERO (&cpuset);
@@ -4557,7 +4584,7 @@ void set_cpu_affinity (char *cpu_affinity)
       }
 
       #ifdef _WIN
-      aff_mask |= 1 << (cpu_id - 1);
+      aff_mask |= 1u << (cpu_id - 1);
       #elif _POSIX
       CPU_SET ((cpu_id - 1), &cpuset);
       #endif
@@ -4570,6 +4597,9 @@ void set_cpu_affinity (char *cpu_affinity)
   #ifdef _WIN
   SetProcessAffinityMask (GetCurrentProcess (), aff_mask);
   SetThreadAffinityMask (GetCurrentThread (), aff_mask);
+  #elif __FreeBSD__
+  pthread_t thread = pthread_self ();
+  pthread_setaffinity_np (thread, sizeof (cpuset_t), &cpuset);
   #elif _POSIX
   pthread_t thread = pthread_self ();
   pthread_setaffinity_np (thread, sizeof (cpu_set_t), &cpuset);
@@ -4617,7 +4647,7 @@ int sort_by_salt (const void *v1, const void *v2)
   while (n--)
   {
     if (s1->salt_buf[n] > s2->salt_buf[n]) return ( 1);
-    if (s1->salt_buf[n] < s2->salt_buf[n]) return (-1);
+    if (s1->salt_buf[n] < s2->salt_buf[n]) return -1;
   }
 
   n = 8;
@@ -4625,10 +4655,10 @@ int sort_by_salt (const void *v1, const void *v2)
   while (n--)
   {
     if (s1->salt_buf_pc[n] > s2->salt_buf_pc[n]) return ( 1);
-    if (s1->salt_buf_pc[n] < s2->salt_buf_pc[n]) return (-1);
+    if (s1->salt_buf_pc[n] < s2->salt_buf_pc[n]) return -1;
   }
 
-  return (0);
+  return 0;
 }
 
 int sort_by_salt_buf (const void *v1, const void *v2)
@@ -4647,7 +4677,7 @@ int sort_by_salt_buf (const void *v1, const void *v2)
   while (n--)
   {
     if (s1->salt_buf[n] > s2->salt_buf[n]) return ( 1);
-    if (s1->salt_buf[n] < s2->salt_buf[n]) return (-1);
+    if (s1->salt_buf[n] < s2->salt_buf[n]) return -1;
   }
 
   return 0;
@@ -4667,20 +4697,20 @@ int sort_by_hash_t_salt (const void *v1, const void *v2)
   while (n--)
   {
     if (s1->salt_buf[n] > s2->salt_buf[n]) return ( 1);
-    if (s1->salt_buf[n] < s2->salt_buf[n]) return (-1);
+    if (s1->salt_buf[n] < s2->salt_buf[n]) return -1;
   }
 
   /* original code, seems buggy since salt_len can be very big (had a case with 131 len)
      also it thinks salt_buf[x] is a char but its a uint so salt_len should be / 4
   if (s1->salt_len > s2->salt_len) return ( 1);
-  if (s1->salt_len < s2->salt_len) return (-1);
+  if (s1->salt_len < s2->salt_len) return -1;
 
   uint n = s1->salt_len;
 
   while (n--)
   {
     if (s1->salt_buf[n] > s2->salt_buf[n]) return ( 1);
-    if (s1->salt_buf[n] < s2->salt_buf[n]) return (-1);
+    if (s1->salt_buf[n] < s2->salt_buf[n]) return -1;
   }
   */
 
@@ -4695,13 +4725,14 @@ int sort_by_hash_t_salt_hccap (const void *v1, const void *v2)
   const salt_t *s1 = h1->salt;
   const salt_t *s2 = h2->salt;
 
-  // 16 - 2 (since last 2 uints contain the digest)
-  uint n = 14;
+  // last 2: salt_buf[10] and salt_buf[11] contain the digest (skip them)
+
+  uint n = 9; // 9 * 4 = 36 bytes (max length of ESSID)
 
   while (n--)
   {
     if (s1->salt_buf[n] > s2->salt_buf[n]) return ( 1);
-    if (s1->salt_buf[n] < s2->salt_buf[n]) return (-1);
+    if (s1->salt_buf[n] < s2->salt_buf[n]) return -1;
   }
 
   return 0;
@@ -4790,7 +4821,7 @@ int sort_by_dictstat (const void *s1, const void *s2)
   dictstat_t *d1 = (dictstat_t *) s1;
   dictstat_t *d2 = (dictstat_t *) s2;
 
-  #ifdef _LINUX
+  #ifdef __linux__
   d2->stat.st_atim = d1->stat.st_atim;
   #else
   d2->stat.st_atime = d1->stat.st_atime;
@@ -4817,10 +4848,10 @@ int sort_by_digest_4_2 (const void *v1, const void *v2)
   while (n--)
   {
     if (d1[n] > d2[n]) return ( 1);
-    if (d1[n] < d2[n]) return (-1);
+    if (d1[n] < d2[n]) return -1;
   }
 
-  return (0);
+  return 0;
 }
 
 int sort_by_digest_4_4 (const void *v1, const void *v2)
@@ -4833,10 +4864,10 @@ int sort_by_digest_4_4 (const void *v1, const void *v2)
   while (n--)
   {
     if (d1[n] > d2[n]) return ( 1);
-    if (d1[n] < d2[n]) return (-1);
+    if (d1[n] < d2[n]) return -1;
   }
 
-  return (0);
+  return 0;
 }
 
 int sort_by_digest_4_5 (const void *v1, const void *v2)
@@ -4849,10 +4880,10 @@ int sort_by_digest_4_5 (const void *v1, const void *v2)
   while (n--)
   {
     if (d1[n] > d2[n]) return ( 1);
-    if (d1[n] < d2[n]) return (-1);
+    if (d1[n] < d2[n]) return -1;
   }
 
-  return (0);
+  return 0;
 }
 
 int sort_by_digest_4_6 (const void *v1, const void *v2)
@@ -4865,10 +4896,10 @@ int sort_by_digest_4_6 (const void *v1, const void *v2)
   while (n--)
   {
     if (d1[n] > d2[n]) return ( 1);
-    if (d1[n] < d2[n]) return (-1);
+    if (d1[n] < d2[n]) return -1;
   }
 
-  return (0);
+  return 0;
 }
 
 int sort_by_digest_4_8 (const void *v1, const void *v2)
@@ -4881,10 +4912,10 @@ int sort_by_digest_4_8 (const void *v1, const void *v2)
   while (n--)
   {
     if (d1[n] > d2[n]) return ( 1);
-    if (d1[n] < d2[n]) return (-1);
+    if (d1[n] < d2[n]) return -1;
   }
 
-  return (0);
+  return 0;
 }
 
 int sort_by_digest_4_16 (const void *v1, const void *v2)
@@ -4897,10 +4928,10 @@ int sort_by_digest_4_16 (const void *v1, const void *v2)
   while (n--)
   {
     if (d1[n] > d2[n]) return ( 1);
-    if (d1[n] < d2[n]) return (-1);
+    if (d1[n] < d2[n]) return -1;
   }
 
-  return (0);
+  return 0;
 }
 
 int sort_by_digest_4_32 (const void *v1, const void *v2)
@@ -4913,10 +4944,10 @@ int sort_by_digest_4_32 (const void *v1, const void *v2)
   while (n--)
   {
     if (d1[n] > d2[n]) return ( 1);
-    if (d1[n] < d2[n]) return (-1);
+    if (d1[n] < d2[n]) return -1;
   }
 
-  return (0);
+  return 0;
 }
 
 int sort_by_digest_4_64 (const void *v1, const void *v2)
@@ -4929,10 +4960,10 @@ int sort_by_digest_4_64 (const void *v1, const void *v2)
   while (n--)
   {
     if (d1[n] > d2[n]) return ( 1);
-    if (d1[n] < d2[n]) return (-1);
+    if (d1[n] < d2[n]) return -1;
   }
 
-  return (0);
+  return 0;
 }
 
 int sort_by_digest_8_8 (const void *v1, const void *v2)
@@ -4945,10 +4976,10 @@ int sort_by_digest_8_8 (const void *v1, const void *v2)
   while (n--)
   {
     if (d1[n] > d2[n]) return ( 1);
-    if (d1[n] < d2[n]) return (-1);
+    if (d1[n] < d2[n]) return -1;
   }
 
-  return (0);
+  return 0;
 }
 
 int sort_by_digest_8_16 (const void *v1, const void *v2)
@@ -4961,10 +4992,10 @@ int sort_by_digest_8_16 (const void *v1, const void *v2)
   while (n--)
   {
     if (d1[n] > d2[n]) return ( 1);
-    if (d1[n] < d2[n]) return (-1);
+    if (d1[n] < d2[n]) return -1;
   }
 
-  return (0);
+  return 0;
 }
 
 int sort_by_digest_8_25 (const void *v1, const void *v2)
@@ -4977,10 +5008,10 @@ int sort_by_digest_8_25 (const void *v1, const void *v2)
   while (n--)
   {
     if (d1[n] > d2[n]) return ( 1);
-    if (d1[n] < d2[n]) return (-1);
+    if (d1[n] < d2[n]) return -1;
   }
 
-  return (0);
+  return 0;
 }
 
 int sort_by_digest_p0p1 (const void *v1, const void *v2)
@@ -4994,15 +5025,15 @@ int sort_by_digest_p0p1 (const void *v1, const void *v2)
   const uint dgst_pos3 = data.dgst_pos3;
 
   if (d1[dgst_pos3] > d2[dgst_pos3]) return ( 1);
-  if (d1[dgst_pos3] < d2[dgst_pos3]) return (-1);
+  if (d1[dgst_pos3] < d2[dgst_pos3]) return -1;
   if (d1[dgst_pos2] > d2[dgst_pos2]) return ( 1);
-  if (d1[dgst_pos2] < d2[dgst_pos2]) return (-1);
+  if (d1[dgst_pos2] < d2[dgst_pos2]) return -1;
   if (d1[dgst_pos1] > d2[dgst_pos1]) return ( 1);
-  if (d1[dgst_pos1] < d2[dgst_pos1]) return (-1);
+  if (d1[dgst_pos1] < d2[dgst_pos1]) return -1;
   if (d1[dgst_pos0] > d2[dgst_pos0]) return ( 1);
-  if (d1[dgst_pos0] < d2[dgst_pos0]) return (-1);
+  if (d1[dgst_pos0] < d2[dgst_pos0]) return -1;
 
-  return (0);
+  return 0;
 }
 
 int sort_by_tuning_db_alias (const void *v1, const void *v2)
@@ -5196,7 +5227,7 @@ void format_output (FILE *out_fp, char *out_buf, unsigned char *plain_ptr, const
     #endif
   }
 
-  fputc ('\n', out_fp);
+  fputs (EOL, out_fp);
 }
 
 void handle_show_request (pot_t *pot, uint pot_cnt, char *input_buf, int input_len, hash_t *hashes_buf, int (*sort_by_pot) (const void *, const void *), FILE *out_fp)
@@ -5477,7 +5508,7 @@ uint setup_opencl_platforms_filter (char *opencl_platforms)
         exit (-1);
       }
 
-      opencl_platforms_filter |= 1 << (platform - 1);
+      opencl_platforms_filter |= 1u << (platform - 1);
 
     } while ((next = strtok (NULL, ",")) != NULL);
 
@@ -5512,7 +5543,7 @@ u32 setup_devices_filter (char *opencl_devices)
         exit (-1);
       }
 
-      devices_filter |= 1 << (device_id - 1);
+      devices_filter |= 1u << (device_id - 1);
 
     } while ((next = strtok (NULL, ",")) != NULL);
 
@@ -5547,7 +5578,7 @@ cl_device_type setup_device_types_filter (char *opencl_device_types)
         exit (-1);
       }
 
-      device_types_filter |= 1 << device_type;
+      device_types_filter |= 1u << device_type;
 
     } while ((next = strtok (NULL, ",")) != NULL);
 
@@ -5763,11 +5794,14 @@ char **scan_directory (const char *path)
 
   if ((d = opendir (tmp_path)) != NULL)
   {
-    #ifdef DARWIN
+    #ifdef __APPLE__
+
     struct dirent e;
 
-    for (;;) {
+    for (;;)
+    {
       memset (&e, 0, sizeof (e));
+
       struct dirent *de = NULL;
 
       if (readdir_r (d, &e, &de) != 0)
@@ -5778,12 +5812,16 @@ char **scan_directory (const char *path)
       }
 
       if (de == NULL) break;
+
     #else
+
     struct dirent *de;
 
     while ((de = readdir (d)) != NULL)
     {
+
     #endif
+
       if ((strcmp (de->d_name, ".") == 0) || (strcmp (de->d_name, "..") == 0)) continue;
 
       int path_size = strlen (tmp_path) + 1 + strlen (de->d_name);
@@ -6109,6 +6147,7 @@ char *strhashtype (const uint hash_mode)
     case 13762: return ((char *) HT_13762); break;
     case 13763: return ((char *) HT_13763); break;
     case 13800: return ((char *) HT_13800); break;
+    case 13900: return ((char *) HT_13900); break;
   }
 
   return ((char *) "Unknown");
@@ -6147,9 +6186,10 @@ void ascii_digest (char *out_buf, uint salt_pos, uint digest_pos)
 
   uint len = 4096;
 
-  uint digest_buf[64] = { 0 };
+  u8 datax[256] = { 0 };
 
-  u64 *digest_buf64 = (u64 *) digest_buf;
+  u64 *digest_buf64 = (u64 *) datax;
+  u32 *digest_buf   = (u32 *) datax;
 
   char *digests_buf_ptr = (char *) data.digests_buf;
 
@@ -10060,7 +10100,7 @@ int bcrypt_parse_hash (char *input_buf, uint input_len, hash_t *hash_buf)
 
   char *iter_pos = input_buf + 4;
 
-  salt->salt_iter = 1 << atoi (iter_pos);
+  salt->salt_iter = 1u << atoi (iter_pos);
 
   char *salt_pos = strchr (iter_pos, '$');
 
@@ -10796,7 +10836,7 @@ int phpass_parse_hash (char *input_buf, uint input_len, hash_t *hash_buf)
 
   char *iter_pos = input_buf + 3;
 
-  uint salt_iter = 1 << itoa64_to_int (iter_pos[0]);
+  uint salt_iter = 1u << itoa64_to_int (iter_pos[0]);
 
   if (salt_iter > 0x80000000) return (PARSER_SALT_ITERATION);
 
@@ -13406,7 +13446,7 @@ int sha1aix_parse_hash (char *input_buf, uint input_len, hash_t *hash_buf)
 
   salt->salt_sign[0] = atoi (salt_iter);
 
-  salt->salt_iter = (1 << atoi (salt_iter)) - 1;
+  salt->salt_iter = (1u << atoi (salt_iter)) - 1;
 
   hash_pos++;
 
@@ -13455,7 +13495,7 @@ int sha256aix_parse_hash (char *input_buf, uint input_len, hash_t *hash_buf)
 
   salt->salt_sign[0] = atoi (salt_iter);
 
-  salt->salt_iter = (1 << atoi (salt_iter)) - 1;
+  salt->salt_iter = (1u << atoi (salt_iter)) - 1;
 
   hash_pos++;
 
@@ -13507,7 +13547,7 @@ int sha512aix_parse_hash (char *input_buf, uint input_len, hash_t *hash_buf)
 
   salt->salt_sign[0] = atoi (salt_iter);
 
-  salt->salt_iter = (1 << atoi (salt_iter)) - 1;
+  salt->salt_iter = (1u << atoi (salt_iter)) - 1;
 
   hash_pos++;
 
@@ -14440,7 +14480,7 @@ int drupal7_parse_hash (char *input_buf, uint input_len, hash_t *hash_buf)
 
   char *iter_pos = input_buf + 3;
 
-  uint salt_iter = 1 << itoa64_to_int (iter_pos[0]);
+  uint salt_iter = 1u << itoa64_to_int (iter_pos[0]);
 
   if (salt_iter > 0x80000000) return (PARSER_SALT_ITERATION);
 
@@ -14934,6 +14974,37 @@ int wbb3_parse_hash (char *input_buf, uint input_len, hash_t *hash_buf)
   salt_len = parse_and_store_salt (salt_buf_ptr, salt_buf, salt_len);
 
   if (salt_len == UINT_MAX) return (PARSER_SALT_LENGTH);
+
+  salt->salt_len = salt_len;
+
+  return (PARSER_OK);
+}
+
+int opencart_parse_hash (char *input_buf, uint input_len, hash_t *hash_buf)
+{
+  if ((input_len < DISPLAY_LEN_MIN_13900) || (input_len > DISPLAY_LEN_MAX_13900)) return (PARSER_GLOBAL_LENGTH);
+
+  u32 *digest = (u32 *) hash_buf->digest;
+
+  salt_t *salt = hash_buf->salt;
+
+  digest[0] = hex_to_u32 ((const u8 *) &input_buf[ 0]);
+  digest[1] = hex_to_u32 ((const u8 *) &input_buf[ 8]);
+  digest[2] = hex_to_u32 ((const u8 *) &input_buf[16]);
+  digest[3] = hex_to_u32 ((const u8 *) &input_buf[24]);
+  digest[4] = hex_to_u32 ((const u8 *) &input_buf[32]);
+
+  if (input_buf[40] != data.separator) return (PARSER_SEPARATOR_UNMATCHED);
+
+  uint salt_len = input_len - 40 - 1;
+
+  char *salt_buf = input_buf + 40 + 1;
+
+  char *salt_buf_ptr = (char *) salt->salt_buf;
+
+  salt_len = parse_and_store_salt (salt_buf_ptr, salt_buf, salt_len);
+
+  if ((salt_len != 9) || (salt_len == UINT_MAX)) return (PARSER_SALT_LENGTH);
 
   salt->salt_len = salt_len;
 
@@ -16910,7 +16981,7 @@ int crammd5_parse_hash (char *input_buf, uint input_len, hash_t *hash_buf)
 
   hash_len = base64_decode (base64_to_int, (const u8 *) hash_pos, hash_len, tmp_buf);
 
-  if (hash_len < 32 + 1) return (PARSER_SALT_LENGTH);
+  if (hash_len < 32 + 1) return (PARSER_HASH_LENGTH);
 
   uint user_len = hash_len - 32;
 
@@ -17894,7 +17965,7 @@ int pdf17l8_parse_hash (char *input_buf, uint input_len, hash_t *hash_buf)
 
   int enc_md = atoi (enc_md_pos);
 
-  if (enc_md != 1) return (PARSER_SALT_VALUE);
+  if ((enc_md != 0) && (enc_md != 1)) return (PARSER_SALT_VALUE);
 
   const uint id_len = atoi (id_len_pos);
   const uint u_len  = atoi (u_len_pos);
@@ -19021,7 +19092,7 @@ int seven_zip_parse_hash (char *input_buf, uint input_len, hash_t *hash_buf)
 
   salt->salt_sign[0] = iter;
 
-  salt->salt_iter = 1 << iter;
+  salt->salt_iter = 1u << iter;
 
   /**
    * digest
@@ -19640,7 +19711,7 @@ int rar5_parse_hash (char *input_buf, uint input_len, hash_t *hash_buf)
 
   salt->salt_sign[0] = iterations;
 
-  salt->salt_iter = ((1 << iterations) + 32) - 1;
+  salt->salt_iter = ((1u << iterations) + 32) - 1;
 
   /**
    * digest buf
@@ -21100,11 +21171,12 @@ int cpu_rule_to_kernel_rule (char *rule_buf, uint rule_len, kernel_rule_t *rule)
         break;
 
       case RULE_OP_MANGLE_PURGECHAR:
-        return (-1);
+        SET_NAME (rule, rule_buf[rule_pos]);
+        SET_P0   (rule, rule_buf[rule_pos]);
         break;
 
       case RULE_OP_MANGLE_TOGGLECASE_REC:
-        return (-1);
+        return -1;
         break;
 
       case RULE_OP_MANGLE_DUPECHAR_FIRST:
@@ -21180,14 +21252,14 @@ int cpu_rule_to_kernel_rule (char *rule_buf, uint rule_len, kernel_rule_t *rule)
         break;
 
       default:
-        return (-1);
+        return -1;
         break;
     }
   }
 
-  if (rule_pos < rule_len) return (-1);
+  if (rule_pos < rule_len) return -1;
 
-  return (0);
+  return 0;
 }
 
 int kernel_rule_to_cpu_rule (char *rule_buf, kernel_rule_t *rule)
@@ -21319,11 +21391,12 @@ int kernel_rule_to_cpu_rule (char *rule_buf, kernel_rule_t *rule)
         break;
 
       case RULE_OP_MANGLE_PURGECHAR:
-        return (-1);
+        rule_buf[rule_pos] = rule_cmd;
+        GET_P0 (rule);
         break;
 
       case RULE_OP_MANGLE_TOGGLECASE_REC:
-        return (-1);
+        return -1;
         break;
 
       case RULE_OP_MANGLE_DUPECHAR_FIRST:
@@ -21403,7 +21476,7 @@ int kernel_rule_to_cpu_rule (char *rule_buf, kernel_rule_t *rule)
         break;
 
       default:
-        return (-1);
+        return -1;
         break;
     }
   }
@@ -21413,7 +21486,7 @@ int kernel_rule_to_cpu_rule (char *rule_buf, kernel_rule_t *rule)
     return rule_pos;
   }
 
-  return (-1);
+  return -1;
 }
 
 /**

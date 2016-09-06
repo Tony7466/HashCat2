@@ -46,7 +46,7 @@
 #define hc_thread_mutex_delete(m)   pthread_mutex_destroy  (&m)
 #endif
 
-#ifdef DARWIN
+#ifdef __APPLE__
 typedef struct cpu_set
 {
   uint32_t count;
@@ -81,7 +81,7 @@ static inline int  CPU_ISSET (int num, cpu_set_t *cs) { return (cs->count & (1 <
         exit (-1); \
       } else { \
         log_info ("WARNING: %s is missing from %s shared library.", #name, #libname); \
-        return (-1); \
+        return -1; \
       } \
     } \
   }
@@ -95,7 +95,7 @@ static inline int  CPU_ISSET (int num, cpu_set_t *cs) { return (cs->count & (1 <
         exit (-1); \
       } else { \
         log_info ("WARNING: %s is missing from %s shared library.", #name, #libname); \
-        return (-1); \
+        return -1; \
       } \
     } \
   }
@@ -108,7 +108,7 @@ static inline int  CPU_ISSET (int num, cpu_set_t *cs) { return (cs->count & (1 <
       exit (-1); \
     } else { \
       log_error ("WARNING: %s at address %08x is missing from %s shared library.", #name, addr, #libname); \
-      return (-1); \
+      return -1; \
     } \
   }
 
@@ -152,15 +152,15 @@ static inline int  CPU_ISSET (int num, cpu_set_t *cs) { return (cs->count & (1 <
 #define CL_VENDOR_NV            "NVIDIA Corporation"
 #define CL_VENDOR_POCL          "The pocl project"
 
-#define VENDOR_ID_AMD           (1 << 0)
-#define VENDOR_ID_APPLE         (1 << 1)
-#define VENDOR_ID_INTEL_BEIGNET (1 << 2)
-#define VENDOR_ID_INTEL_SDK     (1 << 3)
-#define VENDOR_ID_MESA          (1 << 4)
-#define VENDOR_ID_NV            (1 << 5)
-#define VENDOR_ID_POCL          (1 << 6)
-#define VENDOR_ID_AMD_USE_INTEL (1 << 7)
-#define VENDOR_ID_GENERIC       (1 << 31)
+#define VENDOR_ID_AMD           (1u << 0)
+#define VENDOR_ID_APPLE         (1u << 1)
+#define VENDOR_ID_INTEL_BEIGNET (1u << 2)
+#define VENDOR_ID_INTEL_SDK     (1u << 3)
+#define VENDOR_ID_MESA          (1u << 4)
+#define VENDOR_ID_NV            (1u << 5)
+#define VENDOR_ID_POCL          (1u << 6)
+#define VENDOR_ID_AMD_USE_INTEL (1u << 7)
+#define VENDOR_ID_GENERIC       (1u << 31)
 
 #define BLOCK_SIZE              64
 
@@ -369,6 +369,7 @@ extern hc_thread_mutex_t mux_display;
 #define HT_13500  "PeopleSoft PS_TOKEN"
 #define HT_13600  "WinZip"
 #define HT_13800  "Windows 8+ phone PIN/Password"
+#define HT_13900  "OpenCart"
 
 #define HT_00011  "Joomla < 2.5.18"
 #define HT_00012  "PostgreSQL"
@@ -733,6 +734,8 @@ extern hc_thread_mutex_t mux_display;
 #define DISPLAY_LEN_MAX_13600 6 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 32 + 1 + 4 + 1 + 4 + 1 + 8192 + 1 + 20 + 1 + 7
 #define DISPLAY_LEN_MIN_13800  64 + 1 + 256
 #define DISPLAY_LEN_MAX_13800  64 + 1 + 256
+#define DISPLAY_LEN_MIN_13900 40 + 1 + 9
+#define DISPLAY_LEN_MAX_13900 40 + 1 + 9
 
 #define DISPLAY_LEN_MIN_11    32 + 1 + 16
 #define DISPLAY_LEN_MAX_11    32 + 1 + 32
@@ -1005,6 +1008,7 @@ extern hc_thread_mutex_t mux_display;
 #define KERN_TYPE_PSTOKEN             13500
 #define KERN_TYPE_ZIP2                13600
 #define KERN_TYPE_WIN8PHONE           13800
+#define KERN_TYPE_OPENCART            13900
 
 /**
  * signatures
@@ -1667,6 +1671,7 @@ int veracrypt_parse_hash_500000   (char *input_buf, uint input_len, hash_t *hash
 int veracrypt_parse_hash_327661   (char *input_buf, uint input_len, hash_t *hash_buf);
 int veracrypt_parse_hash_655331   (char *input_buf, uint input_len, hash_t *hash_buf);
 int win8phone_parse_hash          (char *input_buf, uint input_len, hash_t *hash_buf);
+int opencart_parse_hash           (char *input_buf, uint input_len, hash_t *hash_buf);
 
 void naive_replace (char *s, const u8 key_char, const u8 replace_char);
 void naive_escape (char *s, size_t s_max, const u8 key_char, const u8 escape_char);

@@ -1012,6 +1012,8 @@ struct __hc_device_param
 
   double  nvidia_spin_damp;
 
+  cl_platform_id platform;
+
   cl_uint device_vendor_id;
   cl_uint platform_vendor_id;
 
@@ -1279,6 +1281,10 @@ typedef struct
   char   *veracrypt_keyfiles;
   uint    veracrypt_pim;
   uint    workload_profile;
+  char   *custom_charset_1;
+  char   *custom_charset_2;
+  char   *custom_charset_3;
+  char   *custom_charset_4;
 
   uint    hash_mode;
   uint    hash_type;
@@ -1324,6 +1330,8 @@ typedef struct
 
   time_t  runtime_start;
   time_t  runtime_stop;
+
+  time_t  prepare_time;
 
   time_t  proc_start;
   time_t  proc_stop;

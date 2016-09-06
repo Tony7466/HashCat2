@@ -1,9 +1,58 @@
+* changes v3.00 -> v3.10:
+
+##
+## Improvements
+##
+
+- Added mask display to modes 3, 6, and 7. Allows the user to see the custom character set used during the run
+- Make Linux build POSIX compatible; Also allow it to actually compile on musl-libc systems
+- Add support to compile on FreeBSD
+- Make use of cl_context_properties[] to clCreateContext(), even if OpenCL specification allow the use of NULL, some runtimes fail without
+- The Time.Estimated attribute in status display should also show --runtime limit if user set it
+- Fix some strict aliasing rule violation on older compilers
+- Fix some variable initializers on older compilers
+- Replace DARWIN macro with compiler predefined macro __APPLE__
+- Replace LINUX macro with compiler predefined macro __linux__
+- Allow the use of enc_id == 0 in hash-mode 10600 and 10700 as it takes no part in the actual computation
+- Get rid of exit() calls in OpenCL wrapper library with the goal to have a better control which error can be ignored under special circumstances
+- Do not error and exit if an OpenCL platform has no devices, just print a warning and continue with the next platform
+- Workaround for OpenCL runtimes which do not accept -I parameter in the OpenCL kernel build options even if this is an OpenCL standard option
+- Workaround for OpenCL runtimes which do accept -I parameter in the OpenCL kernel build options, but do not allow quotes
+- Output cracked hashes on Windows using \r\n and not \n
+- Replace RegGetValue() with RegQueryValueEx() to enable Windows XP 32 bit compatibility
+- Slightly increased NVidias rule-processing performance by using generic instructions instead of byte_perm()
+- Add support for @ rule (RULE_OP_MANGLE_PURGECHAR) to use on GPU
+- Add support for --outfile (short -o) to be used together with --stdout
+- Skip periodic status output whenever --stdout is used together with stdin mode, but no outfile was specified
+- Show error message if --show is used together with --outfile-autohex-disable (this is currently not supported)
+- Show error message if --skip/--limit is used together with mask files or --increment
+- Workaround for NVidia OpenCL runtime bug causing -m 6223 to not crack any hashes even with the correct password candidate
+
+##
+## Bugs
+##
+
+- Fixed a bug where CRAM MD5 checked salt length instead of hash length
+- Fixed a bug where hashcat is suppressing --machine-readable output in the final status update
+- Fixed a bug where hashcat did not check the return of realpath() and crashes uncontrolled if the path does not exist
+- Fixed a bug where hashcat crashes for accessing deallocated buffer if user spams "s" shortly before hashcat shuts down
+- Fixed a bug where hashcat crashes in case of a scrypt P setting > 1
+- Fixed a bug where hashcat did not correctly use the newly cracked plains whenever --loopback or the induction folder was used
+- Fixed a bug where hashcat did not correctly remove hashes of type WPA/WPA2 even if present in potfile
+- Fixed a bug where hashcat reported an invalid password for a zero-length password in LM
+- Fixed a bug where hashcat did not take into account how long it takes to prepare a session when auto-aborting with --runtime is in use
+- Fixed a bug where some kernels used COMPARE_M_SIMD instead of COMPARE_S_SIMD in singlehash mode
+
+##
+## Algorithms
+##
+
+- Added new hash-mode 13900 = OpenCart
+
 * changes v2.01 -> v3.00:
 
 This release markes the fusion of "hashcat" and "oclHashcat" into "hashcat".
 It combines all features of all hashcat projects in one project.
-
-** THE VERSION 3.00 IS CURRENTLY STILL IN BETA **
 
 ##
 ## Features

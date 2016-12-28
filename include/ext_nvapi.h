@@ -1,16 +1,10 @@
 /**
- * Authors.....: Jens Steube <jens.steube@gmail.com>
- *               Gabriele Gristina <matrix@hashcat.net>
- *
+ * Author......: See docs/credits.txt
  * License.....: MIT
  */
 
-#ifndef EXT_NVAPI_H
-#define EXT_NVAPI_H
-
-#if defined(HAVE_HWMON)
-
-#include <common.h>
+#ifndef _EXT_NVAPI_H
+#define _EXT_NVAPI_H
 
 /**
  * Declarations from nvapi.h and subheaders
@@ -162,7 +156,7 @@ typedef enum _NvAPI_Status
     NVAPI_FIRMWARE_REVISION_NOT_SUPPORTED       = -200,    // The device's firmware is not supported.
 } NvAPI_Status;
 
-typedef struct
+typedef struct struct_NV_GPU_PERF_POLICIES_INFO_PARAMS_V1
 {
   // total size (of memset) is always: 76 = 0x4c
 
@@ -175,7 +169,7 @@ typedef struct
 
 } NV_GPU_PERF_POLICIES_INFO_PARAMS_V1;
 
-typedef struct
+typedef struct struct_NV_GPU_PERF_POLICIES_STATUS_PARAMS_V1
 {
   // total size (of memset) is always: 1360 = 0x550
 
@@ -191,23 +185,23 @@ typedef struct
 
 } NV_GPU_PERF_POLICIES_STATUS_PARAMS_V1;
 
-typedef struct
+typedef struct struct_NvLevel
 {
   NvS32 Level;
   NvS32 Policy;
 
 } NvLevel;
 
-typedef struct
+typedef struct struct_NV_GPU_COOLER_LEVELS
 {
   NvU32    Version;
   NvLevel  Levels[NVAPI_MAX_COOLER_PER_GPU];
 
 } NV_GPU_COOLER_LEVELS;
 
-NVAPI_INTERFACE NvAPI_QueryInterface (uint offset);
-NVAPI_INTERFACE NvAPI_Initialize ();
-NVAPI_INTERFACE NvAPI_Unload ();
+NVAPI_INTERFACE NvAPI_QueryInterface (unsigned int offset);
+NVAPI_INTERFACE NvAPI_Initialize (void);
+NVAPI_INTERFACE NvAPI_Unload (void);
 NVAPI_INTERFACE NvAPI_GetErrorMessage (NvAPI_Status nr,NvAPI_ShortString szDesc);
 NVAPI_INTERFACE NvAPI_EnumPhysicalGPUs (NvPhysicalGpuHandle nvGPUHandle[NVAPI_MAX_PHYSICAL_GPUS], NvU32 *pGpuCount);
 NVAPI_INTERFACE NvAPI_GPU_GetPerfPoliciesInfo (NvPhysicalGpuHandle hPhysicalGpu, NV_GPU_PERF_POLICIES_INFO_PARAMS_V1 *perfPolicies_info);
@@ -221,15 +215,13 @@ NVAPI_INTERFACE NvAPI_GPU_RestoreCoolerSettings (NvPhysicalGpuHandle hPhysicalGp
 
 typedef NvPhysicalGpuHandle HM_ADAPTER_NVAPI;
 
-#include <shared.h>
-
-#if defined(_WIN32) || defined(__WIN32__) || defined(__CYGWIN__)
+#if defined(_WIN32) || defined(__WIN32__)
 #define NVAPI_API_CALL __stdcall
 #else
 #define NVAPI_API_CALL
 #endif
 
-typedef int *(*NVAPI_API_CALL NVAPI_QUERYINTERFACE) (uint);
+typedef int *(*NVAPI_API_CALL NVAPI_QUERYINTERFACE) (unsigned int);
 typedef int (*NVAPI_API_CALL NVAPI_INITIALIZE) (void);
 typedef int (*NVAPI_API_CALL NVAPI_UNLOAD) (void);
 typedef int (*NVAPI_API_CALL NVAPI_GETERRORMESSAGE) (NvAPI_Status, NvAPI_ShortString);
@@ -239,7 +231,13 @@ typedef int (*NVAPI_API_CALL NVAPI_GPU_GETPERFPOLICIESSTATUS) (NvPhysicalGpuHand
 typedef int (*NVAPI_API_CALL NVAPI_GPU_SETCOOLERLEVELS) (NvPhysicalGpuHandle, NvU32, NV_GPU_COOLER_LEVELS *);
 typedef int (*NVAPI_API_CALL NVAPI_GPU_RESTORECOOLERSETTINGS) (NvPhysicalGpuHandle, NvU32);
 
-typedef struct
+#if defined (_POSIX)
+typedef void *NVAPI_LIB;
+#else
+typedef HINSTANCE NVAPI_LIB;
+#endif
+
+typedef struct hm_nvapi_lib
 {
   NVAPI_LIB lib;
 
@@ -255,21 +253,6 @@ typedef struct
 
 } hm_nvapi_lib_t;
 
-#define NVAPI_PTR hm_nvapi_lib_t
+typedef hm_nvapi_lib_t NVAPI_PTR;
 
-int nvapi_init (NVAPI_PTR *nvapi);
-void nvapi_close (NVAPI_PTR *nvapi);
-
-int hm_NvAPI_QueryInterface (NVAPI_PTR *nvapi, uint offset);
-int hm_NvAPI_Initialize (NVAPI_PTR *nvapi);
-int hm_NvAPI_Unload (NVAPI_PTR *nvapi);
-int hm_NvAPI_GetErrorMessage (NVAPI_PTR *nvapi, NvAPI_Status nr, NvAPI_ShortString szDesc);
-int hm_NvAPI_EnumPhysicalGPUs (NVAPI_PTR *nvapi, NvPhysicalGpuHandle nvGPUHandle[NVAPI_MAX_PHYSICAL_GPUS], NvU32 *pGpuCount);
-int hm_NvAPI_GPU_GetPerfPoliciesInfo (NVAPI_PTR *nvapi, NvPhysicalGpuHandle hPhysicalGpu, NV_GPU_PERF_POLICIES_INFO_PARAMS_V1 *perfPolicies_info);
-int hm_NvAPI_GPU_GetPerfPoliciesStatus (NVAPI_PTR *nvapi, NvPhysicalGpuHandle hPhysicalGpu, NV_GPU_PERF_POLICIES_STATUS_PARAMS_V1 *perfPolicies_status);
-int hm_NvAPI_GPU_SetCoolerLevels (NVAPI_PTR *nvapi, NvPhysicalGpuHandle hPhysicalGpu, NvU32 coolerIndex, NV_GPU_COOLER_LEVELS *pCoolerLevels);
-int hm_NvAPI_GPU_RestoreCoolerSettings (NVAPI_PTR *nvapi, NvPhysicalGpuHandle hPhysicalGpu, NvU32 coolerIndex);
-
-#endif // HAVE_HWMON
-
-#endif // EXT_NVAPI_H
+#endif // _EXT_NVAPI_H

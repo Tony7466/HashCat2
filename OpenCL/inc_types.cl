@@ -1,7 +1,5 @@
 /**
- * Authors.....: Jens Steube <jens.steube@gmail.com>
- *               magnum <john.magnum@hushmail.com>
- *
+ * Author......: See docs/credits.txt
  * License.....: MIT
  */
 
@@ -679,7 +677,6 @@ typedef struct
   u32 salt_sign[2];
 
   u32 keccak_mdlen;
-  u32 truecrypt_mdlen;
 
   u32 digests_cnt;
   u32 digests_done;
@@ -1320,7 +1317,7 @@ typedef struct
 
 typedef struct
 {
-  u32 cmds[0x100];
+  u32 cmds[32];
 
 } kernel_rule_t;
 
@@ -1375,3 +1372,10 @@ typedef struct
   uint4 P[SCRYPT_TMP_ELEM];
 
 } scrypt_tmp_t;
+
+typedef enum combinator_mode
+{
+  COMBINATOR_MODE_BASE_LEFT  = 10001,
+  COMBINATOR_MODE_BASE_RIGHT = 10002
+
+} combinator_mode_t;

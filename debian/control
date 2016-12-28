@@ -3,7 +3,7 @@ Section: net
 Priority: optional
 Maintainer: Debian Security Tools Packaging Team <pkg-security-team@lists.alioth.debian.org>
 Uploaders: Daniel Echeverry <epsilon77@gmail.com>
-Build-Depends: debhelper (>=9), libgmp-dev, opencl-headers
+Build-Depends: debhelper (>=10), libgmp-dev, opencl-headers
 Standards-Version: 3.9.8
 Homepage: http://hashcat.net/hashcat/
 Vcs-Git: https://anonscm.debian.org/git/pkg-security/hashcat.git

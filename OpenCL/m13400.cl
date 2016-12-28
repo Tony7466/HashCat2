@@ -1,7 +1,5 @@
 /**
- * Authors......: Jens Steube <jens.steube@gmail.com>
- * Authors......: Fist0urs   <eddy.maaalou@gmail.com>
-
+ * Author......: See docs/credits.txt
  * License.....: MIT
  */
 
@@ -702,7 +700,7 @@ __constant u32 rcon[] =
   0x1b000000, 0x36000000,
 };
 
-void AES256_ExpandKey (u32 *userkey, u32 *rek, __local u32 *s_te0, __local u32 *s_te1, __local u32 *s_te2, __local u32 *s_te3, __local u32 *s_te4)
+static void AES256_ExpandKey (u32 *userkey, u32 *rek, __local u32 *s_te0, __local u32 *s_te1, __local u32 *s_te2, __local u32 *s_te3, __local u32 *s_te4)
 {
   rek[0] = userkey[0];
   rek[1] = userkey[1];
@@ -713,53 +711,43 @@ void AES256_ExpandKey (u32 *userkey, u32 *rek, __local u32 *s_te0, __local u32 *
   rek[6] = userkey[6];
   rek[7] = userkey[7];
 
-  int i;
-  int j;
-
-  i = 0;
-  j = 0;
-
-  u32 run = 1;
-
-  while (run)
+  #ifdef _unroll
+  #pragma unroll
+  #endif
+  for (int i = 0, j = 0; i < 7; i += 1, j += 8)
   {
-    u32 temp = rek[j +  7];
+    const u32 temp1 = rek[j + 7];
 
-    rek[j +  8] = rek[j +  0]
-           ^ (s_te2[(temp >> 16) & 0xff] & 0xff000000)
-           ^ (s_te3[(temp >>  8) & 0xff] & 0x00ff0000)
-           ^ (s_te0[(temp >>  0) & 0xff] & 0x0000ff00)
-           ^ (s_te1[(temp >> 24) & 0xff] & 0x000000ff)
-           ^ rcon[i];
+    rek[j +  8] = rek[j + 0]
+                ^ (s_te2[(temp1 >> 16) & 0xff] & 0xff000000)
+                ^ (s_te3[(temp1 >>  8) & 0xff] & 0x00ff0000)
+                ^ (s_te0[(temp1 >>  0) & 0xff] & 0x0000ff00)
+                ^ (s_te1[(temp1 >> 24) & 0xff] & 0x000000ff)
+                ^ rcon[i];
+    rek[j +  9] = rek[j + 1] ^ rek[j +  8];
+    rek[j + 10] = rek[j + 2] ^ rek[j +  9];
+    rek[j + 11] = rek[j + 3] ^ rek[j + 10];
 
-    rek[j +  9] = rek[j +  1] ^ rek[j +  8];
-    rek[j + 10] = rek[j +  2] ^ rek[j +  9];
-    rek[j + 11] = rek[j +  3] ^ rek[j + 10];
+    if (i == 6) continue;
 
-    if (++i == 7)
-    {
-      run = 0;
-      continue;
-    }
+    const u32 temp2 = rek[j + 11];
 
-    temp = rek[j + 11];
-
-    rek[j + 12] = rek[j +  4]
-           ^ (s_te2[(temp >> 24) & 0xff] & 0xff000000)
-           ^ (s_te3[(temp >> 16) & 0xff] & 0x00ff0000)
-           ^ (s_te0[(temp >>  8) & 0xff] & 0x0000ff00)
-           ^ (s_te1[(temp >>  0) & 0xff] & 0x000000ff);
-
-    rek[j + 13] = rek[j +  5] ^ rek[j + 12];
-    rek[j + 14] = rek[j +  6] ^ rek[j + 13];
-    rek[j + 15] = rek[j +  7] ^ rek[j + 14];
-
-    j += 8;
+    rek[j + 12] = rek[j + 4]
+                ^ (s_te2[(temp2 >> 24) & 0xff] & 0xff000000)
+                ^ (s_te3[(temp2 >> 16) & 0xff] & 0x00ff0000)
+                ^ (s_te0[(temp2 >>  8) & 0xff] & 0x0000ff00)
+                ^ (s_te1[(temp2 >>  0) & 0xff] & 0x000000ff);
+    rek[j + 13] = rek[j + 5] ^ rek[j + 12];
+    rek[j + 14] = rek[j + 6] ^ rek[j + 13];
+    rek[j + 15] = rek[j + 7] ^ rek[j + 14];
   }
 }
 
-void AES256_InvertKey (u32 *rdk, __local u32 *s_td0, __local u32 *s_td1, __local u32 *s_td2, __local u32 *s_td3, __local u32 *s_td4, __local u32 *s_te0, __local u32 *s_te1, __local u32 *s_te2, __local u32 *s_te3, __local u32 *s_te4)
+static void AES256_InvertKey (u32 *rdk, __local u32 *s_td0, __local u32 *s_td1, __local u32 *s_td2, __local u32 *s_td3, __local u32 *s_td4, __local u32 *s_te0, __local u32 *s_te1, __local u32 *s_te2, __local u32 *s_te3, __local u32 *s_te4)
 {
+  #ifdef _unroll
+  #pragma unroll
+  #endif
   for (u32 i = 0, j = 56; i < j; i += 4, j -= 4)
   {
     u32 temp;
@@ -770,6 +758,9 @@ void AES256_InvertKey (u32 *rdk, __local u32 *s_td0, __local u32 *s_td1, __local
     temp = rdk[i + 3]; rdk[i + 3] = rdk[j + 3]; rdk[j + 3] = temp;
   }
 
+  #ifdef _unroll
+  #pragma unroll
+  #endif
   for (u32 i = 1, j = 4; i < 14; i += 1, j += 4)
   {
     rdk[j + 0] =
@@ -798,70 +789,28 @@ void AES256_InvertKey (u32 *rdk, __local u32 *s_td0, __local u32 *s_td1, __local
   }
 }
 
-void AES256_decrypt (const u32 *in, u32 *out, const u32 *rdk, __local u32 *s_td0, __local u32 *s_td1, __local u32 *s_td2, __local u32 *s_td3, __local u32 *s_td4)
+static void AES256_decrypt (const u32 *in, u32 *out, const u32 *rdk, __local u32 *s_td0, __local u32 *s_td1, __local u32 *s_td2, __local u32 *s_td3, __local u32 *s_td4)
 {
-  u32 s0 = in[0] ^ rdk[0];
-  u32 s1 = in[1] ^ rdk[1];
-  u32 s2 = in[2] ^ rdk[2];
-  u32 s3 = in[3] ^ rdk[3];
+  u32 t0 = in[0] ^ rdk[0];
+  u32 t1 = in[1] ^ rdk[1];
+  u32 t2 = in[2] ^ rdk[2];
+  u32 t3 = in[3] ^ rdk[3];
 
-  u32 t0;
-  u32 t1;
-  u32 t2;
-  u32 t3;
+  #ifdef _unroll
+  #pragma unroll
+  #endif
+  for (int i = 4; i < 56; i += 4)
+  {
+    const uchar4 x0 = as_uchar4 (t0);
+    const uchar4 x1 = as_uchar4 (t1);
+    const uchar4 x2 = as_uchar4 (t2);
+    const uchar4 x3 = as_uchar4 (t3);
 
-  t0 = s_td0[s0 >> 24] ^ s_td1[(s3 >> 16) & 0xff] ^ s_td2[(s2 >>  8) & 0xff] ^ s_td3[s1 & 0xff] ^ rdk[ 4];
-  t1 = s_td0[s1 >> 24] ^ s_td1[(s0 >> 16) & 0xff] ^ s_td2[(s3 >>  8) & 0xff] ^ s_td3[s2 & 0xff] ^ rdk[ 5];
-  t2 = s_td0[s2 >> 24] ^ s_td1[(s1 >> 16) & 0xff] ^ s_td2[(s0 >>  8) & 0xff] ^ s_td3[s3 & 0xff] ^ rdk[ 6];
-  t3 = s_td0[s3 >> 24] ^ s_td1[(s2 >> 16) & 0xff] ^ s_td2[(s1 >>  8) & 0xff] ^ s_td3[s0 & 0xff] ^ rdk[ 7];
-  s0 = s_td0[t0 >> 24] ^ s_td1[(t3 >> 16) & 0xff] ^ s_td2[(t2 >>  8) & 0xff] ^ s_td3[t1 & 0xff] ^ rdk[ 8];
-  s1 = s_td0[t1 >> 24] ^ s_td1[(t0 >> 16) & 0xff] ^ s_td2[(t3 >>  8) & 0xff] ^ s_td3[t2 & 0xff] ^ rdk[ 9];
-  s2 = s_td0[t2 >> 24] ^ s_td1[(t1 >> 16) & 0xff] ^ s_td2[(t0 >>  8) & 0xff] ^ s_td3[t3 & 0xff] ^ rdk[10];
-  s3 = s_td0[t3 >> 24] ^ s_td1[(t2 >> 16) & 0xff] ^ s_td2[(t1 >>  8) & 0xff] ^ s_td3[t0 & 0xff] ^ rdk[11];
-  t0 = s_td0[s0 >> 24] ^ s_td1[(s3 >> 16) & 0xff] ^ s_td2[(s2 >>  8) & 0xff] ^ s_td3[s1 & 0xff] ^ rdk[12];
-  t1 = s_td0[s1 >> 24] ^ s_td1[(s0 >> 16) & 0xff] ^ s_td2[(s3 >>  8) & 0xff] ^ s_td3[s2 & 0xff] ^ rdk[13];
-  t2 = s_td0[s2 >> 24] ^ s_td1[(s1 >> 16) & 0xff] ^ s_td2[(s0 >>  8) & 0xff] ^ s_td3[s3 & 0xff] ^ rdk[14];
-  t3 = s_td0[s3 >> 24] ^ s_td1[(s2 >> 16) & 0xff] ^ s_td2[(s1 >>  8) & 0xff] ^ s_td3[s0 & 0xff] ^ rdk[15];
-  s0 = s_td0[t0 >> 24] ^ s_td1[(t3 >> 16) & 0xff] ^ s_td2[(t2 >>  8) & 0xff] ^ s_td3[t1 & 0xff] ^ rdk[16];
-  s1 = s_td0[t1 >> 24] ^ s_td1[(t0 >> 16) & 0xff] ^ s_td2[(t3 >>  8) & 0xff] ^ s_td3[t2 & 0xff] ^ rdk[17];
-  s2 = s_td0[t2 >> 24] ^ s_td1[(t1 >> 16) & 0xff] ^ s_td2[(t0 >>  8) & 0xff] ^ s_td3[t3 & 0xff] ^ rdk[18];
-  s3 = s_td0[t3 >> 24] ^ s_td1[(t2 >> 16) & 0xff] ^ s_td2[(t1 >>  8) & 0xff] ^ s_td3[t0 & 0xff] ^ rdk[19];
-  t0 = s_td0[s0 >> 24] ^ s_td1[(s3 >> 16) & 0xff] ^ s_td2[(s2 >>  8) & 0xff] ^ s_td3[s1 & 0xff] ^ rdk[20];
-  t1 = s_td0[s1 >> 24] ^ s_td1[(s0 >> 16) & 0xff] ^ s_td2[(s3 >>  8) & 0xff] ^ s_td3[s2 & 0xff] ^ rdk[21];
-  t2 = s_td0[s2 >> 24] ^ s_td1[(s1 >> 16) & 0xff] ^ s_td2[(s0 >>  8) & 0xff] ^ s_td3[s3 & 0xff] ^ rdk[22];
-  t3 = s_td0[s3 >> 24] ^ s_td1[(s2 >> 16) & 0xff] ^ s_td2[(s1 >>  8) & 0xff] ^ s_td3[s0 & 0xff] ^ rdk[23];
-  s0 = s_td0[t0 >> 24] ^ s_td1[(t3 >> 16) & 0xff] ^ s_td2[(t2 >>  8) & 0xff] ^ s_td3[t1 & 0xff] ^ rdk[24];
-  s1 = s_td0[t1 >> 24] ^ s_td1[(t0 >> 16) & 0xff] ^ s_td2[(t3 >>  8) & 0xff] ^ s_td3[t2 & 0xff] ^ rdk[25];
-  s2 = s_td0[t2 >> 24] ^ s_td1[(t1 >> 16) & 0xff] ^ s_td2[(t0 >>  8) & 0xff] ^ s_td3[t3 & 0xff] ^ rdk[26];
-  s3 = s_td0[t3 >> 24] ^ s_td1[(t2 >> 16) & 0xff] ^ s_td2[(t1 >>  8) & 0xff] ^ s_td3[t0 & 0xff] ^ rdk[27];
-  t0 = s_td0[s0 >> 24] ^ s_td1[(s3 >> 16) & 0xff] ^ s_td2[(s2 >>  8) & 0xff] ^ s_td3[s1 & 0xff] ^ rdk[28];
-  t1 = s_td0[s1 >> 24] ^ s_td1[(s0 >> 16) & 0xff] ^ s_td2[(s3 >>  8) & 0xff] ^ s_td3[s2 & 0xff] ^ rdk[29];
-  t2 = s_td0[s2 >> 24] ^ s_td1[(s1 >> 16) & 0xff] ^ s_td2[(s0 >>  8) & 0xff] ^ s_td3[s3 & 0xff] ^ rdk[30];
-  t3 = s_td0[s3 >> 24] ^ s_td1[(s2 >> 16) & 0xff] ^ s_td2[(s1 >>  8) & 0xff] ^ s_td3[s0 & 0xff] ^ rdk[31];
-  s0 = s_td0[t0 >> 24] ^ s_td1[(t3 >> 16) & 0xff] ^ s_td2[(t2 >>  8) & 0xff] ^ s_td3[t1 & 0xff] ^ rdk[32];
-  s1 = s_td0[t1 >> 24] ^ s_td1[(t0 >> 16) & 0xff] ^ s_td2[(t3 >>  8) & 0xff] ^ s_td3[t2 & 0xff] ^ rdk[33];
-  s2 = s_td0[t2 >> 24] ^ s_td1[(t1 >> 16) & 0xff] ^ s_td2[(t0 >>  8) & 0xff] ^ s_td3[t3 & 0xff] ^ rdk[34];
-  s3 = s_td0[t3 >> 24] ^ s_td1[(t2 >> 16) & 0xff] ^ s_td2[(t1 >>  8) & 0xff] ^ s_td3[t0 & 0xff] ^ rdk[35];
-  t0 = s_td0[s0 >> 24] ^ s_td1[(s3 >> 16) & 0xff] ^ s_td2[(s2 >>  8) & 0xff] ^ s_td3[s1 & 0xff] ^ rdk[36];
-  t1 = s_td0[s1 >> 24] ^ s_td1[(s0 >> 16) & 0xff] ^ s_td2[(s3 >>  8) & 0xff] ^ s_td3[s2 & 0xff] ^ rdk[37];
-  t2 = s_td0[s2 >> 24] ^ s_td1[(s1 >> 16) & 0xff] ^ s_td2[(s0 >>  8) & 0xff] ^ s_td3[s3 & 0xff] ^ rdk[38];
-  t3 = s_td0[s3 >> 24] ^ s_td1[(s2 >> 16) & 0xff] ^ s_td2[(s1 >>  8) & 0xff] ^ s_td3[s0 & 0xff] ^ rdk[39];
-  s0 = s_td0[t0 >> 24] ^ s_td1[(t3 >> 16) & 0xff] ^ s_td2[(t2 >>  8) & 0xff] ^ s_td3[t1 & 0xff] ^ rdk[40];
-  s1 = s_td0[t1 >> 24] ^ s_td1[(t0 >> 16) & 0xff] ^ s_td2[(t3 >>  8) & 0xff] ^ s_td3[t2 & 0xff] ^ rdk[41];
-  s2 = s_td0[t2 >> 24] ^ s_td1[(t1 >> 16) & 0xff] ^ s_td2[(t0 >>  8) & 0xff] ^ s_td3[t3 & 0xff] ^ rdk[42];
-  s3 = s_td0[t3 >> 24] ^ s_td1[(t2 >> 16) & 0xff] ^ s_td2[(t1 >>  8) & 0xff] ^ s_td3[t0 & 0xff] ^ rdk[43];
-  t0 = s_td0[s0 >> 24] ^ s_td1[(s3 >> 16) & 0xff] ^ s_td2[(s2 >>  8) & 0xff] ^ s_td3[s1 & 0xff] ^ rdk[44];
-  t1 = s_td0[s1 >> 24] ^ s_td1[(s0 >> 16) & 0xff] ^ s_td2[(s3 >>  8) & 0xff] ^ s_td3[s2 & 0xff] ^ rdk[45];
-  t2 = s_td0[s2 >> 24] ^ s_td1[(s1 >> 16) & 0xff] ^ s_td2[(s0 >>  8) & 0xff] ^ s_td3[s3 & 0xff] ^ rdk[46];
-  t3 = s_td0[s3 >> 24] ^ s_td1[(s2 >> 16) & 0xff] ^ s_td2[(s1 >>  8) & 0xff] ^ s_td3[s0 & 0xff] ^ rdk[47];
-  s0 = s_td0[t0 >> 24] ^ s_td1[(t3 >> 16) & 0xff] ^ s_td2[(t2 >>  8) & 0xff] ^ s_td3[t1 & 0xff] ^ rdk[48];
-  s1 = s_td0[t1 >> 24] ^ s_td1[(t0 >> 16) & 0xff] ^ s_td2[(t3 >>  8) & 0xff] ^ s_td3[t2 & 0xff] ^ rdk[49];
-  s2 = s_td0[t2 >> 24] ^ s_td1[(t1 >> 16) & 0xff] ^ s_td2[(t0 >>  8) & 0xff] ^ s_td3[t3 & 0xff] ^ rdk[50];
-  s3 = s_td0[t3 >> 24] ^ s_td1[(t2 >> 16) & 0xff] ^ s_td2[(t1 >>  8) & 0xff] ^ s_td3[t0 & 0xff] ^ rdk[51];
-  t0 = s_td0[s0 >> 24] ^ s_td1[(s3 >> 16) & 0xff] ^ s_td2[(s2 >>  8) & 0xff] ^ s_td3[s1 & 0xff] ^ rdk[52];
-  t1 = s_td0[s1 >> 24] ^ s_td1[(s0 >> 16) & 0xff] ^ s_td2[(s3 >>  8) & 0xff] ^ s_td3[s2 & 0xff] ^ rdk[53];
-  t2 = s_td0[s2 >> 24] ^ s_td1[(s1 >> 16) & 0xff] ^ s_td2[(s0 >>  8) & 0xff] ^ s_td3[s3 & 0xff] ^ rdk[54];
-  t3 = s_td0[s3 >> 24] ^ s_td1[(s2 >> 16) & 0xff] ^ s_td2[(s1 >>  8) & 0xff] ^ s_td3[s0 & 0xff] ^ rdk[55];
+    t0 = s_td0[x0.s3] ^ s_td1[x3.s2] ^ s_td2[x2.s1] ^ s_td3[x1.s0] ^ rdk[i + 0];
+    t1 = s_td0[x1.s3] ^ s_td1[x0.s2] ^ s_td2[x3.s1] ^ s_td3[x2.s0] ^ rdk[i + 1];
+    t2 = s_td0[x2.s3] ^ s_td1[x1.s2] ^ s_td2[x0.s1] ^ s_td3[x3.s0] ^ rdk[i + 2];
+    t3 = s_td0[x3.s3] ^ s_td1[x2.s2] ^ s_td2[x1.s1] ^ s_td3[x0.s0] ^ rdk[i + 3];
+  }
 
   out[0] = (s_td4[(t0 >> 24) & 0xff] & 0xff000000)
          ^ (s_td4[(t3 >> 16) & 0xff] & 0x00ff0000)
@@ -888,70 +837,28 @@ void AES256_decrypt (const u32 *in, u32 *out, const u32 *rdk, __local u32 *s_td0
          ^ rdk[59];
 }
 
-void AES256_encrypt (const u32 *in, u32 *out, const u32 *rek, __local u32 *s_te0, __local u32 *s_te1, __local u32 *s_te2, __local u32 *s_te3, __local u32 *s_te4)
+static void AES256_encrypt (const u32 *in, u32 *out, const u32 *rek, __local u32 *s_te0, __local u32 *s_te1, __local u32 *s_te2, __local u32 *s_te3, __local u32 *s_te4)
 {
-  u32 s0 = in[0] ^ rek[0];
-  u32 s1 = in[1] ^ rek[1];
-  u32 s2 = in[2] ^ rek[2];
-  u32 s3 = in[3] ^ rek[3];
+  u32 t0 = in[0] ^ rek[0];
+  u32 t1 = in[1] ^ rek[1];
+  u32 t2 = in[2] ^ rek[2];
+  u32 t3 = in[3] ^ rek[3];
 
-  u32 t0;
-  u32 t1;
-  u32 t2;
-  u32 t3;
+  #ifdef _unroll
+  #pragma unroll
+  #endif
+  for (int i = 4; i < 56; i += 4)
+  {
+    const uchar4 x0 = as_uchar4 (t0);
+    const uchar4 x1 = as_uchar4 (t1);
+    const uchar4 x2 = as_uchar4 (t2);
+    const uchar4 x3 = as_uchar4 (t3);
 
-  t0 = s_te0[s0 >> 24] ^ s_te1[(s1 >> 16) & 0xff] ^ s_te2[(s2 >>  8) & 0xff] ^ s_te3[s3 & 0xff] ^ rek[ 4];
-  t1 = s_te0[s1 >> 24] ^ s_te1[(s2 >> 16) & 0xff] ^ s_te2[(s3 >>  8) & 0xff] ^ s_te3[s0 & 0xff] ^ rek[ 5];
-  t2 = s_te0[s2 >> 24] ^ s_te1[(s3 >> 16) & 0xff] ^ s_te2[(s0 >>  8) & 0xff] ^ s_te3[s1 & 0xff] ^ rek[ 6];
-  t3 = s_te0[s3 >> 24] ^ s_te1[(s0 >> 16) & 0xff] ^ s_te2[(s1 >>  8) & 0xff] ^ s_te3[s2 & 0xff] ^ rek[ 7];
-  s0 = s_te0[t0 >> 24] ^ s_te1[(t1 >> 16) & 0xff] ^ s_te2[(t2 >>  8) & 0xff] ^ s_te3[t3 & 0xff] ^ rek[ 8];
-  s1 = s_te0[t1 >> 24] ^ s_te1[(t2 >> 16) & 0xff] ^ s_te2[(t3 >>  8) & 0xff] ^ s_te3[t0 & 0xff] ^ rek[ 9];
-  s2 = s_te0[t2 >> 24] ^ s_te1[(t3 >> 16) & 0xff] ^ s_te2[(t0 >>  8) & 0xff] ^ s_te3[t1 & 0xff] ^ rek[10];
-  s3 = s_te0[t3 >> 24] ^ s_te1[(t0 >> 16) & 0xff] ^ s_te2[(t1 >>  8) & 0xff] ^ s_te3[t2 & 0xff] ^ rek[11];
-  t0 = s_te0[s0 >> 24] ^ s_te1[(s1 >> 16) & 0xff] ^ s_te2[(s2 >>  8) & 0xff] ^ s_te3[s3 & 0xff] ^ rek[12];
-  t1 = s_te0[s1 >> 24] ^ s_te1[(s2 >> 16) & 0xff] ^ s_te2[(s3 >>  8) & 0xff] ^ s_te3[s0 & 0xff] ^ rek[13];
-  t2 = s_te0[s2 >> 24] ^ s_te1[(s3 >> 16) & 0xff] ^ s_te2[(s0 >>  8) & 0xff] ^ s_te3[s1 & 0xff] ^ rek[14];
-  t3 = s_te0[s3 >> 24] ^ s_te1[(s0 >> 16) & 0xff] ^ s_te2[(s1 >>  8) & 0xff] ^ s_te3[s2 & 0xff] ^ rek[15];
-  s0 = s_te0[t0 >> 24] ^ s_te1[(t1 >> 16) & 0xff] ^ s_te2[(t2 >>  8) & 0xff] ^ s_te3[t3 & 0xff] ^ rek[16];
-  s1 = s_te0[t1 >> 24] ^ s_te1[(t2 >> 16) & 0xff] ^ s_te2[(t3 >>  8) & 0xff] ^ s_te3[t0 & 0xff] ^ rek[17];
-  s2 = s_te0[t2 >> 24] ^ s_te1[(t3 >> 16) & 0xff] ^ s_te2[(t0 >>  8) & 0xff] ^ s_te3[t1 & 0xff] ^ rek[18];
-  s3 = s_te0[t3 >> 24] ^ s_te1[(t0 >> 16) & 0xff] ^ s_te2[(t1 >>  8) & 0xff] ^ s_te3[t2 & 0xff] ^ rek[19];
-  t0 = s_te0[s0 >> 24] ^ s_te1[(s1 >> 16) & 0xff] ^ s_te2[(s2 >>  8) & 0xff] ^ s_te3[s3 & 0xff] ^ rek[20];
-  t1 = s_te0[s1 >> 24] ^ s_te1[(s2 >> 16) & 0xff] ^ s_te2[(s3 >>  8) & 0xff] ^ s_te3[s0 & 0xff] ^ rek[21];
-  t2 = s_te0[s2 >> 24] ^ s_te1[(s3 >> 16) & 0xff] ^ s_te2[(s0 >>  8) & 0xff] ^ s_te3[s1 & 0xff] ^ rek[22];
-  t3 = s_te0[s3 >> 24] ^ s_te1[(s0 >> 16) & 0xff] ^ s_te2[(s1 >>  8) & 0xff] ^ s_te3[s2 & 0xff] ^ rek[23];
-  s0 = s_te0[t0 >> 24] ^ s_te1[(t1 >> 16) & 0xff] ^ s_te2[(t2 >>  8) & 0xff] ^ s_te3[t3 & 0xff] ^ rek[24];
-  s1 = s_te0[t1 >> 24] ^ s_te1[(t2 >> 16) & 0xff] ^ s_te2[(t3 >>  8) & 0xff] ^ s_te3[t0 & 0xff] ^ rek[25];
-  s2 = s_te0[t2 >> 24] ^ s_te1[(t3 >> 16) & 0xff] ^ s_te2[(t0 >>  8) & 0xff] ^ s_te3[t1 & 0xff] ^ rek[26];
-  s3 = s_te0[t3 >> 24] ^ s_te1[(t0 >> 16) & 0xff] ^ s_te2[(t1 >>  8) & 0xff] ^ s_te3[t2 & 0xff] ^ rek[27];
-  t0 = s_te0[s0 >> 24] ^ s_te1[(s1 >> 16) & 0xff] ^ s_te2[(s2 >>  8) & 0xff] ^ s_te3[s3 & 0xff] ^ rek[28];
-  t1 = s_te0[s1 >> 24] ^ s_te1[(s2 >> 16) & 0xff] ^ s_te2[(s3 >>  8) & 0xff] ^ s_te3[s0 & 0xff] ^ rek[29];
-  t2 = s_te0[s2 >> 24] ^ s_te1[(s3 >> 16) & 0xff] ^ s_te2[(s0 >>  8) & 0xff] ^ s_te3[s1 & 0xff] ^ rek[30];
-  t3 = s_te0[s3 >> 24] ^ s_te1[(s0 >> 16) & 0xff] ^ s_te2[(s1 >>  8) & 0xff] ^ s_te3[s2 & 0xff] ^ rek[31];
-  s0 = s_te0[t0 >> 24] ^ s_te1[(t1 >> 16) & 0xff] ^ s_te2[(t2 >>  8) & 0xff] ^ s_te3[t3 & 0xff] ^ rek[32];
-  s1 = s_te0[t1 >> 24] ^ s_te1[(t2 >> 16) & 0xff] ^ s_te2[(t3 >>  8) & 0xff] ^ s_te3[t0 & 0xff] ^ rek[33];
-  s2 = s_te0[t2 >> 24] ^ s_te1[(t3 >> 16) & 0xff] ^ s_te2[(t0 >>  8) & 0xff] ^ s_te3[t1 & 0xff] ^ rek[34];
-  s3 = s_te0[t3 >> 24] ^ s_te1[(t0 >> 16) & 0xff] ^ s_te2[(t1 >>  8) & 0xff] ^ s_te3[t2 & 0xff] ^ rek[35];
-  t0 = s_te0[s0 >> 24] ^ s_te1[(s1 >> 16) & 0xff] ^ s_te2[(s2 >>  8) & 0xff] ^ s_te3[s3 & 0xff] ^ rek[36];
-  t1 = s_te0[s1 >> 24] ^ s_te1[(s2 >> 16) & 0xff] ^ s_te2[(s3 >>  8) & 0xff] ^ s_te3[s0 & 0xff] ^ rek[37];
-  t2 = s_te0[s2 >> 24] ^ s_te1[(s3 >> 16) & 0xff] ^ s_te2[(s0 >>  8) & 0xff] ^ s_te3[s1 & 0xff] ^ rek[38];
-  t3 = s_te0[s3 >> 24] ^ s_te1[(s0 >> 16) & 0xff] ^ s_te2[(s1 >>  8) & 0xff] ^ s_te3[s2 & 0xff] ^ rek[39];
-  s0 = s_te0[t0 >> 24] ^ s_te1[(t1 >> 16) & 0xff] ^ s_te2[(t2 >>  8) & 0xff] ^ s_te3[t3 & 0xff] ^ rek[40];
-  s1 = s_te0[t1 >> 24] ^ s_te1[(t2 >> 16) & 0xff] ^ s_te2[(t3 >>  8) & 0xff] ^ s_te3[t0 & 0xff] ^ rek[41];
-  s2 = s_te0[t2 >> 24] ^ s_te1[(t3 >> 16) & 0xff] ^ s_te2[(t0 >>  8) & 0xff] ^ s_te3[t1 & 0xff] ^ rek[42];
-  s3 = s_te0[t3 >> 24] ^ s_te1[(t0 >> 16) & 0xff] ^ s_te2[(t1 >>  8) & 0xff] ^ s_te3[t2 & 0xff] ^ rek[43];
-  t0 = s_te0[s0 >> 24] ^ s_te1[(s1 >> 16) & 0xff] ^ s_te2[(s2 >>  8) & 0xff] ^ s_te3[s3 & 0xff] ^ rek[44];
-  t1 = s_te0[s1 >> 24] ^ s_te1[(s2 >> 16) & 0xff] ^ s_te2[(s3 >>  8) & 0xff] ^ s_te3[s0 & 0xff] ^ rek[45];
-  t2 = s_te0[s2 >> 24] ^ s_te1[(s3 >> 16) & 0xff] ^ s_te2[(s0 >>  8) & 0xff] ^ s_te3[s1 & 0xff] ^ rek[46];
-  t3 = s_te0[s3 >> 24] ^ s_te1[(s0 >> 16) & 0xff] ^ s_te2[(s1 >>  8) & 0xff] ^ s_te3[s2 & 0xff] ^ rek[47];
-  s0 = s_te0[t0 >> 24] ^ s_te1[(t1 >> 16) & 0xff] ^ s_te2[(t2 >>  8) & 0xff] ^ s_te3[t3 & 0xff] ^ rek[48];
-  s1 = s_te0[t1 >> 24] ^ s_te1[(t2 >> 16) & 0xff] ^ s_te2[(t3 >>  8) & 0xff] ^ s_te3[t0 & 0xff] ^ rek[49];
-  s2 = s_te0[t2 >> 24] ^ s_te1[(t3 >> 16) & 0xff] ^ s_te2[(t0 >>  8) & 0xff] ^ s_te3[t1 & 0xff] ^ rek[50];
-  s3 = s_te0[t3 >> 24] ^ s_te1[(t0 >> 16) & 0xff] ^ s_te2[(t1 >>  8) & 0xff] ^ s_te3[t2 & 0xff] ^ rek[51];
-  t0 = s_te0[s0 >> 24] ^ s_te1[(s1 >> 16) & 0xff] ^ s_te2[(s2 >>  8) & 0xff] ^ s_te3[s3 & 0xff] ^ rek[52];
-  t1 = s_te0[s1 >> 24] ^ s_te1[(s2 >> 16) & 0xff] ^ s_te2[(s3 >>  8) & 0xff] ^ s_te3[s0 & 0xff] ^ rek[53];
-  t2 = s_te0[s2 >> 24] ^ s_te1[(s3 >> 16) & 0xff] ^ s_te2[(s0 >>  8) & 0xff] ^ s_te3[s1 & 0xff] ^ rek[54];
-  t3 = s_te0[s3 >> 24] ^ s_te1[(s0 >> 16) & 0xff] ^ s_te2[(s1 >>  8) & 0xff] ^ s_te3[s2 & 0xff] ^ rek[55];
+    t0 = s_te0[x0.s3] ^ s_te1[x1.s2] ^ s_te2[x2.s1] ^ s_te3[x3.s0] ^ rek[i + 0];
+    t1 = s_te0[x1.s3] ^ s_te1[x2.s2] ^ s_te2[x3.s1] ^ s_te3[x0.s0] ^ rek[i + 1];
+    t2 = s_te0[x2.s3] ^ s_te1[x3.s2] ^ s_te2[x0.s1] ^ s_te3[x1.s0] ^ rek[i + 2];
+    t3 = s_te0[x3.s3] ^ s_te1[x0.s2] ^ s_te2[x1.s1] ^ s_te3[x2.s0] ^ rek[i + 3];
+  }
 
   out[0] = (s_te4[(t0 >> 24) & 0xff] & 0xff000000)
          ^ (s_te4[(t1 >> 16) & 0xff] & 0x00ff0000)
@@ -998,7 +905,7 @@ __constant u32 k_sha256[64] =
   SHA256C3c, SHA256C3d, SHA256C3e, SHA256C3f,
 };
 
-void sha256_transform (const u32 w0[4], const u32 w1[4], const u32 w2[4], const u32 w3[4], u32 digest[8])
+static void sha256_transform (const u32 w0[4], const u32 w1[4], const u32 w2[4], const u32 w3[4], u32 digest[8])
 {
   u32 a = digest[0];
   u32 b = digest[1];
@@ -1086,7 +993,7 @@ void sha256_transform (const u32 w0[4], const u32 w1[4], const u32 w2[4], const 
   digest[7] += h;
 }
 
-__kernel void m13400_init (__global pw_t *pws, __global kernel_rule_t *rules_buf, __global comb_t *combs_buf, __global bf_t *bfs_buf, __global keepass_tmp_t *tmps, __global void *hooks, __global u32 *bitmaps_buf_s1_a, __global u32 *bitmaps_buf_s1_b, __global u32 *bitmaps_buf_s1_c, __global u32 *bitmaps_buf_s1_d, __global u32 *bitmaps_buf_s2_a, __global u32 *bitmaps_buf_s2_b, __global u32 *bitmaps_buf_s2_c, __global u32 *bitmaps_buf_s2_d, __global plain_t *plains_buf, __global digest_t *digests_buf, __global u32 *hashes_shown, __global salt_t *salt_bufs, __global keepass_t *esalt_bufs, __global u32 *d_return_buf, __global u32 *d_scryptV0_buf, __global u32 *d_scryptV1_buf, __global u32 *d_scryptV2_buf, __global u32 *d_scryptV3_buf, const u32 bitmap_mask, const u32 bitmap_shift1, const u32 bitmap_shift2, const u32 salt_pos, const u32 loop_pos, const u32 loop_cnt, const u32 rules_cnt, const u32 digests_cnt, const u32 digests_offset, const u32 combs_mode, const u32 gid_max)
+__kernel void m13400_init (__global pw_t *pws, __global const kernel_rule_t *rules_buf, __global const comb_t *combs_buf, __global const bf_t *bfs_buf, __global keepass_tmp_t *tmps, __global void *hooks, __global const u32 *bitmaps_buf_s1_a, __global const u32 *bitmaps_buf_s1_b, __global const u32 *bitmaps_buf_s1_c, __global const u32 *bitmaps_buf_s1_d, __global const u32 *bitmaps_buf_s2_a, __global const u32 *bitmaps_buf_s2_b, __global const u32 *bitmaps_buf_s2_c, __global const u32 *bitmaps_buf_s2_d, __global plain_t *plains_buf, __global const digest_t *digests_buf, __global u32 *hashes_shown, __global const salt_t *salt_bufs, __global keepass_t *esalt_bufs, __global u32 *d_return_buf, __global u32 *d_scryptV0_buf, __global u32 *d_scryptV1_buf, __global u32 *d_scryptV2_buf, __global u32 *d_scryptV3_buf, const u32 bitmap_mask, const u32 bitmap_shift1, const u32 bitmap_shift2, const u32 salt_pos, const u32 loop_pos, const u32 loop_cnt, const u32 rules_cnt, const u32 digests_cnt, const u32 digests_offset, const u32 combs_mode, const u32 gid_max)
 {
   /**
    * base
@@ -1264,7 +1171,7 @@ __kernel void m13400_init (__global pw_t *pws, __global kernel_rule_t *rules_buf
   tmps[gid].tmp_digest[7] = digest[7];
 }
 
-__kernel void m13400_loop (__global pw_t *pws, __global kernel_rule_t *rules_buf, __global comb_t *combs_buf, __global bf_t *bfs_buf, __global keepass_tmp_t *tmps, __global void *hooks, __global u32 *bitmaps_buf_s1_a, __global u32 *bitmaps_buf_s1_b, __global u32 *bitmaps_buf_s1_c, __global u32 *bitmaps_buf_s1_d, __global u32 *bitmaps_buf_s2_a, __global u32 *bitmaps_buf_s2_b, __global u32 *bitmaps_buf_s2_c, __global u32 *bitmaps_buf_s2_d, __global plain_t *plains_buf, __global digest_t *digests_buf, __global u32 *hashes_shown, __global salt_t *salt_bufs, __global keepass_t *esalt_bufs, __global u32 *d_return_buf, __global u32 *d_scryptV0_buf, __global u32 *d_scryptV1_buf, __global u32 *d_scryptV2_buf, __global u32 *d_scryptV3_buf, const u32 bitmap_mask, const u32 bitmap_shift1, const u32 bitmap_shift2, const u32 salt_pos, const u32 loop_pos, const u32 loop_cnt, const u32 rules_cnt, const u32 digests_cnt, const u32 digests_offset, const u32 combs_mode, const u32 gid_max)
+__kernel void m13400_loop (__global pw_t *pws, __global const kernel_rule_t *rules_buf, __global const comb_t *combs_buf, __global const bf_t *bfs_buf, __global keepass_tmp_t *tmps, __global void *hooks, __global const u32 *bitmaps_buf_s1_a, __global const u32 *bitmaps_buf_s1_b, __global const u32 *bitmaps_buf_s1_c, __global const u32 *bitmaps_buf_s1_d, __global const u32 *bitmaps_buf_s2_a, __global const u32 *bitmaps_buf_s2_b, __global const u32 *bitmaps_buf_s2_c, __global const u32 *bitmaps_buf_s2_d, __global plain_t *plains_buf, __global const digest_t *digests_buf, __global u32 *hashes_shown, __global const salt_t *salt_bufs, __global keepass_t *esalt_bufs, __global u32 *d_return_buf, __global u32 *d_scryptV0_buf, __global u32 *d_scryptV1_buf, __global u32 *d_scryptV2_buf, __global u32 *d_scryptV3_buf, const u32 bitmap_mask, const u32 bitmap_shift1, const u32 bitmap_shift2, const u32 salt_pos, const u32 loop_pos, const u32 loop_cnt, const u32 rules_cnt, const u32 digests_cnt, const u32 digests_offset, const u32 combs_mode, const u32 gid_max)
 {
   /**
    * base
@@ -1344,7 +1251,7 @@ __kernel void m13400_loop (__global pw_t *pws, __global kernel_rule_t *rules_buf
   tmps[gid].tmp_digest[7] = data1[3];
 }
 
-__kernel void m13400_comp (__global pw_t *pws, __global kernel_rule_t *rules_buf, __global comb_t *combs_buf, __global bf_t *bfs_buf, __global keepass_tmp_t *tmps, __global void *hooks, __global u32 *bitmaps_buf_s1_a, __global u32 *bitmaps_buf_s1_b, __global u32 *bitmaps_buf_s1_c, __global u32 *bitmaps_buf_s1_d, __global u32 *bitmaps_buf_s2_a, __global u32 *bitmaps_buf_s2_b, __global u32 *bitmaps_buf_s2_c, __global u32 *bitmaps_buf_s2_d, __global plain_t *plains_buf, __global digest_t *digests_buf, __global u32 *hashes_shown, __global salt_t *salt_bufs, __global keepass_t *esalt_bufs, __global u32 *d_return_buf, __global u32 *d_scryptV0_buf, __global u32 *d_scryptV1_buf, __global u32 *d_scryptV2_buf, __global u32 *d_scryptV3_buf, const u32 bitmap_mask, const u32 bitmap_shift1, const u32 bitmap_shift2, const u32 salt_pos, const u32 loop_pos, const u32 loop_cnt, const u32 rules_cnt, const u32 digests_cnt, const u32 digests_offset, const u32 combs_mode, const u32 gid_max)
+__kernel void m13400_comp (__global pw_t *pws, __global const kernel_rule_t *rules_buf, __global const comb_t *combs_buf, __global const bf_t *bfs_buf, __global keepass_tmp_t *tmps, __global void *hooks, __global const u32 *bitmaps_buf_s1_a, __global const u32 *bitmaps_buf_s1_b, __global const u32 *bitmaps_buf_s1_c, __global const u32 *bitmaps_buf_s1_d, __global const u32 *bitmaps_buf_s2_a, __global const u32 *bitmaps_buf_s2_b, __global const u32 *bitmaps_buf_s2_c, __global const u32 *bitmaps_buf_s2_d, __global plain_t *plains_buf, __global const digest_t *digests_buf, __global u32 *hashes_shown, __global const salt_t *salt_bufs, __global keepass_t *esalt_bufs, __global u32 *d_return_buf, __global u32 *d_scryptV0_buf, __global u32 *d_scryptV1_buf, __global u32 *d_scryptV2_buf, __global u32 *d_scryptV3_buf, const u32 bitmap_mask, const u32 bitmap_shift1, const u32 bitmap_shift2, const u32 salt_pos, const u32 loop_pos, const u32 loop_cnt, const u32 rules_cnt, const u32 digests_cnt, const u32 digests_offset, const u32 combs_mode, const u32 gid_max)
 {
   /**
    * base

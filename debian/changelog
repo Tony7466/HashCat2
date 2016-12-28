@@ -1,3 +1,13 @@
+hashcat (3.20-1) unstable; urgency=medium
+
+  * New upstream release.
+  * debian/control: Change debhelper to 10 in B-D.
+  * debian/compat: Switch compat level 9 to 10.
+  * debian/patches
+    + Refresh all patches files.
+
+ -- Daniel Echeverry <epsilon77@gmail.com>  Tue, 27 Dec 2016 23:12:20 -0500
+
 hashcat (3.10-1) unstable; urgency=medium
 
   [ Gianfranco Costamagna ]

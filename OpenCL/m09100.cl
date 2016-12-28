@@ -1,7 +1,5 @@
 /**
- * Authors.....: Jens Steube <jens.steube@gmail.com>
- *               Gabriele Gristina <matrix@hashcat.net>
- *
+ * Author......: See docs/credits.txt
  * License.....: MIT
  */
 
@@ -71,7 +69,7 @@ __constant u32 lotus_magic_table[256] =
 #define BOX1(S,i) (u32x) ((S)[(i).s0], (S)[(i).s1], (S)[(i).s2], (S)[(i).s3], (S)[(i).s4], (S)[(i).s5], (S)[(i).s6], (S)[(i).s7], (S)[(i).s8], (S)[(i).s9], (S)[(i).sa], (S)[(i).sb], (S)[(i).sc], (S)[(i).sd], (S)[(i).se], (S)[(i).sf])
 #endif
 
-void lotus_mix (u32x *in, __local u32 *s_lotus_magic_table)
+static void lotus_mix (u32x *in, __local u32 *s_lotus_magic_table)
 {
   u32x p = 0;
 
@@ -94,7 +92,7 @@ void lotus_mix (u32x *in, __local u32 *s_lotus_magic_table)
   }
 }
 
-void lotus_transform_password (u32x in[4], u32x out[4], __local u32 *s_lotus_magic_table)
+static void lotus_transform_password (u32x in[4], u32x out[4], __local u32 *s_lotus_magic_table)
 {
   u32x t = out[3] >> 24;
 
@@ -112,7 +110,7 @@ void lotus_transform_password (u32x in[4], u32x out[4], __local u32 *s_lotus_mag
   }
 }
 
-void pad (u32 w[4], const u32 len)
+static void pad (u32 w[4], const u32 len)
 {
   const u32 val = 16 - len;
 
@@ -191,7 +189,7 @@ void pad (u32 w[4], const u32 len)
   }
 }
 
-void mdtransform_norecalc (u32x state[4], u32x block[4], __local u32 *s_lotus_magic_table)
+static void mdtransform_norecalc (u32x state[4], u32x block[4], __local u32 *s_lotus_magic_table)
 {
   u32x x[12];
 
@@ -216,14 +214,14 @@ void mdtransform_norecalc (u32x state[4], u32x block[4], __local u32 *s_lotus_ma
   state[3] = x[3];
 }
 
-void mdtransform (u32x state[4], u32x checksum[4], u32x block[4], __local u32 *s_lotus_magic_table)
+static void mdtransform (u32x state[4], u32x checksum[4], u32x block[4], __local u32 *s_lotus_magic_table)
 {
   mdtransform_norecalc (state, block, s_lotus_magic_table);
 
   lotus_transform_password (block, checksum, s_lotus_magic_table);
 }
 
-void domino_big_md (const u32x saved_key[16], const u32 size, u32x state[4], __local u32 *s_lotus_magic_table)
+static void domino_big_md (const u32x saved_key[16], const u32 size, u32x state[4], __local u32 *s_lotus_magic_table)
 {
   u32x checksum[4];
 
@@ -262,7 +260,7 @@ void domino_big_md (const u32x saved_key[16], const u32 size, u32x state[4], __l
   mdtransform_norecalc (state, checksum, s_lotus_magic_table);
 }
 
-void sha1_transform (const u32 w0[4], const u32 w1[4], const u32 w2[4], const u32 w3[4], u32 digest[5])
+static void sha1_transform (const u32 w0[4], const u32 w1[4], const u32 w2[4], const u32 w3[4], u32 digest[5])
 {
   u32 A = digest[0];
   u32 B = digest[1];
@@ -390,7 +388,7 @@ void sha1_transform (const u32 w0[4], const u32 w1[4], const u32 w2[4], const u3
   digest[4] += E;
 }
 
-void hmac_sha1_pad (u32 w0[4], u32 w1[4], u32 w2[4], u32 w3[4], u32 ipad[5], u32 opad[5])
+static void hmac_sha1_pad (u32 w0[4], u32 w1[4], u32 w2[4], u32 w3[4], u32 ipad[5], u32 opad[5])
 {
   w0[0] = w0[0] ^ 0x36363636;
   w0[1] = w0[1] ^ 0x36363636;
@@ -443,7 +441,7 @@ void hmac_sha1_pad (u32 w0[4], u32 w1[4], u32 w2[4], u32 w3[4], u32 ipad[5], u32
   sha1_transform (w0, w1, w2, w3, opad);
 }
 
-void hmac_sha1_run (u32 w0[4], u32 w1[4], u32 w2[4], u32 w3[4], u32 ipad[5], u32 opad[5], u32 digest[5])
+static void hmac_sha1_run (u32 w0[4], u32 w1[4], u32 w2[4], u32 w3[4], u32 ipad[5], u32 opad[5], u32 digest[5])
 {
   digest[0] = ipad[0];
   digest[1] = ipad[1];
@@ -479,7 +477,7 @@ void hmac_sha1_run (u32 w0[4], u32 w1[4], u32 w2[4], u32 w3[4], u32 ipad[5], u32
   sha1_transform (w0, w1, w2, w3, digest);
 }
 
-void base64_encode (u8 *base64_hash, const u32 len, const u8 *base64_plain)
+static void base64_encode (u8 *base64_hash, const u32 len, const u8 *base64_plain)
 {
   u8 *out_ptr = (u8 *) base64_hash;
   u8 *in_ptr  = (u8 *) base64_plain;
@@ -503,7 +501,7 @@ void base64_encode (u8 *base64_hash, const u32 len, const u8 *base64_plain)
   }
 }
 
-void lotus6_base64_encode (u8 base64_hash[24], const u32 salt0, const u32 salt1, u32 a, u32 b, u32 c)
+static void lotus6_base64_encode (u8 base64_hash[24], const u32 salt0, const u32 salt1, u32 a, u32 b, u32 c)
 {
   uchar4 salt0c = as_uchar4 (salt0);
   uchar4 salt1c = as_uchar4 (salt1);
@@ -572,7 +570,7 @@ void lotus6_base64_encode (u8 base64_hash[24], const u32 salt0, const u32 salt1,
   base64_hash[21] = ')';
 }
 
-__kernel void m09100_init (__global pw_t *pws, __global kernel_rule_t *rules_buf, __global comb_t *combs_buf, __global bf_t *bfs_buf, __global lotus8_tmp_t *tmps, __global void *hooks, __global u32 *bitmaps_buf_s1_a, __global u32 *bitmaps_buf_s1_b, __global u32 *bitmaps_buf_s1_c, __global u32 *bitmaps_buf_s1_d, __global u32 *bitmaps_buf_s2_a, __global u32 *bitmaps_buf_s2_b, __global u32 *bitmaps_buf_s2_c, __global u32 *bitmaps_buf_s2_d, __global plain_t *plains_buf, __global digest_t *digests_buf, __global u32 *hashes_shown, __global salt_t *salt_bufs, __global wpa_t *wpa_bufs, __global u32 *d_return_buf, __global u32 *d_scryptV0_buf, __global u32 *d_scryptV1_buf, __global u32 *d_scryptV2_buf, __global u32 *d_scryptV3_buf, const u32 bitmap_mask, const u32 bitmap_shift1, const u32 bitmap_shift2, const u32 salt_pos, const u32 loop_pos, const u32 loop_cnt, const u32 il_cnt, const u32 digests_cnt, const u32 digests_offset, const u32 combs_mode, const u32 gid_max)
+__kernel void m09100_init (__global pw_t *pws, __global const kernel_rule_t *rules_buf, __global const comb_t *combs_buf, __global const bf_t *bfs_buf, __global lotus8_tmp_t *tmps, __global void *hooks, __global const u32 *bitmaps_buf_s1_a, __global const u32 *bitmaps_buf_s1_b, __global const u32 *bitmaps_buf_s1_c, __global const u32 *bitmaps_buf_s1_d, __global const u32 *bitmaps_buf_s2_a, __global const u32 *bitmaps_buf_s2_b, __global const u32 *bitmaps_buf_s2_c, __global const u32 *bitmaps_buf_s2_d, __global plain_t *plains_buf, __global const digest_t *digests_buf, __global u32 *hashes_shown, __global const salt_t *salt_bufs, __global wpa_t *wpa_bufs, __global u32 *d_return_buf, __global u32 *d_scryptV0_buf, __global u32 *d_scryptV1_buf, __global u32 *d_scryptV2_buf, __global u32 *d_scryptV3_buf, const u32 bitmap_mask, const u32 bitmap_shift1, const u32 bitmap_shift2, const u32 salt_pos, const u32 loop_pos, const u32 loop_cnt, const u32 il_cnt, const u32 digests_cnt, const u32 digests_offset, const u32 combs_mode, const u32 gid_max)
 {
   /**
    * base
@@ -879,7 +877,7 @@ __kernel void m09100_init (__global pw_t *pws, __global kernel_rule_t *rules_buf
   tmps[gid].out[4] = dgst[4];
 }
 
-__kernel void m09100_loop (__global pw_t *pws, __global kernel_rule_t *rules_buf, __global comb_t *combs_buf, __global bf_t *bfs_buf, __global lotus8_tmp_t *tmps, __global void *hooks, __global u32 *bitmaps_buf_s1_a, __global u32 *bitmaps_buf_s1_b, __global u32 *bitmaps_buf_s1_c, __global u32 *bitmaps_buf_s1_d, __global u32 *bitmaps_buf_s2_a, __global u32 *bitmaps_buf_s2_b, __global u32 *bitmaps_buf_s2_c, __global u32 *bitmaps_buf_s2_d, __global plain_t *plains_buf, __global digest_t *digests_buf, __global u32 *hashes_shown, __global salt_t *salt_bufs, __global wpa_t *wpa_bufs, __global u32 *d_return_buf, __global u32 *d_scryptV0_buf, __global u32 *d_scryptV1_buf, __global u32 *d_scryptV2_buf, __global u32 *d_scryptV3_buf, const u32 bitmap_mask, const u32 bitmap_shift1, const u32 bitmap_shift2, const u32 salt_pos, const u32 loop_pos, const u32 loop_cnt, const u32 il_cnt, const u32 digests_cnt, const u32 digests_offset, const u32 combs_mode, const u32 gid_max)
+__kernel void m09100_loop (__global pw_t *pws, __global const kernel_rule_t *rules_buf, __global const comb_t *combs_buf, __global const bf_t *bfs_buf, __global lotus8_tmp_t *tmps, __global void *hooks, __global const u32 *bitmaps_buf_s1_a, __global const u32 *bitmaps_buf_s1_b, __global const u32 *bitmaps_buf_s1_c, __global const u32 *bitmaps_buf_s1_d, __global const u32 *bitmaps_buf_s2_a, __global const u32 *bitmaps_buf_s2_b, __global const u32 *bitmaps_buf_s2_c, __global const u32 *bitmaps_buf_s2_d, __global plain_t *plains_buf, __global const digest_t *digests_buf, __global u32 *hashes_shown, __global const salt_t *salt_bufs, __global wpa_t *wpa_bufs, __global u32 *d_return_buf, __global u32 *d_scryptV0_buf, __global u32 *d_scryptV1_buf, __global u32 *d_scryptV2_buf, __global u32 *d_scryptV3_buf, const u32 bitmap_mask, const u32 bitmap_shift1, const u32 bitmap_shift2, const u32 salt_pos, const u32 loop_pos, const u32 loop_cnt, const u32 il_cnt, const u32 digests_cnt, const u32 digests_offset, const u32 combs_mode, const u32 gid_max)
 {
   const u32 gid = get_global_id (0);
 
@@ -961,7 +959,7 @@ __kernel void m09100_loop (__global pw_t *pws, __global kernel_rule_t *rules_buf
   tmps[gid].out[4] = out[4];
 }
 
-__kernel void m09100_comp (__global pw_t *pws, __global kernel_rule_t *rules_buf, __global comb_t *combs_buf, __global bf_t *bfs_buf, __global lotus8_tmp_t *tmps, __global void *hooks, __global u32 *bitmaps_buf_s1_a, __global u32 *bitmaps_buf_s1_b, __global u32 *bitmaps_buf_s1_c, __global u32 *bitmaps_buf_s1_d, __global u32 *bitmaps_buf_s2_a, __global u32 *bitmaps_buf_s2_b, __global u32 *bitmaps_buf_s2_c, __global u32 *bitmaps_buf_s2_d, __global plain_t *plains_buf, __global digest_t *digests_buf, __global u32 *hashes_shown, __global salt_t *salt_bufs, __global wpa_t *wpa_bufs, __global u32 *d_return_buf, __global u32 *d_scryptV0_buf, __global u32 *d_scryptV1_buf, __global u32 *d_scryptV2_buf, __global u32 *d_scryptV3_buf, const u32 bitmap_mask, const u32 bitmap_shift1, const u32 bitmap_shift2, const u32 salt_pos, const u32 loop_pos, const u32 loop_cnt, const u32 il_cnt, const u32 digests_cnt, const u32 digests_offset, const u32 combs_mode, const u32 gid_max)
+__kernel void m09100_comp (__global pw_t *pws, __global const kernel_rule_t *rules_buf, __global const comb_t *combs_buf, __global const bf_t *bfs_buf, __global lotus8_tmp_t *tmps, __global void *hooks, __global const u32 *bitmaps_buf_s1_a, __global const u32 *bitmaps_buf_s1_b, __global const u32 *bitmaps_buf_s1_c, __global const u32 *bitmaps_buf_s1_d, __global const u32 *bitmaps_buf_s2_a, __global const u32 *bitmaps_buf_s2_b, __global const u32 *bitmaps_buf_s2_c, __global const u32 *bitmaps_buf_s2_d, __global plain_t *plains_buf, __global const digest_t *digests_buf, __global u32 *hashes_shown, __global const salt_t *salt_bufs, __global wpa_t *wpa_bufs, __global u32 *d_return_buf, __global u32 *d_scryptV0_buf, __global u32 *d_scryptV1_buf, __global u32 *d_scryptV2_buf, __global u32 *d_scryptV3_buf, const u32 bitmap_mask, const u32 bitmap_shift1, const u32 bitmap_shift2, const u32 salt_pos, const u32 loop_pos, const u32 loop_cnt, const u32 il_cnt, const u32 digests_cnt, const u32 digests_offset, const u32 combs_mode, const u32 gid_max)
 {
   /**
    * base

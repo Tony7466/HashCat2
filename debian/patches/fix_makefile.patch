@@ -4,14 +4,18 @@ Origin: vendor
 Last-Update: 2016-06-30
 --- a/src/Makefile
 +++ b/src/Makefile
-@@ -124,8 +124,8 @@ CFLAGS_NATIVE            := -D_POSIX
- ifndef DEBUG
- CFLAGS_NATIVE            += -s
- endif
--CFLAGS_NATIVE            += $(CFLAGS)
--LFLAGS_NATIVE            := -lpthread -ldl
-+CFLAGS_NATIVE            += $(CFLAGS) $(CPPFLAGS)
-+LFLAGS_NATIVE            := -lpthread -ldl $(LDFLAGS)
- CFLAGS_NATIVE            += -DHAVE_HWMON
- LFLAGS_NATIVE            += $(LDFLAGS)
- endif # linux
+@@ -154,12 +154,12 @@
+ ##
+ 
+ ifeq ($(UNAME),Linux)
+-CFLAGS_NATIVE           := $(CFLAGS)
++CFLAGS_NATIVE           += $(CFLAGS) $(CPPFLAGS)
+ CFLAGS_NATIVE           += -I$(OPENCL_HEADERS_KHRONOS)/
+ CFLAGS_NATIVE           += -march=native
+ CFLAGS_NATIVE           += -DWITH_HWMON
+ LFLAGS_NATIVE           := $(LFLAGS)
+-LFLAGS_NATIVE           += -lpthread -ldl
++LFLAGS_NATIVE           += -lpthread -ldl $(LDFLAGS)
+ endif # Linux
+ 
+ ifeq ($(UNAME),FreeBSD)

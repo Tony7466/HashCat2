@@ -3,10 +3,7 @@ hashcat build documentation
 # Revision:
 * 1.3
 
-# Authors:
-* Gabriele Gristina <<matrix@hashcat.net>>
-* Christoph Heuwieser <<dropdead@hashcat.net>>
-* magnum <<john.magnum@hushmail.com>>
+# Author: see docs/credits.txt
 
 # Building hashcat for Linux and OSX
 
@@ -19,8 +16,8 @@ $ git clone https://github.com/hashcat/hashcat.git
 Get a copy of the **OpenCL Headers** repository
 
 ```sh
-$ mkdir -p deps/OpenCL-Headers
-$ git clone https://github.com/KhronosGroup/OpenCL-Headers deps/OpenCL-Headers/CL
+$ git submodule init
+$ git submodule update
 ```
 
 Run "make"

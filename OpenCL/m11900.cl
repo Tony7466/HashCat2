@@ -1,5 +1,5 @@
 /**
- * Author......: Jens Steube <jens.steube@gmail.com>
+ * Author......: See docs/credits.txt
  * License.....: MIT
  */
 
@@ -17,7 +17,7 @@
 #define COMPARE_S "inc_comp_single.cl"
 #define COMPARE_M "inc_comp_multi.cl"
 
-void md5_transform_S (const u32 w0[4], const u32 w1[4], const u32 w2[4], const u32 w3[4], u32 digest[4])
+static void md5_transform_S (const u32 w0[4], const u32 w1[4], const u32 w2[4], const u32 w3[4], u32 digest[4])
 {
   u32 a = digest[0];
   u32 b = digest[1];
@@ -115,7 +115,7 @@ void md5_transform_S (const u32 w0[4], const u32 w1[4], const u32 w2[4], const u
   digest[3] += d;
 }
 
-void hmac_md5_pad_S (u32 w0[4], u32 w1[4], u32 w2[4], u32 w3[4], u32 ipad[4], u32 opad[4])
+static void hmac_md5_pad_S (u32 w0[4], u32 w1[4], u32 w2[4], u32 w3[4], u32 ipad[4], u32 opad[4])
 {
   w0[0] = w0[0] ^ 0x36363636;
   w0[1] = w0[1] ^ 0x36363636;
@@ -166,7 +166,7 @@ void hmac_md5_pad_S (u32 w0[4], u32 w1[4], u32 w2[4], u32 w3[4], u32 ipad[4], u3
   md5_transform_S (w0, w1, w2, w3, opad);
 }
 
-void hmac_md5_run_S (u32 w0[4], u32 w1[4], u32 w2[4], u32 w3[4], u32 ipad[4], u32 opad[4], u32 digest[4])
+static void hmac_md5_run_S (u32 w0[4], u32 w1[4], u32 w2[4], u32 w3[4], u32 ipad[4], u32 opad[4], u32 digest[4])
 {
   digest[0] = ipad[0];
   digest[1] = ipad[1];
@@ -200,7 +200,7 @@ void hmac_md5_run_S (u32 w0[4], u32 w1[4], u32 w2[4], u32 w3[4], u32 ipad[4], u3
   md5_transform_S (w0, w1, w2, w3, digest);
 }
 
-void md5_transform_V (const u32x w0[4], const u32x w1[4], const u32x w2[4], const u32x w3[4], u32x digest[4])
+static void md5_transform_V (const u32x w0[4], const u32x w1[4], const u32x w2[4], const u32x w3[4], u32x digest[4])
 {
   u32x a = digest[0];
   u32x b = digest[1];
@@ -298,7 +298,7 @@ void md5_transform_V (const u32x w0[4], const u32x w1[4], const u32x w2[4], cons
   digest[3] += d;
 }
 
-void hmac_md5_pad_V (u32x w0[4], u32x w1[4], u32x w2[4], u32x w3[4], u32x ipad[4], u32x opad[4])
+static void hmac_md5_pad_V (u32x w0[4], u32x w1[4], u32x w2[4], u32x w3[4], u32x ipad[4], u32x opad[4])
 {
   w0[0] = w0[0] ^ 0x36363636;
   w0[1] = w0[1] ^ 0x36363636;
@@ -349,7 +349,7 @@ void hmac_md5_pad_V (u32x w0[4], u32x w1[4], u32x w2[4], u32x w3[4], u32x ipad[4
   md5_transform_V (w0, w1, w2, w3, opad);
 }
 
-void hmac_md5_run_V (u32x w0[4], u32x w1[4], u32x w2[4], u32x w3[4], u32x ipad[4], u32x opad[4], u32x digest[4])
+static void hmac_md5_run_V (u32x w0[4], u32x w1[4], u32x w2[4], u32x w3[4], u32x ipad[4], u32x opad[4], u32x digest[4])
 {
   digest[0] = ipad[0];
   digest[1] = ipad[1];
@@ -383,7 +383,7 @@ void hmac_md5_run_V (u32x w0[4], u32x w1[4], u32x w2[4], u32x w3[4], u32x ipad[4
   md5_transform_V (w0, w1, w2, w3, digest);
 }
 
-__kernel void m11900_init (__global pw_t *pws, __global kernel_rule_t *rules_buf, __global comb_t *combs_buf, __global bf_t *bfs_buf, __global pbkdf2_md5_tmp_t *tmps, __global void *hooks, __global u32 *bitmaps_buf_s1_a, __global u32 *bitmaps_buf_s1_b, __global u32 *bitmaps_buf_s1_c, __global u32 *bitmaps_buf_s1_d, __global u32 *bitmaps_buf_s2_a, __global u32 *bitmaps_buf_s2_b, __global u32 *bitmaps_buf_s2_c, __global u32 *bitmaps_buf_s2_d, __global plain_t *plains_buf, __global digest_t *digests_buf, __global u32 *hashes_shown, __global salt_t *salt_bufs, __global pbkdf2_md5_t *esalt_bufs, __global u32 *d_return_buf, __global u32 *d_scryptV0_buf, __global u32 *d_scryptV1_buf, __global u32 *d_scryptV2_buf, __global u32 *d_scryptV3_buf, const u32 bitmap_mask, const u32 bitmap_shift1, const u32 bitmap_shift2, const u32 salt_pos, const u32 loop_pos, const u32 loop_cnt, const u32 il_cnt, const u32 digests_cnt, const u32 digests_offset, const u32 combs_mode, const u32 gid_max)
+__kernel void m11900_init (__global pw_t *pws, __global const kernel_rule_t *rules_buf, __global const comb_t *combs_buf, __global const bf_t *bfs_buf, __global pbkdf2_md5_tmp_t *tmps, __global void *hooks, __global const u32 *bitmaps_buf_s1_a, __global const u32 *bitmaps_buf_s1_b, __global const u32 *bitmaps_buf_s1_c, __global const u32 *bitmaps_buf_s1_d, __global const u32 *bitmaps_buf_s2_a, __global const u32 *bitmaps_buf_s2_b, __global const u32 *bitmaps_buf_s2_c, __global const u32 *bitmaps_buf_s2_d, __global plain_t *plains_buf, __global const digest_t *digests_buf, __global u32 *hashes_shown, __global const salt_t *salt_bufs, __global pbkdf2_md5_t *esalt_bufs, __global u32 *d_return_buf, __global u32 *d_scryptV0_buf, __global u32 *d_scryptV1_buf, __global u32 *d_scryptV2_buf, __global u32 *d_scryptV3_buf, const u32 bitmap_mask, const u32 bitmap_shift1, const u32 bitmap_shift2, const u32 salt_pos, const u32 loop_pos, const u32 loop_cnt, const u32 il_cnt, const u32 digests_cnt, const u32 digests_offset, const u32 combs_mode, const u32 gid_max)
 {
   /**
    * base
@@ -482,11 +482,11 @@ __kernel void m11900_init (__global pw_t *pws, __global kernel_rule_t *rules_buf
   }
 }
 
-__kernel void m11900_loop (__global pw_t *pws, __global kernel_rule_t *rules_buf, __global comb_t *combs_buf, __global bf_t *bfs_buf, __global pbkdf2_md5_tmp_t *tmps, __global void *hooks, __global u32 *bitmaps_buf_s1_a, __global u32 *bitmaps_buf_s1_b, __global u32 *bitmaps_buf_s1_c, __global u32 *bitmaps_buf_s1_d, __global u32 *bitmaps_buf_s2_a, __global u32 *bitmaps_buf_s2_b, __global u32 *bitmaps_buf_s2_c, __global u32 *bitmaps_buf_s2_d, __global plain_t *plains_buf, __global digest_t *digests_buf, __global u32 *hashes_shown, __global salt_t *salt_bufs, __global pbkdf2_md5_t *esalt_bufs, __global u32 *d_return_buf, __global u32 *d_scryptV0_buf, __global u32 *d_scryptV1_buf, __global u32 *d_scryptV2_buf, __global u32 *d_scryptV3_buf, const u32 bitmap_mask, const u32 bitmap_shift1, const u32 bitmap_shift2, const u32 salt_pos, const u32 loop_pos, const u32 loop_cnt, const u32 il_cnt, const u32 digests_cnt, const u32 digests_offset, const u32 combs_mode, const u32 gid_max)
+__kernel void m11900_loop (__global pw_t *pws, __global const kernel_rule_t *rules_buf, __global const comb_t *combs_buf, __global const bf_t *bfs_buf, __global pbkdf2_md5_tmp_t *tmps, __global void *hooks, __global const u32 *bitmaps_buf_s1_a, __global const u32 *bitmaps_buf_s1_b, __global const u32 *bitmaps_buf_s1_c, __global const u32 *bitmaps_buf_s1_d, __global const u32 *bitmaps_buf_s2_a, __global const u32 *bitmaps_buf_s2_b, __global const u32 *bitmaps_buf_s2_c, __global const u32 *bitmaps_buf_s2_d, __global plain_t *plains_buf, __global const digest_t *digests_buf, __global u32 *hashes_shown, __global const salt_t *salt_bufs, __global pbkdf2_md5_t *esalt_bufs, __global u32 *d_return_buf, __global u32 *d_scryptV0_buf, __global u32 *d_scryptV1_buf, __global u32 *d_scryptV2_buf, __global u32 *d_scryptV3_buf, const u32 bitmap_mask, const u32 bitmap_shift1, const u32 bitmap_shift2, const u32 salt_pos, const u32 loop_pos, const u32 loop_cnt, const u32 il_cnt, const u32 digests_cnt, const u32 digests_offset, const u32 combs_mode, const u32 gid_max)
 {
   const u32 gid = get_global_id (0);
 
-  if (gid >= gid_max) return;
+  if ((gid * VECT_SIZE) >= gid_max) return;
 
   u32x ipad[4];
   u32x opad[4];
@@ -560,7 +560,7 @@ __kernel void m11900_loop (__global pw_t *pws, __global kernel_rule_t *rules_buf
   }
 }
 
-__kernel void m11900_comp (__global pw_t *pws, __global kernel_rule_t *rules_buf, __global comb_t *combs_buf, __global bf_t *bfs_buf, __global pbkdf2_md5_tmp_t *tmps, __global void *hooks, __global u32 *bitmaps_buf_s1_a, __global u32 *bitmaps_buf_s1_b, __global u32 *bitmaps_buf_s1_c, __global u32 *bitmaps_buf_s1_d, __global u32 *bitmaps_buf_s2_a, __global u32 *bitmaps_buf_s2_b, __global u32 *bitmaps_buf_s2_c, __global u32 *bitmaps_buf_s2_d, __global plain_t *plains_buf, __global digest_t *digests_buf, __global u32 *hashes_shown, __global salt_t *salt_bufs, __global pbkdf2_md5_t *esalt_bufs, __global u32 *d_return_buf, __global u32 *d_scryptV0_buf, __global u32 *d_scryptV1_buf, __global u32 *d_scryptV2_buf, __global u32 *d_scryptV3_buf, const u32 bitmap_mask, const u32 bitmap_shift1, const u32 bitmap_shift2, const u32 salt_pos, const u32 loop_pos, const u32 loop_cnt, const u32 il_cnt, const u32 digests_cnt, const u32 digests_offset, const u32 combs_mode, const u32 gid_max)
+__kernel void m11900_comp (__global pw_t *pws, __global const kernel_rule_t *rules_buf, __global const comb_t *combs_buf, __global const bf_t *bfs_buf, __global pbkdf2_md5_tmp_t *tmps, __global void *hooks, __global const u32 *bitmaps_buf_s1_a, __global const u32 *bitmaps_buf_s1_b, __global const u32 *bitmaps_buf_s1_c, __global const u32 *bitmaps_buf_s1_d, __global const u32 *bitmaps_buf_s2_a, __global const u32 *bitmaps_buf_s2_b, __global const u32 *bitmaps_buf_s2_c, __global const u32 *bitmaps_buf_s2_d, __global plain_t *plains_buf, __global const digest_t *digests_buf, __global u32 *hashes_shown, __global const salt_t *salt_bufs, __global pbkdf2_md5_t *esalt_bufs, __global u32 *d_return_buf, __global u32 *d_scryptV0_buf, __global u32 *d_scryptV1_buf, __global u32 *d_scryptV2_buf, __global u32 *d_scryptV3_buf, const u32 bitmap_mask, const u32 bitmap_shift1, const u32 bitmap_shift2, const u32 salt_pos, const u32 loop_pos, const u32 loop_cnt, const u32 il_cnt, const u32 digests_cnt, const u32 digests_offset, const u32 combs_mode, const u32 gid_max)
 {
   /**
    * base

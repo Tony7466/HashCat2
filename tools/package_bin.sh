@@ -1,12 +1,12 @@
 #!/bin/bash
 
 ##
-## Author......: Jens Steube <jens.steube@gmail.com>
+## Author......: See docs/credits.txt
 ## License.....: MIT
 ##
 
 export IN=$HOME/hashcat
-export OUT=$HOME/xy/hashcat-3.10
+export OUT=$HOME/xy/hashcat-3.20
 
 rm -rf $OUT
 rm -rf $OUT.7z

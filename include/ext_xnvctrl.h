@@ -1,14 +1,10 @@
 /**
- * Authors.....: Jens Steube <jens.steube@gmail.com>
+ * Author......: See docs/credits.txt
  * License.....: MIT
  */
 
-#ifndef EXT_XNVCTRL_H
-#define EXT_XNVCTRL_H
-
-#if defined(HAVE_HWMON)
-
-#include <common.h>
+#ifndef _EXT_XNVCTRL_H
+#define _EXT_XNVCTRL_H
 
 /**
  * Stuff from X11/Xlib.h
@@ -44,9 +40,7 @@ typedef int   (*XCLOSEDISPLAY) (void *);
 
 typedef int HM_ADAPTER_XNVCTRL;
 
-#include <shared.h>
-
-#if defined(_WIN32) || defined(__WIN32__) || defined(__CYGWIN__)
+#if defined(_WIN32) || defined(__WIN32__)
 #define XNVCTRL_API_CALL __stdcall
 #else
 #define XNVCTRL_API_CALL
@@ -55,7 +49,13 @@ typedef int HM_ADAPTER_XNVCTRL;
 typedef int  (*XNVCTRL_API_CALL XNVCTRLQUERYTARGETATTRIBUTE) (void *, int, int, unsigned int, unsigned int, int *);
 typedef void (*XNVCTRL_API_CALL XNVCTRLSETTARGETATTRIBUTE)   (void *, int, int, unsigned int, unsigned int, int);
 
-typedef struct
+#if defined (_POSIX)
+typedef void *XNVCTRL_LIB;
+#else
+typedef HINSTANCE XNVCTRL_LIB;
+#endif
+
+typedef struct hm_xnvctrl_lib
 {
   void *dpy;
 
@@ -70,23 +70,6 @@ typedef struct
 
 } hm_xnvctrl_lib_t;
 
-#define XNVCTRL_PTR hm_xnvctrl_lib_t
+typedef hm_xnvctrl_lib_t XNVCTRL_PTR;
 
-int  xnvctrl_init         (XNVCTRL_PTR *xnvctrl);
-void xnvctrl_close        (XNVCTRL_PTR *xnvctrl);
-
-int  hm_XNVCTRL_XOpenDisplay  (XNVCTRL_PTR *xnvctrl);
-void hm_XNVCTRL_XCloseDisplay (XNVCTRL_PTR *xnvctrl);
-
-int get_core_threshold    (XNVCTRL_PTR *xnvctrl, int gpu, int *val);
-
-int get_fan_control       (XNVCTRL_PTR *xnvctrl, int gpu, int *val);
-int set_fan_control       (XNVCTRL_PTR *xnvctrl, int gpu, int  val);
-
-int get_fan_speed_current (XNVCTRL_PTR *xnvctrl, int gpu, int *val);
-int get_fan_speed_target  (XNVCTRL_PTR *xnvctrl, int gpu, int *val);
-int set_fan_speed_target  (XNVCTRL_PTR *xnvctrl, int gpu, int  val);
-
-#endif // HAVE_HWMON
-
-#endif // EXT_XNVCTRL_H
+#endif // _EXT_XNVCTRL_H

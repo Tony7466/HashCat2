@@ -47,9 +47,9 @@ static int check_running_process (hashcat_ctx_t *hashcat_ctx)
   {
     #if defined (_POSIX)
 
-    char *pidbin = (char *) hcmalloc (HCBUFSIZ_LARGE);
+    char *pidbin;
 
-    snprintf (pidbin, HCBUFSIZ_LARGE - 1, "/proc/%u/cmdline", rd->pid);
+    hc_asprintf (&pidbin, "/proc/%u/cmdline", rd->pid);
 
     FILE *fd = fopen (pidbin, "rb");
 
@@ -145,7 +145,7 @@ static int init_restore (hashcat_ctx_t *hashcat_ctx)
 
   if (getcwd (rd->cwd, 255) == NULL)
   {
-    event_log_error (hashcat_ctx, "getcwd(): %s", strerror (errno));
+    event_log_error (hashcat_ctx, "getcwd(): %m");
 
     return -1;
   }
@@ -165,7 +165,7 @@ static int read_restore (hashcat_ctx_t *hashcat_ctx)
 
   if (fp == NULL)
   {
-    event_log_error (hashcat_ctx, "Restore file '%s': %s", eff_restore_file, strerror (errno));
+    event_log_error (hashcat_ctx, "Restore file '%s': %m", eff_restore_file);
 
     return -1;
   }
@@ -244,14 +244,14 @@ static int write_restore (hashcat_ctx_t *hashcat_ctx)
 
   if (fp == NULL)
   {
-    event_log_error (hashcat_ctx, "%s: %s", new_restore_file, strerror (errno));
+    event_log_error (hashcat_ctx, "%s: %m", new_restore_file);
 
     return -1;
   }
 
   if (setvbuf (fp, NULL, _IONBF, 0))
   {
-    event_log_error (hashcat_ctx, "setvbuf file '%s': %s", new_restore_file, strerror (errno));
+    event_log_error (hashcat_ctx, "setvbuf file '%s': %m", new_restore_file);
 
     fclose (fp);
 
@@ -299,13 +299,13 @@ int cycle_restore (hashcat_ctx_t *hashcat_ctx)
   {
     if (unlink (eff_restore_file))
     {
-      event_log_warning (hashcat_ctx, "Unlink file '%s': %s", eff_restore_file, strerror (errno));
+      event_log_warning (hashcat_ctx, "Unlink file '%s': %m", eff_restore_file);
     }
   }
 
   if (rename (new_restore_file, eff_restore_file))
   {
-    event_log_warning (hashcat_ctx, "Rename file '%s' to '%s': %s", new_restore_file, eff_restore_file, strerror (errno));
+    event_log_warning (hashcat_ctx, "Rename file '%s' to '%s': %m", new_restore_file, eff_restore_file);
   }
 
   return 0;
@@ -346,6 +346,7 @@ int restore_ctx_init (hashcat_ctx_t *hashcat_ctx, int argc, char **argv)
   if (user_options->show            == true) return 0;
   if (user_options->stdout_flag     == true) return 0;
   if (user_options->speed_only      == true) return 0;
+  if (user_options->progress_only   == true) return 0;
   if (user_options->usage           == true) return 0;
   if (user_options->version         == true) return 0;
   if (user_options->restore_disable == true) return 0;
@@ -355,18 +356,13 @@ int restore_ctx_init (hashcat_ctx_t *hashcat_ctx, int argc, char **argv)
 
   if (user_options->restore_file_path == NULL)
   {
-    restore_ctx->eff_restore_file = (char *) hcmalloc (HCBUFSIZ_TINY);
-    restore_ctx->new_restore_file = (char *) hcmalloc (HCBUFSIZ_TINY);
-
-    snprintf (restore_ctx->eff_restore_file, HCBUFSIZ_TINY - 1, "%s/%s.restore",     folder_config->session_dir, user_options->session);
-    snprintf (restore_ctx->new_restore_file, HCBUFSIZ_TINY - 1, "%s/%s.restore.new", folder_config->session_dir, user_options->session);
+    hc_asprintf (&restore_ctx->eff_restore_file, "%s/%s.restore",     folder_config->session_dir, user_options->session);
+    hc_asprintf (&restore_ctx->new_restore_file, "%s/%s.restore.new", folder_config->session_dir, user_options->session);
   }
   else
   {
     restore_ctx->eff_restore_file = hcstrdup (user_options->restore_file_path);
-    restore_ctx->new_restore_file = (char *) hcmalloc (HCBUFSIZ_TINY);
-
-    snprintf (restore_ctx->new_restore_file, HCBUFSIZ_TINY - 1, "%s.new", user_options->restore_file_path);
+    hc_asprintf (&restore_ctx->new_restore_file, "%s.new", user_options->restore_file_path);
   }
 
   restore_ctx->argc = argc;

@@ -656,7 +656,7 @@ static int sp_setup_tbl (hashcat_ctx_t *hashcat_ctx)
 
   if (fd == NULL)
   {
-    event_log_error (hashcat_ctx, "%s: %s", hcstat, strerror (errno));
+    event_log_error (hashcat_ctx, "%s: %m", hcstat);
 
     return -1;
   }
@@ -927,7 +927,7 @@ static int mask_append_final (hashcat_ctx_t *hashcat_ctx, const char *mask)
   return 0;
 }
 
-static int mask_append (hashcat_ctx_t *hashcat_ctx, const char *mask)
+static int mask_append (hashcat_ctx_t *hashcat_ctx, const char *mask, const char *prepend)
 {
   hashconfig_t   *hashconfig   = hashcat_ctx->hashconfig;
   user_options_t *user_options = hashcat_ctx->user_options;
@@ -936,21 +936,34 @@ static int mask_append (hashcat_ctx_t *hashcat_ctx, const char *mask)
   {
     const u32 mask_length = mp_get_length (mask);
 
-    const u32 pw_min = hashconfig->pw_min;
-    const u32 pw_max = hashconfig->pw_max;
-
     u32 increment_min = user_options->increment_min;
     u32 increment_max = user_options->increment_max;
 
-    increment_min = MAX (increment_min, pw_min);
-    increment_max = MIN (increment_max, pw_max);
     increment_max = MIN (increment_max, mask_length);
+
+    if (user_options->attack_mode == ATTACK_MODE_BF)
+    {
+      const u32 pw_min = hashconfig->pw_min;
+      const u32 pw_max = hashconfig->pw_max;
+
+      increment_min = MAX (increment_min, pw_min);
+      increment_max = MIN (increment_max, pw_max);
+    }
 
     for (u32 increment_len = increment_min; increment_len <= increment_max; increment_len++)
     {
       char *mask_truncated = (char *) hcmalloc (256);
 
-      const int rc_truncated_mask = mp_get_truncated_mask (hashcat_ctx, mask, strlen (mask), increment_len, mask_truncated);
+      char *mask_truncated_next = mask_truncated;
+
+      if (prepend)
+      {
+        // this happens with maskfiles only
+
+        mask_truncated_next += snprintf (mask_truncated, 256, "%s,", prepend);
+      }
+
+      const int rc_truncated_mask = mp_get_truncated_mask (hashcat_ctx, mask, strlen (mask), increment_len, mask_truncated_next);
 
       if (rc_truncated_mask == -1) break;
 
@@ -961,9 +974,26 @@ static int mask_append (hashcat_ctx_t *hashcat_ctx, const char *mask)
   }
   else
   {
-    const int rc = mask_append_final (hashcat_ctx, mask);
+    if (prepend)
+    {
+      // this happens with maskfiles only
 
-    if (rc == -1) return -1;
+      char *prepend_mask;
+
+      hc_asprintf (&prepend_mask, "%s,%s", prepend, mask);
+
+      const int rc = mask_append_final (hashcat_ctx, prepend_mask);
+
+      if (rc == -1) return -1;
+
+      hcfree (prepend_mask);
+    }
+    else
+    {
+      const int rc = mask_append_final (hashcat_ctx, mask);
+
+      if (rc == -1) return -1;
+    }
   }
 
   return 0;
@@ -983,6 +1013,34 @@ u32 mp_get_length (const char *mask)
   }
 
   return len;
+}
+
+static char *mask_ctx_parse_maskfile_find_mask (char *line_buf, int line_len)
+{
+  char *mask_buf = line_buf;
+
+  bool escaped = false;
+
+  for (int i = 0; i < line_len; i++)
+  {
+    if (escaped == true)
+    {
+      escaped = false;
+    }
+    else
+    {
+      if (line_buf[i] == '\\')
+      {
+        escaped = true;
+      }
+      else if (line_buf[i] == ',')
+      {
+        mask_buf = line_buf + i + 1;
+      }
+    }
+  }
+
+  return mask_buf;
 }
 
 int mask_ctx_update_loop (hashcat_ctx_t *hashcat_ctx)
@@ -1188,7 +1246,7 @@ int mask_ctx_init (hashcat_ctx_t *hashcat_ctx)
 
         if (hc_stat (arg, &file_stat) == -1)
         {
-          const int rc = mask_append (hashcat_ctx, arg);
+          const int rc = mask_append (hashcat_ctx, arg, NULL);
 
           if (rc == -1) return -1;
         }
@@ -1202,7 +1260,7 @@ int mask_ctx_init (hashcat_ctx_t *hashcat_ctx)
 
             if (hc_stat (arg, &file_stat) == -1)
             {
-              event_log_error (hashcat_ctx, "%s: %s", arg, strerror (errno));
+              event_log_error (hashcat_ctx, "%s: %m", arg);
 
               return -1;
             }
@@ -1213,7 +1271,7 @@ int mask_ctx_init (hashcat_ctx_t *hashcat_ctx)
 
               if (mask_fp == NULL)
               {
-                event_log_error (hashcat_ctx, "%s: %s", arg, strerror (errno));
+                event_log_error (hashcat_ctx, "%s: %m", arg);
 
                 return -1;
               }
@@ -1228,7 +1286,20 @@ int mask_ctx_init (hashcat_ctx_t *hashcat_ctx)
 
                 if (line_buf[0] == '#') continue;
 
-                const int rc = mask_append (hashcat_ctx, line_buf);
+                char *mask_buf = mask_ctx_parse_maskfile_find_mask (line_buf, line_len);
+
+                char *prepend_buf = NULL;
+
+                if (line_buf != mask_buf)
+                {
+                  // if we have custom charsets
+
+                  prepend_buf = line_buf;
+
+                  mask_buf[-1] = 0;
+                }
+
+                const int rc = mask_append (hashcat_ctx, mask_buf, prepend_buf);
 
                 if (rc == -1)
                 {
@@ -1255,7 +1326,7 @@ int mask_ctx_init (hashcat_ctx_t *hashcat_ctx)
       {
         const char *mask = DEF_MASK;
 
-        const int rc = mask_append (hashcat_ctx, mask);
+        const int rc = mask_append (hashcat_ctx, mask, NULL);
 
         if (rc == -1) return -1;
       }
@@ -1264,7 +1335,7 @@ int mask_ctx_init (hashcat_ctx_t *hashcat_ctx)
     {
       const char *mask = hashconfig_benchmark_mask (hashcat_ctx);
 
-      const int rc = mask_append (hashcat_ctx, mask);
+      const int rc = mask_append (hashcat_ctx, mask, NULL);
 
       if (rc == -1) return -1;
     }
@@ -1281,7 +1352,7 @@ int mask_ctx_init (hashcat_ctx_t *hashcat_ctx)
 
     if (hc_stat (arg, &file_stat) == -1)
     {
-      const int rc = mask_append (hashcat_ctx, arg);
+      const int rc = mask_append (hashcat_ctx, arg, NULL);
 
       if (rc == -1) return -1;
     }
@@ -1295,7 +1366,7 @@ int mask_ctx_init (hashcat_ctx_t *hashcat_ctx)
 
         if (mask_fp == NULL)
         {
-          event_log_error (hashcat_ctx, "%s: %s", arg, strerror (errno));
+          event_log_error (hashcat_ctx, "%s: %m", arg);
 
           return -1;
         }
@@ -1310,7 +1381,20 @@ int mask_ctx_init (hashcat_ctx_t *hashcat_ctx)
 
           if (line_buf[0] == '#') continue;
 
-          const int rc = mask_append (hashcat_ctx, line_buf);
+          char *mask_buf = mask_ctx_parse_maskfile_find_mask (line_buf, line_len);
+
+          char *prepend_buf = NULL;
+
+          if (line_buf != mask_buf)
+          {
+            // if we have custom charsets
+
+            prepend_buf = line_buf;
+
+            mask_buf[-1] = 0;
+          }
+
+          const int rc = mask_append (hashcat_ctx, mask_buf, prepend_buf);
 
           if (rc == -1)
           {
@@ -1344,7 +1428,7 @@ int mask_ctx_init (hashcat_ctx_t *hashcat_ctx)
 
     if (hc_stat (arg, &file_stat) == -1)
     {
-      const int rc = mask_append (hashcat_ctx, arg);
+      const int rc = mask_append (hashcat_ctx, arg, NULL);
 
       if (rc == -1) return -1;
     }
@@ -1358,7 +1442,7 @@ int mask_ctx_init (hashcat_ctx_t *hashcat_ctx)
 
         if (mask_fp == NULL)
         {
-          event_log_error (hashcat_ctx, "%s: %s", arg, strerror (errno));
+          event_log_error (hashcat_ctx, "%s: %m", arg);
 
           return -1;
         }
@@ -1373,7 +1457,20 @@ int mask_ctx_init (hashcat_ctx_t *hashcat_ctx)
 
           if (line_buf[0] == '#') continue;
 
-          const int rc = mask_append (hashcat_ctx, line_buf);
+          char *mask_buf = mask_ctx_parse_maskfile_find_mask (line_buf, line_len);
+
+          char *prepend_buf = NULL;
+
+          if (line_buf != mask_buf)
+          {
+            // if we have custom charsets
+
+            prepend_buf = line_buf;
+
+            mask_buf[-1] = 0;
+          }
+
+          const int rc = mask_append (hashcat_ctx, mask_buf, prepend_buf);
 
           if (rc == -1)
           {
@@ -1443,13 +1540,15 @@ int mask_ctx_parse_maskfile (hashcat_ctx_t *hashcat_ctx)
 
   if (mask_ctx->mask_from_file == false) return 0;
 
-  mf_t *mfs = mask_ctx->mfs;
+  mf_t *mfs_buf = mask_ctx->mfs;
 
-  mfs[0].mf_len = 0;
-  mfs[1].mf_len = 0;
-  mfs[2].mf_len = 0;
-  mfs[3].mf_len = 0;
-  mfs[4].mf_len = 0;
+  mfs_buf[0].mf_len = 0;
+  mfs_buf[1].mf_len = 0;
+  mfs_buf[2].mf_len = 0;
+  mfs_buf[3].mf_len = 0;
+  mfs_buf[4].mf_len = 0;
+
+  int mfs_cnt = 0;
 
   char *mask_buf = mask_ctx->mask;
 
@@ -1457,11 +1556,9 @@ int mask_ctx_parse_maskfile (hashcat_ctx_t *hashcat_ctx)
 
   bool escaped = false;
 
-  int mf_cnt = 0;
-
   for (int i = 0; i < mask_len; i++)
   {
-    mf_t *mf = mfs + mf_cnt;
+    mf_t *mf = mfs_buf + mfs_cnt;
 
     if (escaped == true)
     {
@@ -1481,9 +1578,9 @@ int mask_ctx_parse_maskfile (hashcat_ctx_t *hashcat_ctx)
       {
         mf->mf_buf[mf->mf_len] = 0;
 
-        mf_cnt++;
+        mfs_cnt++;
 
-        if (mf_cnt >= MAX_MFS)
+        if (mfs_cnt == MAX_MFS)
         {
           event_log_error (hashcat_ctx, "Invalid line '%s' in maskfile", mask_buf);
 
@@ -1499,41 +1596,47 @@ int mask_ctx_parse_maskfile (hashcat_ctx_t *hashcat_ctx)
     }
   }
 
-  mf_t *mf = mfs + mf_cnt;
+  mf_t *mf = mfs_buf + mfs_cnt;
 
   mf->mf_buf[mf->mf_len] = 0;
 
-  for (int i = 0; i < mf_cnt; i++)
+  user_options->custom_charset_1 = NULL;
+  user_options->custom_charset_2 = NULL;
+  user_options->custom_charset_3 = NULL;
+  user_options->custom_charset_4 = NULL;
+
+  mp_reset_usr (mask_ctx->mp_usr, 0);
+  mp_reset_usr (mask_ctx->mp_usr, 1);
+  mp_reset_usr (mask_ctx->mp_usr, 2);
+  mp_reset_usr (mask_ctx->mp_usr, 3);
+
+  for (int i = 0; i < mfs_cnt; i++)
   {
     switch (i)
     {
       case 0:
-        user_options->custom_charset_1 = mfs[0].mf_buf;
-        mp_reset_usr (mask_ctx->mp_usr, 0);
+        user_options->custom_charset_1 = mfs_buf[0].mf_buf;
         mp_setup_usr (hashcat_ctx, mask_ctx->mp_sys, mask_ctx->mp_usr, user_options->custom_charset_1, 0);
         break;
 
       case 1:
-        user_options->custom_charset_2 = mfs[1].mf_buf;
-        mp_reset_usr (mask_ctx->mp_usr, 1);
+        user_options->custom_charset_2 = mfs_buf[1].mf_buf;
         mp_setup_usr (hashcat_ctx, mask_ctx->mp_sys, mask_ctx->mp_usr, user_options->custom_charset_2, 1);
         break;
 
       case 2:
-        user_options->custom_charset_3 = mfs[2].mf_buf;
-        mp_reset_usr (mask_ctx->mp_usr, 2);
+        user_options->custom_charset_3 = mfs_buf[2].mf_buf;
         mp_setup_usr (hashcat_ctx, mask_ctx->mp_sys, mask_ctx->mp_usr, user_options->custom_charset_3, 2);
         break;
 
       case 3:
-        user_options->custom_charset_4 = mfs[3].mf_buf;
-        mp_reset_usr (mask_ctx->mp_usr, 3);
+        user_options->custom_charset_4 = mfs_buf[3].mf_buf;
         mp_setup_usr (hashcat_ctx, mask_ctx->mp_sys, mask_ctx->mp_usr, user_options->custom_charset_4, 3);
         break;
     }
   }
 
-  mask_ctx->mask = mfs[mf_cnt].mf_buf;
+  mask_ctx->mask = mfs_buf[mfs_cnt].mf_buf;
 
   return 0;
 }

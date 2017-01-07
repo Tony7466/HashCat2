@@ -30,15 +30,16 @@ int induct_ctx_init (hashcat_ctx_t *hashcat_ctx)
 
   induct_ctx->enabled = false;
 
-  if (user_options->benchmark   == true) return 0;
-  if (user_options->keyspace    == true) return 0;
-  if (user_options->left        == true) return 0;
-  if (user_options->opencl_info == true) return 0;
-  if (user_options->show        == true) return 0;
-  if (user_options->stdout_flag == true) return 0;
-  if (user_options->speed_only  == true) return 0;
-  if (user_options->usage       == true) return 0;
-  if (user_options->version     == true) return 0;
+  if (user_options->benchmark     == true) return 0;
+  if (user_options->keyspace      == true) return 0;
+  if (user_options->left          == true) return 0;
+  if (user_options->opencl_info   == true) return 0;
+  if (user_options->show          == true) return 0;
+  if (user_options->stdout_flag   == true) return 0;
+  if (user_options->speed_only    == true) return 0;
+  if (user_options->progress_only == true) return 0;
+  if (user_options->usage         == true) return 0;
+  if (user_options->version       == true) return 0;
 
   if (user_options->attack_mode == ATTACK_MODE_BF)    return 0;
   if (user_options->attack_mode == ATTACK_MODE_COMBI) return 0;
@@ -47,9 +48,9 @@ int induct_ctx_init (hashcat_ctx_t *hashcat_ctx)
 
   if (user_options->induction_dir == NULL)
   {
-    char *root_directory = (char *) hcmalloc (HCBUFSIZ_TINY);
+    char *root_directory;
 
-    snprintf (root_directory, HCBUFSIZ_TINY - 1, "%s/%s.%s", folder_config->session_dir, user_options->session, INDUCT_DIR);
+    hc_asprintf (&root_directory, "%s/%s.%s", folder_config->session_dir, user_options->session, INDUCT_DIR);
 
     if (rmdir (root_directory) == -1)
     {
@@ -59,20 +60,22 @@ int induct_ctx_init (hashcat_ctx_t *hashcat_ctx)
       }
       else if (errno == ENOTEMPTY)
       {
-        char *root_directory_mv = (char *) hcmalloc (HCBUFSIZ_TINY);
+        char *root_directory_mv;
 
-        snprintf (root_directory_mv, HCBUFSIZ_TINY - 1, "%s/%s.induct.%d", folder_config->session_dir, user_options->session, (int) time (NULL));
+        hc_asprintf (&root_directory_mv, "%s/%s.induct.%d", folder_config->session_dir, user_options->session, (int) time (NULL));
 
         if (rename (root_directory, root_directory_mv) != 0)
         {
-          event_log_error (hashcat_ctx, "Rename directory %s to %s: %s", root_directory, root_directory_mv, strerror (errno));
+          event_log_error (hashcat_ctx, "Rename directory %s to %s: %m", root_directory, root_directory_mv);
 
           return -1;
         }
+
+        hcfree (root_directory_mv);
       }
       else
       {
-        event_log_error (hashcat_ctx, "%s: %s", root_directory, strerror (errno));
+        event_log_error (hashcat_ctx, "%s: %m", root_directory);
 
         return -1;
       }
@@ -80,7 +83,7 @@ int induct_ctx_init (hashcat_ctx_t *hashcat_ctx)
 
     if (hc_mkdir (root_directory, 0700) == -1)
     {
-      event_log_error (hashcat_ctx, "%s: %s", root_directory, strerror (errno));
+      event_log_error (hashcat_ctx, "%s: %m", root_directory);
 
       return -1;
     }
@@ -126,7 +129,7 @@ void induct_ctx_destroy (hashcat_ctx_t *hashcat_ctx)
     }
     else
     {
-      event_log_error (hashcat_ctx, "%s: %s", induct_ctx->root_directory, strerror (errno));
+      event_log_error (hashcat_ctx, "%s: %m", induct_ctx->root_directory);
 
       //return -1;
     }

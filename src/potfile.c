@@ -10,6 +10,7 @@
 #include "event.h"
 #include "interface.h"
 #include "filehandling.h"
+#include "loopback.h"
 #include "outfile.h"
 #include "potfile.h"
 #include "locking.h"
@@ -88,6 +89,7 @@ int potfile_init (hashcat_ctx_t *hashcat_ctx)
   if (user_options->opencl_info     == true) return 0;
   if (user_options->stdout_flag     == true) return 0;
   if (user_options->speed_only      == true) return 0;
+  if (user_options->progress_only   == true) return 0;
   if (user_options->usage           == true) return 0;
   if (user_options->version         == true) return 0;
   if (user_options->potfile_disable == true) return 0;
@@ -96,10 +98,9 @@ int potfile_init (hashcat_ctx_t *hashcat_ctx)
 
   if (user_options->potfile_path == NULL)
   {
-    potfile_ctx->filename = (char *) hcmalloc (HCBUFSIZ_TINY);
     potfile_ctx->fp       = NULL;
 
-    snprintf (potfile_ctx->filename, HCBUFSIZ_TINY - 1, "%s/hashcat.potfile", folder_config->profile_dir);
+    hc_asprintf (&potfile_ctx->filename, "%s/hashcat.potfile", folder_config->profile_dir);
   }
   else
   {
@@ -124,6 +125,26 @@ int potfile_init (hashcat_ctx_t *hashcat_ctx)
   u8 *tmp_buf = (u8 *) hcmalloc (HCBUFSIZ_LARGE);
 
   potfile_ctx->tmp_buf = tmp_buf;
+
+  // old potfile detection
+
+  if (user_options->potfile_path == NULL)
+  {
+    char *potfile_old;
+
+    hc_asprintf (&potfile_old, "%s/hashcat.pot", folder_config->profile_dir);
+
+    hc_stat_t st;
+
+    if (hc_stat (potfile_old, &st) == 0)
+    {
+      event_log_warning (hashcat_ctx, "Old potfile detected: %s", potfile_old);
+      event_log_warning (hashcat_ctx, "New potfile is: %s ", potfile_ctx->filename);
+      event_log_warning (hashcat_ctx, "");
+    }
+
+    hcfree (potfile_old);
+  }
 
   return 0;
 }
@@ -150,7 +171,7 @@ int potfile_read_open (hashcat_ctx_t *hashcat_ctx)
 
   if (potfile_ctx->fp == NULL)
   {
-    event_log_error (hashcat_ctx, "%s: %s", potfile_ctx->filename, strerror (errno));
+    event_log_error (hashcat_ctx, "%s: %m", potfile_ctx->filename);
 
     return -1;
   }
@@ -179,7 +200,7 @@ int potfile_write_open (hashcat_ctx_t *hashcat_ctx)
 
   if (fp == NULL)
   {
-    event_log_error (hashcat_ctx, "%s: %s", potfile_ctx->filename, strerror (errno));
+    event_log_error (hashcat_ctx, "%s: %m", potfile_ctx->filename);
 
     return -1;
   }
@@ -218,7 +239,7 @@ void potfile_write_append (hashcat_ctx_t *hashcat_ctx, const char *out_buf, u8 *
 
     tmp_len += out_len;
 
-    tmp_buf[tmp_len] = ':';
+    tmp_buf[tmp_len] = hashconfig->separator;
 
     tmp_len += 1;
   }
@@ -227,7 +248,7 @@ void potfile_write_append (hashcat_ctx_t *hashcat_ctx, const char *out_buf, u8 *
   {
     const bool always_ascii = (hashconfig->hash_type & OPTS_TYPE_PT_ALWAYS_ASCII) ? true : false;
 
-    if ((user_options->outfile_autohex == true) && (need_hexify (plain_ptr, plain_len, always_ascii) == true))
+    if ((user_options->outfile_autohex == true) && (need_hexify (plain_ptr, plain_len, hashconfig->separator, always_ascii) == true))
     {
       tmp_buf[tmp_len++] = '$';
       tmp_buf[tmp_len++] = 'H';
@@ -262,9 +283,10 @@ void potfile_write_append (hashcat_ctx_t *hashcat_ctx, const char *out_buf, u8 *
 
 int potfile_remove_parse (hashcat_ctx_t *hashcat_ctx)
 {
-  hashconfig_t  *hashconfig  = hashcat_ctx->hashconfig;
-  hashes_t      *hashes      = hashcat_ctx->hashes;
-  potfile_ctx_t *potfile_ctx = hashcat_ctx->potfile_ctx;
+  const hashconfig_t   *hashconfig   = hashcat_ctx->hashconfig;
+  const hashes_t       *hashes       = hashcat_ctx->hashes;
+  const loopback_ctx_t *loopback_ctx = hashcat_ctx->loopback_ctx;
+  const potfile_ctx_t  *potfile_ctx  = hashcat_ctx->potfile_ctx;
 
   if (potfile_ctx->enabled == false) return 0;
 
@@ -325,161 +347,155 @@ int potfile_remove_parse (hashcat_ctx_t *hashcat_ctx)
 
   char *line_buf = (char *) hcmalloc (HCBUFSIZ_LARGE);
 
-  // to be safe work with a copy (because of line_len loop, i etc)
-  // moved up here because it's easier to handle continue case
-  // it's just 64kb
-
-  char *line_buf_cpy = (char *) hcmalloc (HCBUFSIZ_LARGE);
-
   while (!feof (potfile_ctx->fp))
   {
     int line_len = fgetl (potfile_ctx->fp, line_buf);
 
     if (line_len == 0) continue;
 
-    const int line_len_orig = line_len;
+    char *last_separator = strrchr (line_buf, hashconfig->separator);
 
-    int iter = MAX_CUT_TRIES;
+    if (last_separator == NULL) continue; // ??
 
-    for (int i = line_len - 1; i && iter; i--, line_len--)
+    char *line_pw_buf = last_separator + 1;
+
+    int line_pw_len = line_buf + line_len - line_pw_buf;
+
+    char *line_hash_buf = line_buf;
+
+    int line_hash_len = last_separator - line_buf;
+
+    line_hash_buf[line_hash_len] = 0;
+
+    if (line_hash_len == 0) continue;
+
+    // we should allow length 0 passwords (detected by weak hash check)
+    //if (line_pw_len == 0) continue;
+
+    if (hashconfig->is_salted)
     {
-      if (line_buf[i] != ':') continue;
+      memset (hash_buf.salt, 0, sizeof (salt_t));
+    }
 
-      iter--;
+    if (hashconfig->esalt_size)
+    {
+      memset (hash_buf.esalt, 0, hashconfig->esalt_size);
+    }
 
-      if (hashconfig->is_salted)
+    hash_t *found = NULL;
+
+    if (hashconfig->hash_mode == 6800)
+    {
+      if (line_hash_len < 64) // 64 = 16 * u32 in salt_buf[]
       {
-        memset (hash_buf.salt, 0, sizeof (salt_t));
+        // manipulate salt_buf
+        memcpy (hash_buf.salt->salt_buf, line_hash_buf, line_hash_len);
+
+        hash_buf.salt->salt_len = line_hash_len;
+
+        found = (hash_t *) bsearch (&hash_buf, hashes_buf, hashes_cnt, sizeof (hash_t), sort_by_hash_t_salt);
       }
-
-      if (hashconfig->esalt_size)
+    }
+    else if (hashconfig->hash_mode == 2500)
+    {
+      if (line_hash_len < 64) // 64 = 16 * u32 in salt_buf[]
       {
-        memset (hash_buf.esalt, 0, hashconfig->esalt_size);
-      }
+        // here we have in line_hash_buf: ESSID:MAC1:MAC2   (without the plain)
 
-      hash_t *found = NULL;
+        char *mac2_pos = strrchr (line_hash_buf, ':');
 
-      if (hashconfig->hash_mode == 6800)
-      {
-        if (i < 64) // 64 = 16 * u32 in salt_buf[]
+        if (mac2_pos == NULL) continue;
+
+        mac2_pos[0] = 0;
+        mac2_pos++;
+
+        if (strlen (mac2_pos) != 12) continue;
+
+        char *mac1_pos = strrchr (line_hash_buf, ':');
+
+        if (mac1_pos == NULL) continue;
+
+        mac1_pos[0] = 0;
+        mac1_pos++;
+
+        if (strlen (mac1_pos) != 12) continue;
+
+        u32 essid_length = mac1_pos - line_hash_buf - 1;
+
+        if (hashconfig->is_salted)
         {
-          // manipulate salt_buf
-          memcpy (hash_buf.salt->salt_buf, line_buf, i);
+          // this should be always true, but we need it to make scan-build happy
 
-          hash_buf.salt->salt_len = i;
+          memcpy (hash_buf.salt->salt_buf, line_hash_buf, essid_length);
 
-          found = (hash_t *) bsearch (&hash_buf, hashes_buf, hashes_cnt, sizeof (hash_t), sort_by_hash_t_salt);
+          hash_buf.salt->salt_len = essid_length;
         }
-      }
-      else if (hashconfig->hash_mode == 2500)
-      {
-        if (i < 64) // 64 = 16 * u32 in salt_buf[]
+
+        found = (hash_t *) bsearch (&hash_buf, hashes_buf, hashes_cnt, sizeof (hash_t), sort_by_hash_t_salt_hccap);
+
+        if (found)
         {
-          // here we have in line_buf: ESSID:MAC1:MAC2   (without the plain)
-          // manipulate salt_buf
+          wpa_t *wpa = (wpa_t *) found->esalt;
 
-          memcpy (line_buf_cpy, line_buf, i);
+          // compare hex string(s) vs binary MAC address(es)
 
-          line_buf_cpy[i] = 0;
-
-          char *mac2_pos = strrchr (line_buf_cpy, ':');
-
-          if (mac2_pos == NULL) continue;
-
-          mac2_pos[0] = 0;
-          mac2_pos++;
-
-          if (strlen (mac2_pos) != 12) continue;
-
-          char *mac1_pos = strrchr (line_buf_cpy, ':');
-
-          if (mac1_pos == NULL) continue;
-
-          mac1_pos[0] = 0;
-          mac1_pos++;
-
-          if (strlen (mac1_pos) != 12) continue;
-
-          u32 essid_length = mac1_pos - line_buf_cpy - 1;
-
-          if (hashconfig->is_salted)
+          for (u32 mac_idx = 0, orig_mac_idx = 0; mac_idx < 6; mac_idx += 1, orig_mac_idx += 2)
           {
-            // this should be always true, but we need it to make scan-build happy
-
-            memcpy (hash_buf.salt->salt_buf, line_buf_cpy, essid_length);
-
-            hash_buf.salt->salt_len = essid_length;
-          }
-
-          found = (hash_t *) bsearch (&hash_buf, hashes_buf, hashes_cnt, sizeof (hash_t), sort_by_hash_t_salt_hccap);
-
-          if (found)
-          {
-            wpa_t *wpa = (wpa_t *) found->esalt;
-
-            // compare hex string(s) vs binary MAC address(es)
-
-            for (u32 mac_idx = 0, orig_mac_idx = 0; mac_idx < 6; mac_idx += 1, orig_mac_idx += 2)
+            if (wpa->orig_mac1[mac_idx] != hex_to_u8 ((const u8 *) &mac1_pos[orig_mac_idx]))
             {
-              if (wpa->orig_mac1[mac_idx] != hex_to_u8 ((const u8 *) &mac1_pos[orig_mac_idx]))
-              {
-                found = NULL;
+              found = NULL;
 
-                break;
-              }
+              break;
             }
 
-            // early skip ;)
-            if (!found) continue;
-
-            for (u32 mac_idx = 0, orig_mac_idx = 0; mac_idx < 6; mac_idx += 1, orig_mac_idx += 2)
+            if (wpa->orig_mac2[mac_idx] != hex_to_u8 ((const u8 *) &mac2_pos[orig_mac_idx]))
             {
-              if (wpa->orig_mac2[mac_idx] != hex_to_u8 ((const u8 *) &mac2_pos[orig_mac_idx]))
-              {
-                found = NULL;
+              found = NULL;
 
-                break;
-              }
+              break;
             }
           }
         }
       }
-      else
-      {
-        int parser_status = hashconfig->parse_func ((u8 *) line_buf, line_len - 1, &hash_buf, hashconfig);
+    }
+    else
+    {
+      int parser_status = hashconfig->parse_func ((u8 *) line_hash_buf, line_hash_len, &hash_buf, hashconfig);
 
-        if (parser_status == PARSER_OK)
+      if (parser_status == PARSER_OK)
+      {
+        if (hashconfig->is_salted)
         {
-          if (hashconfig->is_salted)
-          {
-            found = (hash_t *) hc_bsearch_r (&hash_buf, hashes_buf, hashes_cnt, sizeof (hash_t), sort_by_hash, (void *) hashconfig);
-          }
-          else
-          {
-            found = (hash_t *) hc_bsearch_r (&hash_buf, hashes_buf, hashes_cnt, sizeof (hash_t), sort_by_hash_no_salt, (void *) hashconfig);
-          }
+          found = (hash_t *) hc_bsearch_r (&hash_buf, hashes_buf, hashes_cnt, sizeof (hash_t), sort_by_hash, (void *) hashconfig);
+        }
+        else
+        {
+          found = (hash_t *) hc_bsearch_r (&hash_buf, hashes_buf, hashes_cnt, sizeof (hash_t), sort_by_hash_no_salt, (void *) hashconfig);
         }
       }
+    }
 
-      if (found == NULL) continue;
+    if (found == NULL) continue;
 
-      char *pw_buf = line_buf + line_len;
-      int   pw_len = line_len_orig - line_len;
+    char *pw_buf = line_pw_buf;
+    int   pw_len = line_pw_len;
 
-      found->pw_buf = (char *) hcmalloc (pw_len + 1);
-      found->pw_len = pw_len;
+    found->pw_buf = (char *) hcmalloc (pw_len + 1);
+    found->pw_len = pw_len;
 
-      memcpy (found->pw_buf, pw_buf, pw_len);
+    memcpy (found->pw_buf, pw_buf, pw_len);
 
-      found->pw_buf[found->pw_len] = 0;
+    found->pw_buf[found->pw_len] = 0;
 
-      found->cracked = 1;
+    found->cracked = 1;
 
-      break;
+    // if enabled, update also the loopback file
+
+    if (loopback_ctx->fp != NULL)
+    {
+      loopback_write_append (hashcat_ctx, (u8 *) pw_buf, (unsigned int) pw_len);
     }
   }
-
-  hcfree (line_buf_cpy);
 
   hcfree (line_buf);
 

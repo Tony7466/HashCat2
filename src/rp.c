@@ -30,8 +30,6 @@ static const char grp_op_nop[] =
   RULE_OP_MANGLE_SWITCH_LAST,
   RULE_OP_MANGLE_DUPECHAR_ALL,
   RULE_OP_MANGLE_TITLE,
-  RULE_OP_MANGLE_APPEND_MEMORY,
-  RULE_OP_MANGLE_PREPEND_MEMORY,
 };
 
 static const char grp_op_pos_p0[] =
@@ -83,11 +81,6 @@ static const char grp_op_pos_pos1[] =
 {
   RULE_OP_MANGLE_EXTRACT,
   RULE_OP_MANGLE_OMIT
-};
-
-static const char grp_op_pos1_pos2_pos3[] =
-{
-  RULE_OP_MANGLE_EXTRACT_MEMORY
 };
 
 static const char grp_pos[] =
@@ -156,7 +149,6 @@ int generate_random_rule (char rule_buf[RP_RULE_BUFSIZ], const u32 rp_gen_func_m
     u32 r  = 0;
     u32 p1 = 0;
     u32 p2 = 0;
-    u32 p3 = 0;
 
     switch ((char) get_random_num (0, 9))
     {
@@ -226,17 +218,6 @@ int generate_random_rule (char rule_buf[RP_RULE_BUFSIZ], const u32 rp_gen_func_m
         while (p1 == p2)
         p2 = get_random_num (1, sizeof (grp_pos));
         rule_buf[rule_pos++] = grp_pos[p2];
-        break;
-
-      case 8:
-        r = get_random_num (0, sizeof (grp_op_pos1_pos2_pos3));
-        rule_buf[rule_pos++] = grp_op_pos1_pos2_pos3[r];
-        p1 = get_random_num (0, sizeof (grp_pos));
-        rule_buf[rule_pos++] = grp_pos[p1];
-        p2 = get_random_num (1, sizeof (grp_pos));
-        rule_buf[rule_pos++] = grp_pos[p2];
-        p3 = get_random_num (0, sizeof (grp_pos));
-        rule_buf[rule_pos++] = grp_pos[p3];
         break;
     }
   }
@@ -752,7 +733,7 @@ int kernel_rules_load (hashcat_ctx_t *hashcat_ctx, kernel_rule_t **out_buf, u32 
 
     if ((fp = fopen (rp_file, "rb")) == NULL)
     {
-      event_log_error (hashcat_ctx, "%s: %s", rp_file, strerror (errno));
+      event_log_error (hashcat_ctx, "%s: %m", rp_file);
 
       return -1;
     }

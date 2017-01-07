@@ -17,11 +17,15 @@
 #elif defined (_WIN32) || defined (_WIN64)
 #define _WIN 1
 #define WIN 1
+#define _POSIX_THREAD_SAFE_FUNCTIONS 200112L //for *time_r functions
 #else
 #error Your Operating System is not supported or detected
 #endif
 
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
+
 #define _FILE_OFFSET_BITS 64
 
 #define NOMINMAX 1
@@ -78,7 +82,6 @@ but this is nededed for VS compiler which doesn't have inline keyword but has __
 #define SPEED_MAXAGE        4096
 #define BLOCK_SIZE          64
 #define EXPECTED_ITERATIONS 10000
-#define MAX_CUT_TRIES       4
 
 #if defined (_WIN)
 #define EOL "\r\n"

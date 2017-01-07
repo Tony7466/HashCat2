@@ -9,6 +9,7 @@
 #include "event.h"
 #include "logfile.h"
 #include "locking.h"
+#include "shared.h"
 
 static int logfile_generate_id (void)
 {
@@ -53,7 +54,7 @@ void logfile_append (hashcat_ctx_t *hashcat_ctx, const char *fmt, ...)
 
   if (fp == NULL)
   {
-    event_log_error (hashcat_ctx, "%s: %s", logfile_ctx->logfile, strerror (errno));
+    event_log_error (hashcat_ctx, "%s: %m", logfile_ctx->logfile);
 
     return;
   }
@@ -83,9 +84,7 @@ int logfile_init (hashcat_ctx_t *hashcat_ctx)
 
   if (user_options->logfile_disable == true) return 0;
 
-  logfile_ctx->logfile = (char *) hcmalloc (HCBUFSIZ_TINY);
-
-  snprintf (logfile_ctx->logfile, HCBUFSIZ_TINY - 1, "%s/%s.log", folder_config->session_dir, user_options->session);
+  hc_asprintf (&logfile_ctx->logfile, "%s/%s.log", folder_config->session_dir, user_options->session);
 
   logfile_ctx->subid = (char *) hcmalloc (HCBUFSIZ_TINY);
   logfile_ctx->topid = (char *) hcmalloc (HCBUFSIZ_TINY);
@@ -96,7 +95,7 @@ int logfile_init (hashcat_ctx_t *hashcat_ctx)
 
   if (fp == NULL)
   {
-    event_log_error (hashcat_ctx, "%s: %s", logfile_ctx->logfile, strerror (errno));
+    event_log_error (hashcat_ctx, "%s: %m", logfile_ctx->logfile);
 
     return -1;
   }

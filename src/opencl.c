@@ -75,8 +75,6 @@ static int ocl_check_dri (MAYBE_UNUSED hashcat_ctx_t *hashcat_ctx)
 
   if (vendor != 4098) return 0;
 
-  fclose (fd_drm);
-
   // Now the problem is only with AMDGPU-Pro, not with oldschool AMD driver
 
   char buf[HCBUFSIZ_TINY];
@@ -91,7 +89,7 @@ static int ocl_check_dri (MAYBE_UNUSED hashcat_ctx_t *hashcat_ctx)
 
   if (fd_dri == NULL)
   {
-    event_log_error (hashcat_ctx, "Can not access %s: %s", dri_card0_path, strerror (errno));
+    event_log_error (hashcat_ctx, "Can not access %s: %m", dri_card0_path);
     event_log_error (hashcat_ctx, "This causes some drivers to crash when OpenCL is used!");
     event_log_error (hashcat_ctx, "Usually it's enough to add your user account to the \"video\" group to fix this problem:");
     event_log_error (hashcat_ctx, "$ sudo usermod -a -G video $LOGNAME");
@@ -310,7 +308,7 @@ static int read_kernel_binary (hashcat_ctx_t *hashcat_ctx, const char *kernel_fi
 
     if (num_read != (size_t) st.st_size)
     {
-      event_log_error (hashcat_ctx, "%s: %s", kernel_file, strerror (errno));
+      event_log_error (hashcat_ctx, "%s: %m", kernel_file);
 
       return -1;
     }
@@ -326,7 +324,7 @@ static int read_kernel_binary (hashcat_ctx_t *hashcat_ctx, const char *kernel_fi
   }
   else
   {
-    event_log_error (hashcat_ctx, "%s: %s", kernel_file, strerror (errno));
+    event_log_error (hashcat_ctx, "%s: %m", kernel_file);
 
     return -1;
   }
@@ -342,7 +340,7 @@ static int write_kernel_binary (hashcat_ctx_t *hashcat_ctx, char *kernel_file, c
 
     if (fp == NULL)
     {
-      event_log_error (hashcat_ctx, "%s: %s", kernel_file, strerror (errno));
+      event_log_error (hashcat_ctx, "%s: %m", kernel_file);
 
       return -1;
     }
@@ -351,7 +349,7 @@ static int write_kernel_binary (hashcat_ctx_t *hashcat_ctx, char *kernel_file, c
     {
       fclose (fp);
 
-      event_log_error (hashcat_ctx, "%s: %s", kernel_file, strerror (errno));
+      event_log_error (hashcat_ctx, "%s: %m", kernel_file);
 
       return -1;
     }
@@ -379,7 +377,9 @@ int ocl_init (hashcat_ctx_t *hashcat_ctx)
   #elif defined(__APPLE__)
   ocl->lib = hc_dlopen ("/System/Library/Frameworks/OpenCL.framework/OpenCL", RTLD_NOW);
   #elif defined (__CYGWIN__)
-  ocl->lib = hc_dlopen ("cygOpenCL-1.dll", RTLD_NOW);
+  ocl->lib = hc_dlopen ("opencl.dll", RTLD_NOW);
+
+  if (ocl->lib == NULL) ocl->lib = hc_dlopen ("cygOpenCL-1.dll", RTLD_NOW);
   #else
   ocl->lib = hc_dlopen ("libOpenCL.so", RTLD_NOW);
 
@@ -1118,92 +1118,116 @@ int choose_kernel (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param, 
   }
   else
   {
-    CL_rc = run_kernel_amp (hashcat_ctx, device_param, pws_cnt);
+    bool run_init = true;
+    bool run_loop = true;
+    bool run_comp = true;
 
-    if (CL_rc == -1) return -1;
-
-    CL_rc = run_kernel (hashcat_ctx, device_param, KERN_RUN_1, pws_cnt, false, 0);
-
-    if (CL_rc == -1) return -1;
-
-    if (hashconfig->opts_type & OPTS_TYPE_HOOK12)
+    if (hashconfig->hash_mode == 2500)
     {
-      CL_rc = run_kernel (hashcat_ctx, device_param, KERN_RUN_12, pws_cnt, false, 0);
+      wpa_t *esalts_buf = hashes->esalts_buf;
 
-      if (CL_rc == -1) return -1;
-
-      CL_rc = hc_clEnqueueReadBuffer (hashcat_ctx, device_param->command_queue, device_param->d_hooks, CL_TRUE, 0, device_param->size_hooks, device_param->hooks_buf, 0, NULL, NULL);
-
-      if (CL_rc == -1) return -1;
-
-      // do something with data
-
-      CL_rc = hc_clEnqueueWriteBuffer (hashcat_ctx, device_param->command_queue, device_param->d_hooks, CL_TRUE, 0, device_param->size_hooks, device_param->hooks_buf, 0, NULL, NULL);
-
-      if (CL_rc == -1) return -1;
-    }
-
-    u32 iter = hashes->salts_buf[salt_pos].salt_iter;
-
-    u32 loop_step = device_param->kernel_loops;
-
-    for (u32 loop_pos = 0, slow_iteration = 0; loop_pos < iter; loop_pos += loop_step, slow_iteration++)
-    {
-      u32 loop_left = iter - loop_pos;
-
-      loop_left = MIN (loop_left, loop_step);
-
-      device_param->kernel_params_buf32[28] = loop_pos;
-      device_param->kernel_params_buf32[29] = loop_left;
-
-      CL_rc = run_kernel (hashcat_ctx, device_param, KERN_RUN_2, pws_cnt, true, slow_iteration);
-
-      if (CL_rc == -1) return -1;
-
-      while (status_ctx->run_thread_level2 == false) break;
-
-      /**
-       * speed
-       */
-
-      const float iter_part = (float) (loop_pos + loop_left) / iter;
-
-      const u64 perf_sum_all = (u64) (pws_cnt * iter_part);
-
-      double speed_msec = hc_timer_get (device_param->timer_speed);
-
-      const u32 speed_pos = device_param->speed_pos;
-
-      device_param->speed_cnt[speed_pos] = perf_sum_all;
-
-      device_param->speed_msec[speed_pos] = speed_msec;
-
-      if (user_options->speed_only == true)
+      if (esalts_buf[salt_pos].essid_reuse == 1)
       {
-        if (speed_msec > 4096) return -2; // special RC
+        run_init = false;
+        run_loop = false;
       }
     }
 
-    if (hashconfig->opts_type & OPTS_TYPE_HOOK23)
+    if (run_init == true)
     {
-      CL_rc = run_kernel (hashcat_ctx, device_param, KERN_RUN_23, pws_cnt, false, 0);
+      CL_rc = run_kernel_amp (hashcat_ctx, device_param, pws_cnt);
 
       if (CL_rc == -1) return -1;
 
-      CL_rc = hc_clEnqueueReadBuffer (hashcat_ctx, device_param->command_queue, device_param->d_hooks, CL_TRUE, 0, device_param->size_hooks, device_param->hooks_buf, 0, NULL, NULL);
+      CL_rc = run_kernel (hashcat_ctx, device_param, KERN_RUN_1, pws_cnt, false, 0);
 
       if (CL_rc == -1) return -1;
 
-      // do something with data
+      if (hashconfig->opts_type & OPTS_TYPE_HOOK12)
+      {
+        CL_rc = run_kernel (hashcat_ctx, device_param, KERN_RUN_12, pws_cnt, false, 0);
 
-      CL_rc = hc_clEnqueueWriteBuffer (hashcat_ctx, device_param->command_queue, device_param->d_hooks, CL_TRUE, 0, device_param->size_hooks, device_param->hooks_buf, 0, NULL, NULL);
+        if (CL_rc == -1) return -1;
+
+        CL_rc = hc_clEnqueueReadBuffer (hashcat_ctx, device_param->command_queue, device_param->d_hooks, CL_TRUE, 0, device_param->size_hooks, device_param->hooks_buf, 0, NULL, NULL);
+
+        if (CL_rc == -1) return -1;
+
+        // do something with data
+
+        CL_rc = hc_clEnqueueWriteBuffer (hashcat_ctx, device_param->command_queue, device_param->d_hooks, CL_TRUE, 0, device_param->size_hooks, device_param->hooks_buf, 0, NULL, NULL);
+
+        if (CL_rc == -1) return -1;
+      }
+    }
+
+    if (run_loop == true)
+    {
+      u32 iter = hashes->salts_buf[salt_pos].salt_iter;
+
+      u32 loop_step = device_param->kernel_loops;
+
+      for (u32 loop_pos = 0, slow_iteration = 0; loop_pos < iter; loop_pos += loop_step, slow_iteration++)
+      {
+        u32 loop_left = iter - loop_pos;
+
+        loop_left = MIN (loop_left, loop_step);
+
+        device_param->kernel_params_buf32[28] = loop_pos;
+        device_param->kernel_params_buf32[29] = loop_left;
+
+        CL_rc = run_kernel (hashcat_ctx, device_param, KERN_RUN_2, pws_cnt, true, slow_iteration);
+
+        if (CL_rc == -1) return -1;
+
+        while (status_ctx->run_thread_level2 == false) break;
+
+        /**
+         * speed
+         */
+
+        const float iter_part = (float) (loop_pos + loop_left) / iter;
+
+        const u64 perf_sum_all = (u64) (pws_cnt * iter_part);
+
+        double speed_msec = hc_timer_get (device_param->timer_speed);
+
+        const u32 speed_pos = device_param->speed_pos;
+
+        device_param->speed_cnt[speed_pos] = perf_sum_all;
+
+        device_param->speed_msec[speed_pos] = speed_msec;
+
+        if (user_options->speed_only == true)
+        {
+          if (speed_msec > 4096) return -2; // special RC
+        }
+      }
+
+      if (hashconfig->opts_type & OPTS_TYPE_HOOK23)
+      {
+        CL_rc = run_kernel (hashcat_ctx, device_param, KERN_RUN_23, pws_cnt, false, 0);
+
+        if (CL_rc == -1) return -1;
+
+        CL_rc = hc_clEnqueueReadBuffer (hashcat_ctx, device_param->command_queue, device_param->d_hooks, CL_TRUE, 0, device_param->size_hooks, device_param->hooks_buf, 0, NULL, NULL);
+
+        if (CL_rc == -1) return -1;
+
+        // do something with data
+
+        CL_rc = hc_clEnqueueWriteBuffer (hashcat_ctx, device_param->command_queue, device_param->d_hooks, CL_TRUE, 0, device_param->size_hooks, device_param->hooks_buf, 0, NULL, NULL);
+
+        if (CL_rc == -1) return -1;
+      }
+    }
+
+    if (run_comp == true)
+    {
+      CL_rc = run_kernel (hashcat_ctx, device_param, KERN_RUN_3, pws_cnt, false, 0);
 
       if (CL_rc == -1) return -1;
     }
-
-    CL_rc = run_kernel (hashcat_ctx, device_param, KERN_RUN_3, pws_cnt, false, 0);
-
-    if (CL_rc == -1) return -1;
   }
 
   return 0;
@@ -2004,6 +2028,15 @@ int run_cracker (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param, co
       if (status_ctx->run_thread_level2 == false) break;
     }
 
+    if (user_options->progress_only == true)
+    {
+      const double m = (double) innerloop_cnt / innerloop_step;
+
+      device_param->outerloop_msec += device_param->speed_msec[0] * m * hashes->salts_cnt;
+    }
+
+    if (user_options->speed_only == true) break;
+
     //status screen makes use of this, can't reset here
     //device_param->innerloop_pos  = 0;
     //device_param->innerloop_left = 0;
@@ -2679,6 +2712,26 @@ int opencl_ctx_devices_init (hashcat_ctx_t *hashcat_ctx, const int comptime)
         }
       }
 
+      // Since some times we get reports from users about not working hashcat, dropping error messages like:
+      // CL_INVALID_COMMAND_QUEUE and CL_OUT_OF_RESOURCES
+      // Turns out that this is caused by Intel OpenCL runtime handling their GPU devices
+      // Disable such devices unless the user forces to use it
+
+      if (device_type & CL_DEVICE_TYPE_GPU)
+      {
+        if ((device_param->device_vendor_id == VENDOR_ID_INTEL_SDK) || (device_param->device_vendor_id == VENDOR_ID_INTEL_BEIGNET))
+        {
+          if (user_options->force == false)
+          {
+            if (user_options->quiet == false) event_log_warning (hashcat_ctx, "* Device #%u: Intel's OpenCL runtime (GPU only) is currently broken", device_id + 1);
+            if (user_options->quiet == false) event_log_warning (hashcat_ctx, "             We need to wait for an update of their OpenCL drivers");
+            if (user_options->quiet == false) event_log_warning (hashcat_ctx, "             You can use --force to override this but do not post error reports if you do so");
+
+            device_param->skipped = true;
+          }
+        }
+      }
+
       // skipped
 
       if ((opencl_ctx->devices_filter & (1u << device_id)) == 0)
@@ -2868,6 +2921,8 @@ int opencl_ctx_devices_init (hashcat_ctx_t *hashcat_ctx, const int comptime)
               #if defined (__linux__)
               // AMDGPU-Pro Driver 16.40 and higher
               if (atoi (device_param->driver_version) >= 2117) amd_warn = false;
+              // AMDGPU-Pro Driver 16.50 is known to be broken
+              if (atoi (device_param->driver_version) == 2236) amd_warn = true;
               #elif defined (_WIN)
               // AMD Radeon Software 14.9 and higher, should be updated to 15.12
               if (atoi (device_param->driver_version) >= 1573) amd_warn = false;
@@ -2910,8 +2965,8 @@ int opencl_ctx_devices_init (hashcat_ctx_t *hashcat_ctx, const int comptime)
 
               if (device_param->sm_major < 5)
               {
-                if (user_options->quiet == false) event_log_warning (hashcat_ctx, "* Device #%u: Old CUDA chipset %u.%u detected, OpenCL performance is reduced.", device_id + 1, device_param->sm_major, device_param->sm_minor);
-                if (user_options->quiet == false) event_log_warning (hashcat_ctx, "             For ideal hashcat performance on NVIDIA GPU you need Shader Model 5.0 or higher");
+                if (user_options->quiet == false) event_log_warning (hashcat_ctx, "* Device #%u: Old CUDA compute capability %u.%u detected, OpenCL performance is reduced.", device_id + 1, device_param->sm_major, device_param->sm_minor);
+                if (user_options->quiet == false) event_log_warning (hashcat_ctx, "             For ideal hashcat performance on NVIDIA GPU you need CUDA compute capability 5.0 or higher (Maxwell)");
               }
             }
 
@@ -3068,6 +3123,9 @@ void opencl_ctx_devices_kernel_loops (hashcat_ctx_t *hashcat_ctx)
     hc_device_param_t *device_param = &opencl_ctx->devices_param[device_id];
 
     if (device_param->skipped == true) continue;
+
+    device_param->kernel_loops_min = device_param->kernel_loops_min_sav;
+    device_param->kernel_loops_max = device_param->kernel_loops_max_sav;
 
     if (device_param->kernel_loops_min < device_param->kernel_loops_max)
     {
@@ -3313,7 +3371,6 @@ int opencl_session_begin (hashcat_ctx_t *hashcat_ctx)
       device_param->kernel_loops_max = user_options->kernel_loops;
     }
 
-
     /**
      * device properties
      */
@@ -3519,6 +3576,9 @@ int opencl_session_begin (hashcat_ctx_t *hashcat_ctx)
       device_param->kernel_loops_max = kernel_loops_fixed;
     }
 
+    device_param->kernel_loops_min_sav = device_param->kernel_loops_min;
+    device_param->kernel_loops_max_sav = device_param->kernel_loops_max;
+
     u32 kernel_accel_min = device_param->kernel_accel_min;
     u32 kernel_accel_max = device_param->kernel_accel_max;
 
@@ -3629,7 +3689,7 @@ int opencl_session_begin (hashcat_ctx_t *hashcat_ctx)
 
     if (chdir (folder_config->cpath_real) == -1)
     {
-      event_log_error (hashcat_ctx, "%s: %s", folder_config->cpath_real, strerror (errno));
+      event_log_error (hashcat_ctx, "%s: %m", folder_config->cpath_real);
 
       return -1;
     }
@@ -3673,7 +3733,7 @@ int opencl_session_begin (hashcat_ctx_t *hashcat_ctx)
 
       if (fd == NULL)
       {
-        event_log_error (hashcat_ctx, "%s: %s", files_names[i], strerror (errno));
+        event_log_error (hashcat_ctx, "%s: %m", files_names[i]);
 
         return -1;
       }
@@ -3686,7 +3746,7 @@ int opencl_session_begin (hashcat_ctx_t *hashcat_ctx)
 
       if (n != 1)
       {
-        event_log_error (hashcat_ctx, "%s: %s", files_names[i], strerror (errno));
+        event_log_error (hashcat_ctx, "%s: %m", files_names[i]);
 
         return -1;
       }
@@ -3725,7 +3785,7 @@ int opencl_session_begin (hashcat_ctx_t *hashcat_ctx)
 
       if (hc_stat (source_file, &sst) == -1)
       {
-        event_log_error (hashcat_ctx, "%s: %s", source_file, strerror (errno));
+        event_log_error (hashcat_ctx, "%s: %m", source_file);
 
         return -1;
       }
@@ -3933,7 +3993,7 @@ int opencl_session_begin (hashcat_ctx_t *hashcat_ctx)
 
       if (hc_stat (source_file, &sst) == -1)
       {
-        event_log_error (hashcat_ctx, "%s: %s", source_file, strerror (errno));
+        event_log_error (hashcat_ctx, "%s: %m", source_file);
 
         return -1;
       }
@@ -4075,7 +4135,7 @@ int opencl_session_begin (hashcat_ctx_t *hashcat_ctx)
 
       if (hc_stat (source_file, &sst) == -1)
       {
-        event_log_error (hashcat_ctx, "%s: %s", source_file, strerror (errno));
+        event_log_error (hashcat_ctx, "%s: %m", source_file);
 
         return -1;
       }
@@ -4199,7 +4259,7 @@ int opencl_session_begin (hashcat_ctx_t *hashcat_ctx)
 
     if (chdir (folder_config->cwd) == -1)
     {
-      event_log_error (hashcat_ctx, "%s: %s", folder_config->cwd, strerror (errno));
+      event_log_error (hashcat_ctx, "%s: %m", folder_config->cwd);
 
       return -1;
     }

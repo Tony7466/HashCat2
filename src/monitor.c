@@ -35,7 +35,6 @@ int get_runtime_left (const hashcat_ctx_t *hashcat_ctx)
   time (&runtime_cur);
 
   const int runtime_left = (int) (status_ctx->runtime_start
-                                + status_ctx->prepare_time
                                 + user_options->runtime
                                 + (msec_paused / 1000)
                                 - runtime_cur);
@@ -204,9 +203,9 @@ static int monitor (hashcat_ctx_t *hashcat_ctx)
 
           last_temp_check_time = temp_check_time;
 
-          float Kp = 1.8f;
-          float Ki = 0.005f;
-          float Kd = 6.0f;
+          float Kp = 1.6f;
+          float Ki = 0.001f;
+          float Kd = 10.0f;
 
           // PID controller (3-term controller: proportional - Kp, integral - Ki, derivative - Kd)
 
@@ -291,7 +290,7 @@ static int monitor (hashcat_ctx_t *hashcat_ctx)
       {
         EVENT_DATA (EVENT_MONITOR_RUNTIME_LIMIT, NULL, 0);
 
-        myabort (hashcat_ctx);
+        myabort_runtime (hashcat_ctx);
       }
     }
 

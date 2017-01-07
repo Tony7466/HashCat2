@@ -60,15 +60,16 @@ int loopback_init (hashcat_ctx_t *hashcat_ctx)
 
   loopback_ctx->enabled = false;
 
-  if (user_options->benchmark   == true) return 0;
-  if (user_options->keyspace    == true) return 0;
-  if (user_options->left        == true) return 0;
-  if (user_options->opencl_info == true) return 0;
-  if (user_options->show        == true) return 0;
-  if (user_options->stdout_flag == true) return 0;
-  if (user_options->speed_only  == true) return 0;
-  if (user_options->usage       == true) return 0;
-  if (user_options->version     == true) return 0;
+  if (user_options->benchmark     == true) return 0;
+  if (user_options->keyspace      == true) return 0;
+  if (user_options->left          == true) return 0;
+  if (user_options->opencl_info   == true) return 0;
+  if (user_options->show          == true) return 0;
+  if (user_options->stdout_flag   == true) return 0;
+  if (user_options->speed_only    == true) return 0;
+  if (user_options->progress_only == true) return 0;
+  if (user_options->usage         == true) return 0;
+  if (user_options->version       == true) return 0;
 
   loopback_ctx->enabled  = true;
   loopback_ctx->fp       = NULL;
@@ -101,13 +102,13 @@ int loopback_write_open (hashcat_ctx_t *hashcat_ctx)
 
   const u32 random_num = get_random_num (0, 9999);
 
-  snprintf (loopback_ctx->filename, HCBUFSIZ_TINY - 1, "%s/%s.%d_%u", induct_ctx->root_directory, LOOPBACK_FILE, (int) now, random_num);
+  hc_asprintf (&loopback_ctx->filename, "%s/%s.%d_%u", induct_ctx->root_directory, LOOPBACK_FILE, (int) now, random_num);
 
   FILE *fp = fopen (loopback_ctx->filename, "ab");
 
   if (fp == NULL)
   {
-    event_log_error (hashcat_ctx, "%s: %s", loopback_ctx->filename, strerror (errno));
+    event_log_error (hashcat_ctx, "%s: %m", loopback_ctx->filename);
 
     return -1;
   }

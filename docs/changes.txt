@@ -1,3 +1,72 @@
+* changes v3.20 -> v3.30:
+
+##
+## Features
+##
+
+- Files: Use $HEX[...] in case the password includes the separater character, increases potfile reading performance
+- Files: If the user specifies a folder to scan for wordlists instead of directly a wordlist, then ignore the hidden files
+- Loopback: Include passwords for removed hashes present in the potfile to next loopback iteration
+- New option --progress-only: Quickly provides ideal progress step size and time to process on the user hashes and selected options, then quit
+- Status screen: Reenabled automatic status screen display in case of stdin used
+- Truecrypt/Veracrypt: Use CRC32 to verify headers instead of fuzzy logic, greatly reduces false positives from 18:2^48 to 3:2^64
+- WPA cracking: Reuse PBKDF2 intermediate keys if duplicate essid is detected
+
+##
+## Algorithms
+##
+
+- Added hash-mode 1300 = SHA-224
+
+##
+## Bugs
+##
+
+- Fixed buffer overflow in status screen display in case of long non-utf8 string
+- Fixed buffer overflow in plaintext parsing code: Leading to segfault
+- Fixed custom char parsing code in maskfiles in --increment mode: Custom charset wasn't used
+- Fixed display screen to show input queue when using custom charset or rules
+- Fixed double fclose() using AMDGPU-Pro on sysfs compatible platform: Leading to segfault
+- Fixed hash-mode 11400 = SIP digest authentication (MD5): Cracking of hashes which did not include *auth* or *auth-int* was broken
+- Fixed hex output of plaintext in case --outfile-format 4, 5, 6 or 7 was used
+- Fixed infinite loop when using --loopback in case all hashes have been cracked
+- Fixed kernel loops in --increment mode leading to slower performance
+- Fixed mask length check in hybrid attack-modes: Do not include hash-mode dependant mask length checks
+- Fixed parsing of hashes in case the last line did not include a linefeed character
+- Fixed potfile loading to accept blank passwords
+- Fixed runtime limit: No longer required so sample startup time after refactorization
+
+##
+## Workarounds
+##
+
+- Workaround added for Intel OpenCL runtime: GPU support is broken, skip the device unless user forces to enable it
+
+##
+## Technical
+##
+
+- Building: Added hashcat32.dll and hashcat64.dll makefile targets for building hashcat windows libraries
+- Building: Added production flag in Makefile to disable all the GCC compiler options needed only for development
+- Building: Removed access to readlink() on FreeBSD
+- Building: For CYGWIN prefer to use "opencl.dll" (installed by drivers) instead of optional "cygOpenCL-1.dll"
+- Events: Added new event EVENT_WEAK_HASH_ALL_CRACKED if all hashes have been cracked during weak hash check
+- Hardware management: Switched matching ADL device with OpenCL device by using PCI bus, device and function
+- Hardware management: Switched matching NvAPI device with OpenCL device by using PCI bus, device and function
+- Hardware management: Switched matching NVML device with OpenCL device by using PCI bus, device and function
+- Hardware management: Switched matching xnvctrl device with OpenCL device by using PCI bus, device and function
+- Hardware management: Removed *throttled* message from NVML as this created more confusion than it helped
+- Hash Parser: Improved error detection of invalid hex characters where hex character are expected
+- OpenCL Runtime: Updated AMDGPU-Pro driver version check, do warn if version 16.50 is detected which is known to be broken
+- OpenCL Runtime: Updated hashcat.hctune for Iris Pro GPU on OSX
+- Potfile: In v3.10 already, the default potfile suffix changed but the note about was missing. The "hashcat.pot" became "hashcat.potfile"
+- Potfile: Added old potfile detection, show warning message
+- Returncode: Added dedicated returncode (see docs/status_codes.txt) for shutdowns caused by --runtime and checkpoint keypress
+- Sanity: Added sanity check to disallow --speed-only in combination with -i
+- Sanity: Added sanity check to disallow --loopback in combination with --runtime
+- Threads: Replaced all calls to ctime() with ctime_r() to ensure thread safety
+- Threads: Replaced all calls to strerror() with %m printf() GNU extension to ensure thread safety
+
 * changes v3.10 -> v3.20:
 
 The hashcat core was completely refactored to be a MT-safe library (libhashcat).

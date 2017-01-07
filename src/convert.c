@@ -75,32 +75,46 @@ static bool printable_ascii (const u8 *buf, const int len)
   return true;
 }
 
-bool need_hexify (const u8 *buf, const int len, bool always_ascii)
+static bool matches_separator (const u8 *buf, const int len, const char separator)
 {
+  for (int i = 0; i < len; i++)
+  {
+    const char c = (char) buf[i];
+
+    if (c == separator) return true;
+  }
+
+  return false;
+}
+
+bool need_hexify (const u8 *buf, const int len, const char separator, bool always_ascii)
+{
+  bool rc = false;
+
   if (always_ascii == true)
   {
-    if (printable_ascii (buf, len) == true)
+    if (printable_ascii (buf, len) == false)
     {
-      return false;
-    }
-    else
-    {
-      return true;
+      rc = true;
     }
   }
   else
   {
-    if (printable_utf8 (buf, len) == true)
+    if (printable_utf8 (buf, len) == false)
     {
-      return false;
-    }
-    else
-    {
-      return true;
+      rc = true;
     }
   }
 
-  return false;
+  if (rc == false)
+  {
+    if (matches_separator (buf, len, separator) == true)
+    {
+      rc = true;
+    }
+  }
+
+  return rc;
 }
 
 void exec_hexify (const u8 *buf, const int len, u8 *out)
@@ -109,21 +123,22 @@ void exec_hexify (const u8 *buf, const int len, u8 *out)
 
   for (int i = max_len - 1, j = i * 2; i >= 0; i -= 1, j -= 2)
   {
-    const u8 v = buf[i];
-
-    u8 h0 = v >> 4 & 15;
-    u8 h1 = v >> 0 & 15;
-
-    u8 add;
-
-    h0 += 6; add = ((h0 & 0x10) >> 4) * 39; h0 += 42 + add;
-    h1 += 6; add = ((h1 & 0x10) >> 4) * 39; h1 += 42 + add;
-
-    out[j + 0] = h0;
-    out[j + 1] = h1;
+    u8_to_hex_lower (buf[i], out + j);
   }
 
   out[max_len * 2] = 0;
+}
+
+bool is_valid_hex_string (const u8 *s, const int len)
+{
+  for (int i = 0; i < len; i++)
+  {
+    const u8 c = s[i];
+
+    if (is_valid_hex_char (c) == false) return false;
+  }
+
+  return true;
 }
 
 bool is_valid_hex_char (const u8 c)
@@ -144,8 +159,8 @@ u8 hex_to_u8 (const u8 hex[2])
 {
   u8 v = 0;
 
-  v |= (hex_convert (hex[1]) <<  0);
-  v |= (hex_convert (hex[0]) <<  4);
+  v |= ((u8) hex_convert (hex[1]) << 0);
+  v |= ((u8) hex_convert (hex[0]) << 4);
 
   return (v);
 }
@@ -154,14 +169,14 @@ u32 hex_to_u32 (const u8 hex[8])
 {
   u32 v = 0;
 
-  v |= ((u32) hex_convert (hex[7])) <<  0;
-  v |= ((u32) hex_convert (hex[6])) <<  4;
-  v |= ((u32) hex_convert (hex[5])) <<  8;
-  v |= ((u32) hex_convert (hex[4])) << 12;
-  v |= ((u32) hex_convert (hex[3])) << 16;
-  v |= ((u32) hex_convert (hex[2])) << 20;
-  v |= ((u32) hex_convert (hex[1])) << 24;
-  v |= ((u32) hex_convert (hex[0])) << 28;
+  v |= ((u32) hex_convert (hex[1]) <<  0);
+  v |= ((u32) hex_convert (hex[0]) <<  4);
+  v |= ((u32) hex_convert (hex[3]) <<  8);
+  v |= ((u32) hex_convert (hex[2]) << 12);
+  v |= ((u32) hex_convert (hex[5]) << 16);
+  v |= ((u32) hex_convert (hex[4]) << 20);
+  v |= ((u32) hex_convert (hex[7]) << 24);
+  v |= ((u32) hex_convert (hex[6]) << 28);
 
   return (v);
 }
@@ -170,47 +185,80 @@ u64 hex_to_u64 (const u8 hex[16])
 {
   u64 v = 0;
 
-  v |= ((u64) hex_convert (hex[15]) <<  0);
-  v |= ((u64) hex_convert (hex[14]) <<  4);
-  v |= ((u64) hex_convert (hex[13]) <<  8);
-  v |= ((u64) hex_convert (hex[12]) << 12);
-  v |= ((u64) hex_convert (hex[11]) << 16);
-  v |= ((u64) hex_convert (hex[10]) << 20);
-  v |= ((u64) hex_convert (hex[ 9]) << 24);
-  v |= ((u64) hex_convert (hex[ 8]) << 28);
-  v |= ((u64) hex_convert (hex[ 7]) << 32);
-  v |= ((u64) hex_convert (hex[ 6]) << 36);
-  v |= ((u64) hex_convert (hex[ 5]) << 40);
-  v |= ((u64) hex_convert (hex[ 4]) << 44);
-  v |= ((u64) hex_convert (hex[ 3]) << 48);
-  v |= ((u64) hex_convert (hex[ 2]) << 52);
-  v |= ((u64) hex_convert (hex[ 1]) << 56);
-  v |= ((u64) hex_convert (hex[ 0]) << 60);
+  v |= ((u64) hex_convert (hex[ 1]) <<  0);
+  v |= ((u64) hex_convert (hex[ 0]) <<  4);
+  v |= ((u64) hex_convert (hex[ 3]) <<  8);
+  v |= ((u64) hex_convert (hex[ 2]) << 12);
+  v |= ((u64) hex_convert (hex[ 5]) << 16);
+  v |= ((u64) hex_convert (hex[ 4]) << 20);
+  v |= ((u64) hex_convert (hex[ 7]) << 24);
+  v |= ((u64) hex_convert (hex[ 6]) << 28);
+  v |= ((u64) hex_convert (hex[ 9]) << 32);
+  v |= ((u64) hex_convert (hex[ 8]) << 36);
+  v |= ((u64) hex_convert (hex[11]) << 40);
+  v |= ((u64) hex_convert (hex[10]) << 44);
+  v |= ((u64) hex_convert (hex[13]) << 48);
+  v |= ((u64) hex_convert (hex[12]) << 52);
+  v |= ((u64) hex_convert (hex[15]) << 56);
+  v |= ((u64) hex_convert (hex[14]) << 60);
 
   return (v);
 }
 
-void bin_to_hex_lower (const u32 v, u8 hex[8])
+void u8_to_hex_lower (const u8 v, u8 hex[2])
 {
-  hex[0] = v >> 28 & 15;
-  hex[1] = v >> 24 & 15;
-  hex[2] = v >> 20 & 15;
-  hex[3] = v >> 16 & 15;
-  hex[4] = v >> 12 & 15;
-  hex[5] = v >>  8 & 15;
-  hex[6] = v >>  4 & 15;
-  hex[7] = v >>  0 & 15;
+  const u8 tbl[0x10] =
+  {
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+    'a', 'b', 'c', 'd', 'e', 'f',
+  };
 
-  u32 add;
+  hex[1] = tbl[v >>  0 & 15];
+  hex[0] = tbl[v >>  4 & 15];
+}
 
-  hex[0] += 6; add = ((hex[0] & 0x10u) >> 4) * 39; hex[0] += 42 + add;
-  hex[1] += 6; add = ((hex[1] & 0x10u) >> 4) * 39; hex[1] += 42 + add;
-  hex[2] += 6; add = ((hex[2] & 0x10u) >> 4) * 39; hex[2] += 42 + add;
-  hex[3] += 6; add = ((hex[3] & 0x10u) >> 4) * 39; hex[3] += 42 + add;
-  hex[4] += 6; add = ((hex[4] & 0x10u) >> 4) * 39; hex[4] += 42 + add;
-  hex[5] += 6; add = ((hex[5] & 0x10u) >> 4) * 39; hex[5] += 42 + add;
-  hex[6] += 6; add = ((hex[6] & 0x10u) >> 4) * 39; hex[6] += 42 + add;
-  hex[7] += 6; add = ((hex[7] & 0x10u) >> 4) * 39; hex[7] += 42 + add;
+void u32_to_hex_lower (const u32 v, u8 hex[8])
+{
+  const u8 tbl[0x10] =
+  {
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+    'a', 'b', 'c', 'd', 'e', 'f',
+  };
+
+  hex[1] = tbl[v >>  0 & 15];
+  hex[0] = tbl[v >>  4 & 15];
+  hex[3] = tbl[v >>  8 & 15];
+  hex[2] = tbl[v >> 12 & 15];
+  hex[5] = tbl[v >> 16 & 15];
+  hex[4] = tbl[v >> 20 & 15];
+  hex[7] = tbl[v >> 24 & 15];
+  hex[6] = tbl[v >> 28 & 15];
+}
+
+void u64_to_hex_lower (const u64 v, u8 hex[16])
+{
+  const u8 tbl[0x10] =
+  {
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+    'a', 'b', 'c', 'd', 'e', 'f',
+  };
+
+  hex[ 1] = tbl[v >>  0 & 15];
+  hex[ 0] = tbl[v >>  4 & 15];
+  hex[ 3] = tbl[v >>  8 & 15];
+  hex[ 2] = tbl[v >> 12 & 15];
+  hex[ 5] = tbl[v >> 16 & 15];
+  hex[ 4] = tbl[v >> 20 & 15];
+  hex[ 7] = tbl[v >> 24 & 15];
+  hex[ 6] = tbl[v >> 28 & 15];
+  hex[ 9] = tbl[v >> 32 & 15];
+  hex[ 8] = tbl[v >> 36 & 15];
+  hex[11] = tbl[v >> 40 & 15];
+  hex[10] = tbl[v >> 44 & 15];
+  hex[13] = tbl[v >> 48 & 15];
+  hex[12] = tbl[v >> 52 & 15];
+  hex[15] = tbl[v >> 56 & 15];
+  hex[14] = tbl[v >> 60 & 15];
 }
 
 u8 int_to_base32 (const u8 c)

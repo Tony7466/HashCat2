@@ -152,7 +152,7 @@ static int outfile_remove (hashcat_ctx_t *hashcat_ctx)
 
                 if (line_len == 0) continue;
 
-                size_t iter = MAX_CUT_TRIES;
+                size_t iter = 1;
 
                 for (size_t i = line_len - 1; i && iter; i--, line_len--)
                 {
@@ -324,10 +324,11 @@ int outcheck_ctx_init (hashcat_ctx_t *hashcat_ctx)
 
   outcheck_ctx->enabled = false;
 
-  if (user_options->keyspace    == true) return 0;
-  if (user_options->benchmark   == true) return 0;
-  if (user_options->speed_only  == true) return 0;
-  if (user_options->opencl_info == true) return 0;
+  if (user_options->keyspace      == true) return 0;
+  if (user_options->benchmark     == true) return 0;
+  if (user_options->speed_only    == true) return 0;
+  if (user_options->progress_only == true) return 0;
+  if (user_options->opencl_info   == true) return 0;
 
   if (user_options->outfile_check_timer == 0) return 0;
 
@@ -338,9 +339,7 @@ int outcheck_ctx_init (hashcat_ctx_t *hashcat_ctx)
 
   if (user_options->outfile_check_dir == NULL)
   {
-    outcheck_ctx->root_directory = (char *) hcmalloc (HCBUFSIZ_TINY);
-
-    snprintf (outcheck_ctx->root_directory, HCBUFSIZ_TINY - 1, "%s/%s.%s", folder_config->session_dir, user_options->session, OUTFILES_DIR);
+    hc_asprintf (&outcheck_ctx->root_directory, "%s/%s.%s", folder_config->session_dir, user_options->session, OUTFILES_DIR);
   }
   else
   {
@@ -364,7 +363,7 @@ int outcheck_ctx_init (hashcat_ctx_t *hashcat_ctx)
   {
     if (hc_mkdir (outcheck_ctx->root_directory, 0700) == -1)
     {
-      event_log_error (hashcat_ctx, "%s: %s", outcheck_ctx->root_directory, strerror (errno));
+      event_log_error (hashcat_ctx, "%s: %m", outcheck_ctx->root_directory);
 
       return -1;
     }
@@ -394,7 +393,7 @@ void outcheck_ctx_destroy (hashcat_ctx_t *hashcat_ctx)
     }
     else
     {
-      event_log_error (hashcat_ctx, "%s: %s", outcheck_ctx->root_directory, strerror (errno));
+      event_log_error (hashcat_ctx, "%s: %m", outcheck_ctx->root_directory);
 
       //return -1;
     }

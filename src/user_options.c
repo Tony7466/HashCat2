@@ -94,6 +94,7 @@ static const struct option long_options[] =
   {"status-timer",              required_argument, 0, IDX_STATUS_TIMER},
   {"stdout",                    no_argument,       0, IDX_STDOUT_FLAG},
   {"speed-only",                no_argument,       0, IDX_SPEED_ONLY},
+  {"progress-only",             no_argument,       0, IDX_PROGRESS_ONLY},
   {"truecrypt-keyfiles",        required_argument, 0, IDX_TRUECRYPT_KEYFILES},
   {"username",                  no_argument,       0, IDX_USERNAME},
   {"veracrypt-keyfiles",        required_argument, 0, IDX_VERACRYPT_KEYFILES},
@@ -189,6 +190,7 @@ int user_options_init (hashcat_ctx_t *hashcat_ctx)
   user_options->status_timer              = STATUS_TIMER;
   user_options->stdout_flag               = STDOUT_FLAG;
   user_options->speed_only                = SPEED_ONLY;
+  user_options->progress_only             = PROGRESS_ONLY;
   user_options->truecrypt_keyfiles        = NULL;
   user_options->usage                     = USAGE;
   user_options->username                  = USERNAME;
@@ -255,6 +257,7 @@ int user_options_getopt (hashcat_ctx_t *hashcat_ctx, int argc, char **argv)
       case IDX_BENCHMARK:                 user_options->benchmark                 = true;           break;
       case IDX_STDOUT_FLAG:               user_options->stdout_flag               = true;           break;
       case IDX_SPEED_ONLY:                user_options->speed_only                = true;           break;
+      case IDX_PROGRESS_ONLY:             user_options->progress_only             = true;           break;
       case IDX_RESTORE_DISABLE:           user_options->restore_disable           = true;           break;
       case IDX_RESTORE_FILE_PATH:         user_options->restore_file_path         = optarg;         break;
       case IDX_STATUS:                    user_options->status                    = true;           break;
@@ -390,6 +393,13 @@ int user_options_sanity (hashcat_ctx_t *hashcat_ctx)
     return -1;
   }
 
+  if (user_options->runtime_chgd == true && user_options->loopback == true)
+  {
+    event_log_error (hashcat_ctx, "Runtime-Limit is not allowed in combination with --loopback");
+
+    return -1;
+  }
+
   if (user_options->hash_mode > 99999)
   {
     event_log_error (hashcat_ctx, "Invalid hash-type specified");
@@ -461,6 +471,20 @@ int user_options_sanity (hashcat_ctx_t *hashcat_ctx)
   if (user_options->increment_min > user_options->increment_max)
   {
     event_log_error (hashcat_ctx, "Invalid increment-min specified");
+
+    return -1;
+  }
+
+  if ((user_options->increment == true) && (user_options->progress_only == true))
+  {
+    event_log_error (hashcat_ctx, "Increment is not allowed in combination with --progress-only");
+
+    return -1;
+  }
+
+  if ((user_options->increment == true) && (user_options->speed_only == true))
+  {
+    event_log_error (hashcat_ctx, "Increment is not allowed in combination with --speed-only");
 
     return -1;
   }
@@ -920,10 +944,11 @@ void user_options_preprocess (hashcat_ctx_t *hashcat_ctx)
 
   // some options can influence or overwrite other options
 
-  if (user_options->opencl_info == true
-   || user_options->keyspace    == true
-   || user_options->stdout_flag == true
-   || user_options->speed_only  == true)
+  if (user_options->opencl_info   == true
+   || user_options->keyspace      == true
+   || user_options->stdout_flag   == true
+   || user_options->speed_only    == true
+   || user_options->progress_only == true)
   {
     user_options->gpu_temp_disable    = true;
     user_options->left                = false;
@@ -960,12 +985,18 @@ void user_options_preprocess (hashcat_ctx_t *hashcat_ctx)
     user_options->status              = false;
     user_options->status_timer        = 0;
     user_options->speed_only          = true;
+    user_options->progress_only       = false;
     user_options->weak_hash_threshold = 0;
 
     if (user_options->workload_profile_chgd == false)
     {
       user_options->workload_profile = 3;
     }
+  }
+
+  if (user_options->progress_only == true)
+  {
+    user_options->speed_only          = true;
   }
 
   if (user_options->keyspace == true)
@@ -1062,11 +1093,11 @@ void user_options_preprocess (hashcat_ctx_t *hashcat_ctx)
 
   if (user_options->attack_mode == ATTACK_MODE_BF)
   {
-    if (user_options->benchmark == true)
+    if (user_options->opencl_info == true)
     {
 
     }
-    else if (user_options->opencl_info == true)
+    else if (user_options->speed_only == true)
     {
 
     }
@@ -1103,6 +1134,19 @@ void user_options_preprocess (hashcat_ctx_t *hashcat_ctx)
         user_options->increment = true;
       }
     }
+  }
+}
+
+void user_options_postprocess (hashcat_ctx_t *hashcat_ctx)
+{
+  user_options_t       *user_options       = hashcat_ctx->user_options;
+  user_options_extra_t *user_options_extra = hashcat_ctx->user_options_extra;
+
+  // automatic status
+
+  if (user_options_extra->wordlist_mode == WL_MODE_STDIN)
+  {
+    user_options->status = true;
   }
 }
 
@@ -1300,6 +1344,7 @@ void user_options_logger (hashcat_ctx_t *hashcat_ctx)
   logfile_top_uint   (user_options->status_timer);
   logfile_top_uint   (user_options->stdout_flag);
   logfile_top_uint   (user_options->speed_only);
+  logfile_top_uint   (user_options->progress_only);
   logfile_top_uint   (user_options->usage);
   logfile_top_uint   (user_options->username);
   logfile_top_uint   (user_options->veracrypt_pim);

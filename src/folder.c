@@ -26,11 +26,13 @@ static int get_exec_path (char *exec_path, const size_t exec_path_sz)
 {
   #if defined (__linux__) || defined (__CYGWIN__)
 
-  char tmp[32] = { 0 };
+  char *tmp;
 
-  snprintf (tmp, sizeof (tmp) - 1, "/proc/%d/exe", getpid ());
+  hc_asprintf (&tmp, "/proc/%d/exe", getpid ());
 
   const ssize_t len = readlink (tmp, exec_path, exec_path_sz - 1);
+
+  hcfree (tmp);
 
   if (len == -1) return -1;
 
@@ -59,15 +61,11 @@ static int get_exec_path (char *exec_path, const size_t exec_path_sz)
   mib[2] = KERN_PROC_PATHNAME;
   mib[3] = -1;
 
-  char tmp[32] = { 0 };
-
   size_t size = exec_path_sz;
 
   sysctl (mib, 4, exec_path, &size, NULL, 0);
 
-  const ssize_t len = readlink (tmp, exec_path, exec_path_sz - 1);
-
-  if (len == -1) return -1;
+  const size_t len = strlen (exec_path);
 
   #else
   #error Your Operating System is not supported or detected
@@ -156,7 +154,7 @@ char *first_file_in_directory (const char *path)
 
     #endif
 
-      if ((strncmp (de->d_name, ".", strlen (de->d_name)) == 0) || (strncmp (de->d_name, "..", strlen (de->d_name)) == 0)) continue;
+      if (de->d_name[0] == '.') continue;
 
       first_file = strdup (de->d_name);
 
@@ -219,11 +217,11 @@ char **scan_directory (const char *path)
 
     #endif
 
-      if ((strncmp (de->d_name, ".", strlen (de->d_name)) == 0) || (strncmp (de->d_name, "..", strlen (de->d_name)) == 0)) continue;
+      if (de->d_name[0] == '.') continue;
 
-      char *path_file = (char *) hcmalloc (HCBUFSIZ_TINY);
+      char *path_file;
 
-      snprintf (path_file, HCBUFSIZ_TINY - 1, "%s/%s", tmp_path, de->d_name);
+      hc_asprintf (&path_file, "%s/%s", tmp_path, de->d_name);
 
       DIR *d_test;
 
@@ -280,7 +278,7 @@ int folder_config_init (hashcat_ctx_t *hashcat_ctx, MAYBE_UNUSED const char *ins
 
   if (getcwd (cwd, HCBUFSIZ_TINY - 1) == NULL)
   {
-    event_log_error (hashcat_ctx, "getcwd(): %s", strerror (errno));
+    event_log_error (hashcat_ctx, "getcwd(): %m");
 
     return -1;
   }
@@ -317,7 +315,7 @@ int folder_config_init (hashcat_ctx_t *hashcat_ctx, MAYBE_UNUSED const char *ins
   This causes invalid error out if install_folder (/usr/local/bin) does not exist
   if (resolved_install_folder == NULL)
   {
-    event_log_error (hashcat_ctx, "%s: %s", resolved_install_folder, strerror (errno));
+    event_log_error (hashcat_ctx, "%s: %m", resolved_install_folder);
 
     return -1;
   }
@@ -325,7 +323,7 @@ int folder_config_init (hashcat_ctx_t *hashcat_ctx, MAYBE_UNUSED const char *ins
 
   if (resolved_exec_path == NULL)
   {
-    event_log_error (hashcat_ctx, "%s: %s", resolved_exec_path, strerror (errno));
+    event_log_error (hashcat_ctx, "%s: %m", resolved_exec_path);
 
     return -1;
   }
@@ -391,11 +389,11 @@ int folder_config_init (hashcat_ctx_t *hashcat_ctx, MAYBE_UNUSED const char *ins
    * The best workaround found so far is to modify the TMP variable (only inside hashcat process) before the runtime is load
    */
 
-  char *cpath = (char *) hcmalloc (HCBUFSIZ_TINY);
+  char *cpath;
 
   #if defined (_WIN)
 
-  snprintf (cpath, HCBUFSIZ_TINY - 1, "%s\\OpenCL\\", shared_dir);
+  hc_asprintf (&cpath, "%s\\OpenCL\\", shared_dir);
 
   char *cpath_real = (char *) hcmalloc (HCBUFSIZ_TINY);
 
@@ -408,13 +406,13 @@ int folder_config_init (hashcat_ctx_t *hashcat_ctx, MAYBE_UNUSED const char *ins
 
   #else
 
-  snprintf (cpath, HCBUFSIZ_TINY - 1, "%s/OpenCL/", shared_dir);
+  hc_asprintf (&cpath, "%s/OpenCL/", shared_dir);
 
   char *cpath_real = (char *) hcmalloc (PATH_MAX);
 
   if (realpath (cpath, cpath_real) == NULL)
   {
-    event_log_error (hashcat_ctx, "%s: %s", cpath, strerror (errno));
+    event_log_error (hashcat_ctx, "%s: %m", cpath);
 
     return -1;
   }
@@ -426,9 +424,9 @@ int folder_config_init (hashcat_ctx_t *hashcat_ctx, MAYBE_UNUSED const char *ins
   //if (getenv ("TMP") == NULL)
   if (1)
   {
-    char tmp[1000];
+    char *tmp;
 
-    snprintf (tmp, sizeof (tmp) - 1, "TMP=%s", cpath_real);
+    hc_asprintf (&tmp, "TMP=%s", cpath_real);
 
     putenv (tmp);
   }
@@ -450,9 +448,9 @@ int folder_config_init (hashcat_ctx_t *hashcat_ctx, MAYBE_UNUSED const char *ins
    * kernel cache, we need to make sure folder exist
    */
 
-  char *kernels_folder = (char *) hcmalloc (HCBUFSIZ_TINY);
+  char *kernels_folder;
 
-  snprintf (kernels_folder, HCBUFSIZ_TINY - 1, "%s/kernels", profile_dir);
+  hc_asprintf (&kernels_folder, "%s/kernels", profile_dir);
 
   hc_mkdir (kernels_folder, 0700);
 

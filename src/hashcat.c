@@ -208,8 +208,6 @@ static int inner2_loop (hashcat_ctx_t *hashcat_ctx)
 
   status_ctx->runtime_start = runtime_start;
 
-  status_ctx->prepare_time = runtime_start - status_ctx->prepare_start;
-
   /**
    * create cracker threads
    */
@@ -243,8 +241,15 @@ static int inner2_loop (hashcat_ctx_t *hashcat_ctx)
 
   hcfree (threads_param);
 
+  if ((status_ctx->devices_status == STATUS_RUNNING) && (status_ctx->checkpoint_shutdown == true))
+  {
+    myabort_checkpoint (hashcat_ctx);
+  }
+
   if ((status_ctx->devices_status != STATUS_CRACKED)
    && (status_ctx->devices_status != STATUS_ABORTED)
+   && (status_ctx->devices_status != STATUS_ABORTED_CHECKPOINT)
+   && (status_ctx->devices_status != STATUS_ABORTED_RUNTIME)
    && (status_ctx->devices_status != STATUS_QUIT)
    && (status_ctx->devices_status != STATUS_BYPASS))
   {
@@ -261,8 +266,6 @@ static int inner2_loop (hashcat_ctx_t *hashcat_ctx)
 
   logfile_sub_uint (runtime_start);
   logfile_sub_uint (runtime_stop);
-
-  time (&status_ctx->prepare_start);
 
   hashcat_get_status (hashcat_ctx, status_ctx->hashcat_status_final);
 
@@ -293,11 +296,14 @@ static int inner2_loop (hashcat_ctx_t *hashcat_ctx)
     {
       for (induct_ctx->induction_dictionaries_pos = 0; induct_ctx->induction_dictionaries_pos < induct_ctx->induction_dictionaries_cnt; induct_ctx->induction_dictionaries_pos++)
       {
-        const int rc_inner2_loop = inner2_loop (hashcat_ctx);
+        if (status_ctx->devices_status != STATUS_CRACKED)
+        {
+          const int rc_inner2_loop = inner2_loop (hashcat_ctx);
 
-        if (rc_inner2_loop == -1) myabort (hashcat_ctx);
+          if (rc_inner2_loop == -1) myabort (hashcat_ctx);
 
-        if (status_ctx->run_main_level3 == false) break;
+          if (status_ctx->run_main_level3 == false) break;
+        }
 
         unlink (induct_ctx->induction_dictionaries[induct_ctx->induction_dictionaries_pos]);
       }
@@ -393,12 +399,6 @@ static int outer_loop (hashcat_ctx_t *hashcat_ctx)
   status_ctx->run_thread_level2 = true;
 
   /**
-   * setup prepare timer
-   */
-
-  time (&status_ctx->prepare_start);
-
-  /**
    * setup variables and buffers depending on hash_mode
    */
 
@@ -442,7 +442,17 @@ static int outer_loop (hashcat_ctx_t *hashcat_ctx)
   {
     EVENT (EVENT_POTFILE_REMOVE_PARSE_PRE);
 
+    if (user_options->loopback == true)
+    {
+      loopback_write_open (hashcat_ctx);
+    }
+
     potfile_remove_parse (hashcat_ctx);
+
+    if (user_options->loopback == true)
+    {
+      loopback_write_close (hashcat_ctx);
+    }
 
     EVENT (EVENT_POTFILE_REMOVE_PARSE_POST);
   }
@@ -601,6 +611,13 @@ static int outer_loop (hashcat_ctx_t *hashcat_ctx)
 
   EVENT (EVENT_OUTERLOOP_MAINSCREEN);
 
+
+  /**
+   * Tell user about cracked hashes by potfile
+   */
+
+  EVENT (EVENT_POTFILE_NUM_CRACKED);
+
   /**
    * inform the user
    */
@@ -651,6 +668,17 @@ static int outer_loop (hashcat_ctx_t *hashcat_ctx)
   }
 
   /**
+   * maybe all hashes were cracked now (as after potfile checks), we can exit here
+   */
+
+  if (status_ctx->devices_status == STATUS_CRACKED)
+  {
+    EVENT (EVENT_WEAK_HASH_ALL_CRACKED);
+
+    return 0;
+  }
+
+  /**
    * status and monitor threads
    */
 
@@ -664,7 +692,7 @@ static int outer_loop (hashcat_ctx_t *hashcat_ctx)
     * Outfile remove
     */
 
-  if (user_options->keyspace == false && user_options->benchmark == false && user_options->stdout_flag == false && user_options->speed_only == false)
+  if (user_options->keyspace == false && user_options->stdout_flag == false && user_options->speed_only == false)
   {
     hc_thread_create (inner_threads[inner_threads_cnt], thread_monitor, hashcat_ctx);
 
@@ -677,12 +705,6 @@ static int outer_loop (hashcat_ctx_t *hashcat_ctx)
       inner_threads_cnt++;
     }
   }
-
-  /**
-   * Tell user about cracked hashes by potfile
-   */
-
-  EVENT (EVENT_POTFILE_NUM_CRACKED);
 
   // main call
 
@@ -873,6 +895,8 @@ int hashcat_session_init (hashcat_ctx_t *hashcat_ctx, char *install_folder, char
   user_options_preprocess (hashcat_ctx);
 
   user_options_extra_init (hashcat_ctx);
+
+  user_options_postprocess (hashcat_ctx);
 
   /**
    * logfile
@@ -1095,10 +1119,12 @@ int hashcat_session_execute (hashcat_ctx_t *hashcat_ctx)
 
   if (rc_final == 0)
   {
-    if (status_ctx->devices_status == STATUS_ABORTED)   rc_final = 2;
-    if (status_ctx->devices_status == STATUS_QUIT)      rc_final = 2;
-    if (status_ctx->devices_status == STATUS_EXHAUSTED) rc_final = 1;
-    if (status_ctx->devices_status == STATUS_CRACKED)   rc_final = 0;
+    if (status_ctx->devices_status == STATUS_ABORTED_RUNTIME)     rc_final = 4;
+    if (status_ctx->devices_status == STATUS_ABORTED_CHECKPOINT)  rc_final = 3;
+    if (status_ctx->devices_status == STATUS_ABORTED)             rc_final = 2;
+    if (status_ctx->devices_status == STATUS_QUIT)                rc_final = 2;
+    if (status_ctx->devices_status == STATUS_EXHAUSTED)           rc_final = 1;
+    if (status_ctx->devices_status == STATUS_CRACKED)             rc_final = 0;
   }
 
   // done
@@ -1252,6 +1278,8 @@ int hashcat_get_status (hashcat_ctx_t *hashcat_ctx, hashcat_status_t *hashcat_st
     device_info->hwmon_dev                  = status_get_hwmon_dev                  (hashcat_ctx, device_id);
     device_info->corespeed_dev              = status_get_corespeed_dev              (hashcat_ctx, device_id);
     device_info->memoryspeed_dev            = status_get_memoryspeed_dev            (hashcat_ctx, device_id);
+    device_info->progress_dev               = status_get_progress_dev               (hashcat_ctx, device_id);
+    device_info->runtime_msec_dev           = status_get_runtime_msec_dev           (hashcat_ctx, device_id);
   }
 
   hashcat_status->hashes_msec_all = status_get_hashes_msec_all (hashcat_ctx);

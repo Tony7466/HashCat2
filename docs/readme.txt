@@ -1,4 +1,4 @@
-hashcat v3.20
+hashcat v3.30
 =============
 
 AMD users on Windows require "AMD Radeon Software Crimson Edition" (15.12 or later)
@@ -41,6 +41,7 @@ NVidia users require "NVIDIA Driver" (367.x or later)
 - MD5
 - Half MD5 (left, mid, right)
 - SHA1
+- SHA-224
 - SHA-256
 - SHA-384
 - SHA-512

@@ -27,6 +27,8 @@ static const char ST_0005[] = "Cracked";
 static const char ST_0006[] = "Aborted";
 static const char ST_0007[] = "Quit";
 static const char ST_0008[] = "Bypass";
+static const char ST_0009[] = "Aborted (Checkpoint)";
+static const char ST_0010[] = "Aborted (Runtime)";
 static const char ST_9999[] = "Unknown! Bug!";
 
 static const char UNITS[7] = { ' ', 'k', 'M', 'G', 'T', 'P', 'E' };
@@ -196,15 +198,17 @@ char *status_get_status_string (const hashcat_ctx_t *hashcat_ctx)
 
   switch (devices_status)
   {
-    case STATUS_INIT:      return ((char *) ST_0000);
-    case STATUS_AUTOTUNE:  return ((char *) ST_0001);
-    case STATUS_RUNNING:   return ((char *) ST_0002);
-    case STATUS_PAUSED:    return ((char *) ST_0003);
-    case STATUS_EXHAUSTED: return ((char *) ST_0004);
-    case STATUS_CRACKED:   return ((char *) ST_0005);
-    case STATUS_ABORTED:   return ((char *) ST_0006);
-    case STATUS_QUIT:      return ((char *) ST_0007);
-    case STATUS_BYPASS:    return ((char *) ST_0008);
+    case STATUS_INIT:               return ((char *) ST_0000);
+    case STATUS_AUTOTUNE:           return ((char *) ST_0001);
+    case STATUS_RUNNING:            return ((char *) ST_0002);
+    case STATUS_PAUSED:             return ((char *) ST_0003);
+    case STATUS_EXHAUSTED:          return ((char *) ST_0004);
+    case STATUS_CRACKED:            return ((char *) ST_0005);
+    case STATUS_ABORTED:            return ((char *) ST_0006);
+    case STATUS_QUIT:               return ((char *) ST_0007);
+    case STATUS_BYPASS:             return ((char *) ST_0008);
+    case STATUS_ABORTED_CHECKPOINT: return ((char *) ST_0009);
+    case STATUS_ABORTED_RUNTIME:    return ((char *) ST_0010);
   }
 
   return ((char *) ST_9999);
@@ -723,8 +727,8 @@ char *status_get_input_candidates_dev (const hashcat_ctx_t *hashcat_ctx, const i
   plain_t plain1 = { 0, 0, 0, outerloop_first, innerloop_first };
   plain_t plain2 = { 0, 0, 0, outerloop_last,  innerloop_last  };
 
-  u32 plain_buf1[16] = { 0 };
-  u32 plain_buf2[16] = { 0 };
+  u32 plain_buf1[40] = { 0 };
+  u32 plain_buf2[40] = { 0 };
 
   u8 *plain_ptr1 = (u8 *) plain_buf1;
   u8 *plain_ptr2 = (u8 *) plain_buf2;
@@ -737,8 +741,8 @@ char *status_get_input_candidates_dev (const hashcat_ctx_t *hashcat_ctx, const i
 
   const bool always_ascii = (hashconfig->hash_type & OPTS_TYPE_PT_ALWAYS_ASCII) ? true : false;
 
-  const bool need_hex1 = need_hexify (plain_ptr1, plain_len1, always_ascii);
-  const bool need_hex2 = need_hexify (plain_ptr2, plain_len2, always_ascii);
+  const bool need_hex1 = need_hexify (plain_ptr1, plain_len1, 0, always_ascii);
+  const bool need_hex2 = need_hexify (plain_ptr2, plain_len2, 0, always_ascii);
 
   if ((need_hex1 == true) || (need_hex2 == true))
   {
@@ -844,7 +848,9 @@ char *status_get_time_started_absolute (const hashcat_ctx_t *hashcat_ctx)
 
   const time_t time_start = status_ctx->runtime_start;
 
-  char *start = ctime (&time_start);
+  char buf[32] = { 0 };
+
+  char *start = ctime_r (&time_start, buf);
 
   const size_t start_len = strlen (start);
 
@@ -921,12 +927,10 @@ char *status_get_time_estimated_absolute (const hashcat_ctx_t *hashcat_ctx)
   }
 
   // we need this check to avoid integer overflow
-  #if defined (_WIN)
   if (sec_etc > 100000000)
   {
     sec_etc = 100000000;
   }
-  #endif
 
   time_t now;
 
@@ -934,7 +938,9 @@ char *status_get_time_estimated_absolute (const hashcat_ctx_t *hashcat_ctx)
 
   now += sec_etc;
 
-  char *etc = ctime (&now);
+  char buf[32] = { 0 };
+
+  char *etc = ctime_r (&now, buf);
 
   const size_t etc_len = strlen (etc);
 
@@ -1590,7 +1596,6 @@ char *status_get_hwmon_dev (const hashcat_ctx_t *hashcat_ctx, const int device_i
   const int num_corespeed   = hm_get_corespeed_with_device_id   ((hashcat_ctx_t *) hashcat_ctx, device_id);
   const int num_memoryspeed = hm_get_memoryspeed_with_device_id ((hashcat_ctx_t *) hashcat_ctx, device_id);
   const int num_buslanes    = hm_get_buslanes_with_device_id    ((hashcat_ctx_t *) hashcat_ctx, device_id);
-  const int num_throttle    = hm_get_throttle_with_device_id    ((hashcat_ctx_t *) hashcat_ctx, device_id);
 
   int output_len = 0;
 
@@ -1622,11 +1627,6 @@ char *status_get_hwmon_dev (const hashcat_ctx_t *hashcat_ctx, const int device_i
   if (num_buslanes >= 0)
   {
     output_len += snprintf (output_buf + output_len, HCBUFSIZ_TINY - output_len, "Lanes:%d ", num_buslanes);
-  }
-
-  if (num_throttle >= 0)
-  {
-    output_len += snprintf (output_buf + output_len, HCBUFSIZ_TINY - output_len, "*Throttled* ");
   }
 
   if (output_len > 0)
@@ -1681,6 +1681,28 @@ int status_get_memoryspeed_dev (const hashcat_ctx_t *hashcat_ctx, const int devi
   hc_thread_mutex_unlock (status_ctx->mux_hwmon);
 
   return num_memoryspeed;
+}
+
+int status_get_progress_dev (const hashcat_ctx_t *hashcat_ctx, const int device_id)
+{
+  const opencl_ctx_t *opencl_ctx = hashcat_ctx->opencl_ctx;
+
+  hc_device_param_t *device_param = &opencl_ctx->devices_param[device_id];
+
+  if (device_param->skipped == true) return 0;
+
+  return device_param->outerloop_left;
+}
+
+double status_get_runtime_msec_dev (const hashcat_ctx_t *hashcat_ctx, const int device_id)
+{
+  const opencl_ctx_t *opencl_ctx = hashcat_ctx->opencl_ctx;
+
+  hc_device_param_t *device_param = &opencl_ctx->devices_param[device_id];
+
+  if (device_param->skipped == true) return 0;
+
+  return device_param->outerloop_msec;
 }
 
 int status_progress_init (hashcat_ctx_t *hashcat_ctx)

@@ -53,6 +53,11 @@ void welcome_screen (hashcat_ctx_t *hashcat_ctx, const char *version_tag)
     event_log_info (hashcat_ctx, "%s (%s) starting in speed-only mode...", PROGNAME, version_tag);
     event_log_info (hashcat_ctx, "");
   }
+  else if (user_options->progress_only == true)
+  {
+    event_log_info (hashcat_ctx, "%s (%s) starting in progress-only mode...", PROGNAME, version_tag);
+    event_log_info (hashcat_ctx, "");
+  }
   else
   {
     event_log_info (hashcat_ctx, "%s (%s) starting...", PROGNAME, version_tag);
@@ -70,8 +75,10 @@ void goodbye_screen (hashcat_ctx_t *hashcat_ctx, const time_t proc_start, const 
   if (user_options->show        == true) return;
   if (user_options->left        == true) return;
 
-  event_log_info_nn (hashcat_ctx, "Started: %s", ctime (&proc_start));
-  event_log_info_nn (hashcat_ctx, "Stopped: %s", ctime (&proc_stop));
+  char start_buf[32], stop_buf[32];
+
+  event_log_info_nn (hashcat_ctx, "Started: %s", ctime_r (&proc_start, start_buf));
+  event_log_info_nn (hashcat_ctx, "Stopped: %s", ctime_r (&proc_stop, stop_buf));
 }
 
 int setup_console ()
@@ -81,21 +88,21 @@ int setup_console ()
 
   if (_setmode (_fileno (stdin), _O_BINARY) == -1)
   {
-    fprintf (stderr, "%s: %s", "stdin", strerror (errno));
+    __mingw_fprintf (stderr, "%s: %m", "stdin");
 
     return -1;
   }
 
   if (_setmode (_fileno (stdout), _O_BINARY) == -1)
   {
-    fprintf (stderr, "%s: %s", "stdin", strerror (errno));
+    __mingw_fprintf (stderr, "%s: %m", "stdin");
 
     return -1;
   }
 
   if (_setmode (_fileno (stderr), _O_BINARY) == -1)
   {
-    fprintf (stderr, "%s: %s", "stdin", strerror (errno));
+    __mingw_fprintf (stderr, "%s: %m", "stdin");
 
     return -1;
   }
@@ -892,7 +899,37 @@ void status_display (hashcat_ctx_t *hashcat_ctx)
 
       break;
 
+    case INPUT_MODE_STRAIGHT_FILE_RULES_FILE:
+
+      event_log_info (hashcat_ctx,
+        "Input.Queue......: %d/%d (%.02f%%)",
+        hashcat_status->input_base_offset,
+        hashcat_status->input_base_count,
+        hashcat_status->input_base_percent);
+
+      break;
+
+    case INPUT_MODE_STRAIGHT_FILE_RULES_GEN:
+
+      event_log_info (hashcat_ctx,
+        "Input.Queue......: %d/%d (%.02f%%)",
+        hashcat_status->input_base_offset,
+        hashcat_status->input_base_count,
+        hashcat_status->input_base_percent);
+
+      break;
+
     case INPUT_MODE_MASK:
+
+      event_log_info (hashcat_ctx,
+        "Input.Queue......: %d/%d (%.02f%%)",
+        hashcat_status->input_base_offset,
+        hashcat_status->input_base_count,
+        hashcat_status->input_base_percent);
+
+      break;
+
+    case INPUT_MODE_MASK_CS:
 
       event_log_info (hashcat_ctx,
         "Input.Queue......: %d/%d (%.02f%%)",
@@ -1043,7 +1080,7 @@ void status_display (hashcat_ctx_t *hashcat_ctx)
   hcfree (hashcat_status);
 }
 
-void status_benchmark_automate (hashcat_ctx_t *hashcat_ctx)
+void status_benchmark_machine_readable (hashcat_ctx_t *hashcat_ctx)
 {
   hashconfig_t *hashconfig = hashcat_ctx->hashconfig;
 
@@ -1078,7 +1115,7 @@ void status_benchmark (hashcat_ctx_t *hashcat_ctx)
 
   if (user_options->machine_readable == true)
   {
-    status_benchmark_automate (hashcat_ctx);
+    status_benchmark_machine_readable (hashcat_ctx);
 
     return;
   }
@@ -1111,6 +1148,147 @@ void status_benchmark (hashcat_ctx_t *hashcat_ctx)
     event_log_info (hashcat_ctx,
       "Speed.Dev.#*.....: %9sH/s",
       hashcat_status->speed_sec_all);
+  }
+
+  hcfree (hashcat_status);
+}
+
+void status_speed_machine_readable (hashcat_ctx_t *hashcat_ctx)
+{
+  hashcat_status_t *hashcat_status = (hashcat_status_t *) hcmalloc (sizeof (hashcat_status_t));
+
+  const int rc_status = hashcat_get_status (hashcat_ctx, hashcat_status);
+
+  if (rc_status == -1)
+  {
+    hcfree (hashcat_status);
+
+    return;
+  }
+
+  for (int device_id = 0; device_id < hashcat_status->device_info_cnt; device_id++)
+  {
+    const device_info_t *device_info = hashcat_status->device_info_buf + device_id;
+
+    if (device_info->skipped_dev == true) continue;
+
+    event_log_info (hashcat_ctx, "%d:%" PRIu64, device_id + 1, (u64) (device_info->hashes_msec_dev_benchmark * 1000));
+  }
+
+  hcfree (hashcat_status);
+}
+
+void status_speed (hashcat_ctx_t *hashcat_ctx)
+{
+  const user_options_t *user_options = hashcat_ctx->user_options;
+
+  if (user_options->machine_readable == true)
+  {
+    status_speed_machine_readable (hashcat_ctx);
+
+    return;
+  }
+
+  hashcat_status_t *hashcat_status = (hashcat_status_t *) hcmalloc (sizeof (hashcat_status_t));
+
+  const int rc_status = hashcat_get_status (hashcat_ctx, hashcat_status);
+
+  if (rc_status == -1)
+  {
+    hcfree (hashcat_status);
+
+    return;
+  }
+
+  for (int device_id = 0; device_id < hashcat_status->device_info_cnt; device_id++)
+  {
+    const device_info_t *device_info = hashcat_status->device_info_buf + device_id;
+
+    if (device_info->skipped_dev == true) continue;
+
+    event_log_info (hashcat_ctx,
+      "Speed.Dev.#%d.....: %9sH/s (%0.2fms)", device_id + 1,
+      device_info->speed_sec_dev,
+      device_info->exec_msec_dev);
+  }
+
+  if (hashcat_status->device_info_active > 1)
+  {
+    event_log_info (hashcat_ctx,
+      "Speed.Dev.#*.....: %9sH/s",
+      hashcat_status->speed_sec_all);
+  }
+
+  hcfree (hashcat_status);
+}
+
+void status_progress_machine_readable (hashcat_ctx_t *hashcat_ctx)
+{
+  hashcat_status_t *hashcat_status = (hashcat_status_t *) hcmalloc (sizeof (hashcat_status_t));
+
+  const int rc_status = hashcat_get_status (hashcat_ctx, hashcat_status);
+
+  if (rc_status == -1)
+  {
+    hcfree (hashcat_status);
+
+    return;
+  }
+
+  for (int device_id = 0; device_id < hashcat_status->device_info_cnt; device_id++)
+  {
+    const device_info_t *device_info = hashcat_status->device_info_buf + device_id;
+
+    if (device_info->skipped_dev == true) continue;
+
+    event_log_info (hashcat_ctx, "%d:%d:%0.2f", device_id + 1, device_info->progress_dev, device_info->runtime_msec_dev);
+  }
+
+  hcfree (hashcat_status);
+}
+
+void status_progress (hashcat_ctx_t *hashcat_ctx)
+{
+  const user_options_t *user_options = hashcat_ctx->user_options;
+
+  if (user_options->machine_readable == true)
+  {
+    status_progress_machine_readable (hashcat_ctx);
+
+    return;
+  }
+
+  hashcat_status_t *hashcat_status = (hashcat_status_t *) hcmalloc (sizeof (hashcat_status_t));
+
+  const int rc_status = hashcat_get_status (hashcat_ctx, hashcat_status);
+
+  if (rc_status == -1)
+  {
+    hcfree (hashcat_status);
+
+    return;
+  }
+
+  for (int device_id = 0; device_id < hashcat_status->device_info_cnt; device_id++)
+  {
+    const device_info_t *device_info = hashcat_status->device_info_buf + device_id;
+
+    if (device_info->skipped_dev == true) continue;
+
+    event_log_info (hashcat_ctx,
+      "Progress.Dev.#%d..: %d", device_id + 1,
+      device_info->progress_dev);
+  }
+
+  for (int device_id = 0; device_id < hashcat_status->device_info_cnt; device_id++)
+  {
+    const device_info_t *device_info = hashcat_status->device_info_buf + device_id;
+
+    if (device_info->skipped_dev == true) continue;
+
+    event_log_info (hashcat_ctx,
+      "Runtime.Dev.#%d...: %0.2fms", device_id + 1,
+      device_info->runtime_msec_dev);
   }
 
   hcfree (hashcat_status);

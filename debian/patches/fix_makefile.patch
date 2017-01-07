@@ -2,9 +2,11 @@ Description: update the makefile Change CFLAGS
 Author: Sophie Brun <sophie@freexian.com>
 Origin: vendor
 Last-Update: 2016-06-30
---- a/src/Makefile
-+++ b/src/Makefile
-@@ -154,12 +154,12 @@
+Index: hashcat/src/Makefile
+===================================================================
+--- hashcat.orig/src/Makefile
++++ hashcat/src/Makefile
+@@ -173,12 +173,12 @@ endif
  ##
  
  ifeq ($(UNAME),Linux)

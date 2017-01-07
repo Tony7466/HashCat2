@@ -3,18 +3,19 @@ Upstream-Name: hashcat
 Source: http://hashcat.net/hashcat/
 
 Files: *
-Copyright: 2015 Jens Steube <jens.steube@gmail.com>
+Copyright: 2015-2016 Jens Steube <jens.steube@gmail.com>
 License: Expat
 
 Files: debian/*
 Copyright: 2016 Daniel Echeverry <epsilon77@gmail.com>
- 2016 Sophie Brun <sophie@freexian.com>
+           2016 Sophie Brun <sophie@freexian.com>
+           2017 Samuel Henrique <samueloph@gmail.com>
 License: Expat
 
 Files: OpenCL/m01500_a3.cl OpenCL/m03000_a3.cl
 Copyright: 2015 DeepLearningJohnDoe <deeplearningjohndoe@gmail.com>
- 2011 Roman Rusakov <roman_rus@openwall.com>
- 2011 Solar Designer <solar@openwall.com>
+           2011 Roman Rusakov <roman_rus@openwall.com>
+           2011 Solar Designer <solar@openwall.com>
 License: Expat
 License-Grant:
  This file itself is Copyright (c) 2015 by <deeplearningjohndoe at gmail.com>

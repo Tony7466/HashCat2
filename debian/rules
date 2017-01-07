@@ -4,7 +4,7 @@ export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 INSTALL := install -o root -g root -m 755
 
 %:
-	dh $@ 
+	dh $@
 
 override_dh_auto_build:
 	dh_auto_build -- PREFIX=/usr COMPTIME=$(SOURCE_DATE_EPOCH)

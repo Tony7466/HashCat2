@@ -3,15 +3,20 @@ Section: net
 Priority: optional
 Maintainer: Debian Security Tools Packaging Team <pkg-security-team@lists.alioth.debian.org>
 Uploaders: Daniel Echeverry <epsilon77@gmail.com>
-Build-Depends: debhelper (>=10), libgmp-dev, opencl-headers
+Build-Depends: debhelper (>=10),
+               libgmp-dev,
+               opencl-headers
 Standards-Version: 3.9.8
 Homepage: http://hashcat.net/hashcat/
 Vcs-Git: https://anonscm.debian.org/git/pkg-security/hashcat.git
 Vcs-Browser: https://anonscm.debian.org/cgit/pkg-security/hashcat.git
 
 Package: hashcat
-Architecture: i386 amd64 kfreebsd-any
-Depends: hashcat-data (>= ${source:Version}), ${shlibs:Depends}, ${misc:Depends}, mesa-opencl-icd | opencl-icd
+Architecture: kfreebsd-any amd64 i386
+Depends: hashcat-data (>= ${source:Version}),
+         mesa-opencl-icd | opencl-icd,
+         ${misc:Depends},
+         ${shlibs:Depends}
 Description: World's fastest and most advanced password recovery utility
  Hashcat supports five unique modes of attack for over 160 highly-optimized
  hashing algorithms. hashcat currently supports CPU's, GPU's other

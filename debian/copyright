@@ -16,7 +16,7 @@ Copyright: 2015 DeepLearningJohnDoe <deeplearningjohndoe@gmail.com>
  2011 Roman Rusakov <roman_rus@openwall.com>
  2011 Solar Designer <solar@openwall.com>
 License: Expat
-License-Grant: 
+License-Grant:
  This file itself is Copyright (c) 2015 by <deeplearningjohndoe at gmail.com>
  Redistribution and use in source and binary forms, with or without
  modification, are permitted.
@@ -56,6 +56,6 @@ License: Expat
  OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
- CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, 
- TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE 
+ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

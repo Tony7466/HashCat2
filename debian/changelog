@@ -1,5 +1,6 @@
 hashcat (3.30-1) UNRELEASED; urgency=medium
 
+  [ Samuel Henrique ]
   * Team upload.
   * New upstream version 3.30.
   * wrap-and-sort -a.
@@ -8,6 +9,9 @@ hashcat (3.30-1) UNRELEASED; urgency=medium
   * d/patches:
     - add_kfreebsd_support.diff: Update and Refresh.
     - fix_makefile.patch: Refresh.
+
+  [ Lorenzo "Palinuro" Faletra ]
+  * Include libhashcat.so in hashcat binary package.
 
  -- Samuel Henrique <samueloph@gmail.com>  Sat, 07 Jan 2017 14:55:20 -0200
 

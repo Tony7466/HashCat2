@@ -1,4 +1,4 @@
-hashcat (3.30-1) UNRELEASED; urgency=medium
+hashcat (3.30-1) unstable; urgency=medium
 
   [ Samuel Henrique ]
   * Team upload.
@@ -18,7 +18,7 @@ hashcat (3.30-1) UNRELEASED; urgency=medium
     to be supported as a public library.
   * Drop -march=native from the Makefile. Closes: #851497
 
- -- Samuel Henrique <samueloph@gmail.com>  Sat, 07 Jan 2017 14:55:20 -0200
+ -- Raphaël Hertzog <hertzog@debian.org>  Thu, 19 Jan 2017 18:00:19 +0100
 
 hashcat (3.20-1) unstable; urgency=medium
 

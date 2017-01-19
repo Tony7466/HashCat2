@@ -1,2 +1,2 @@
 hashcat usr/bin/
-libhashcat.so usr/lib/
+libhashcat.so usr/lib/hashcat/

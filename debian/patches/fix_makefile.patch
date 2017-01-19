@@ -1,11 +1,23 @@
-Description: update the makefile Change CFLAGS
-Author: Sophie Brun <sophie@freexian.com>
+From: Sophie Brun <sophie@freexian.com>
+Date: Thu, 19 Jan 2017 16:49:39 +0100
+Subject: Fix Makefile to suit our needs
+
+* Drop -march=native which results in binaries unusable on CPU with fewer
+  features.
+* Inject CPPFLAGS and LDFLAGS where appropriate for better hardening.
+* Update RPATH to point to LIBRARY_FOLDER so that we can install the
+  library in a private directory.
+
 Origin: vendor
-Last-Update: 2016-06-30
-Index: hashcat/src/Makefile
-===================================================================
---- hashcat.orig/src/Makefile
-+++ hashcat/src/Makefile
+Last-Update: 2017-01-19
+---
+ src/Makefile | 14 +++++++-------
+ 1 file changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/src/Makefile b/src/Makefile
+index 0caa2f3..a80cbd1 100644
+--- a/src/Makefile
++++ b/src/Makefile
 @@ -173,12 +173,12 @@ endif
  ##
  
@@ -13,7 +25,8 @@ Index: hashcat/src/Makefile
 -CFLAGS_NATIVE           := $(CFLAGS)
 +CFLAGS_NATIVE           += $(CFLAGS) $(CPPFLAGS)
  CFLAGS_NATIVE           += -I$(OPENCL_HEADERS_KHRONOS)/
- CFLAGS_NATIVE           += -march=native
+-CFLAGS_NATIVE           += -march=native
++#CFLAGS_NATIVE           += -march=native
  CFLAGS_NATIVE           += -DWITH_HWMON
  LFLAGS_NATIVE           := $(LFLAGS)
 -LFLAGS_NATIVE           += -lpthread -ldl
@@ -21,3 +34,39 @@ Index: hashcat/src/Makefile
  endif # Linux
  
  ifeq ($(UNAME),FreeBSD)
+@@ -194,7 +194,7 @@ endif # FreeBSD
+ ifeq ($(UNAME),Darwin)
+ export MACOSX_DEPLOYMENT_TARGET=10.9
+ CFLAGS_NATIVE           := $(CFLAGS)
+-CFLAGS_NATIVE           += -march=native
++#CFLAGS_NATIVE           += -march=native
+ LFLAGS_NATIVE           := $(LFLAGS)
+ LFLAGS_NATIVE           += -framework OpenCL
+ LFLAGS_NATIVE           += -lpthread
+@@ -203,7 +203,7 @@ endif # Darwin
+ ifeq ($(UNAME),CYGWIN)
+ CFLAGS_NATIVE           := $(CFLAGS)
+ CFLAGS_NATIVE           += -I$(OPENCL_HEADERS_KHRONOS)/
+-CFLAGS_NATIVE           += -march=native
++#CFLAGS_NATIVE           += -march=native
+ CFLAGS_NATIVE           += -DWITH_HWMON
+ LFLAGS_NATIVE           := $(LFLAGS)
+ LFLAGS_NATIVE           += -Wl,--dynamicbase -Wl,--nxcompat
+@@ -213,7 +213,7 @@ endif # CYGWIN
+ ifeq ($(UNAME),MSYS2)
+ CFLAGS_NATIVE           := $(CFLAGS)
+ CFLAGS_NATIVE           += -I$(OPENCL_HEADERS_KHRONOS)/
+-CFLAGS_NATIVE           += -march=native
++#CFLAGS_NATIVE           += -march=native
+ CFLAGS_NATIVE           += -DWITH_HWMON
+ LFLAGS_NATIVE           := $(LFLAGS)
+ LFLAGS_NATIVE           += -Wl,--dynamicbase -Wl,--nxcompat
+@@ -388,7 +388,7 @@ $(HASHCAT_LIBRARY): $(NATIVE_SHARED_OBJS)
+ 	$(CC) -o $@ $^ $(LFLAGS_NATIVE_SHARED) -shared
+ 
+ $(HASHCAT_FRONTEND): $(NATIVE_OBJS) $(HASHCAT_LIBRARY) src/main.c
+-	$(CC)    $(CFLAGS_NATIVE) -o $@ $^ $(LFLAGS_NATIVE) -L. -lhashcat -Wl,-rpath . -DCOMPTIME=$(COMPTIME) -DVERSION_TAG=\"$(VERSION_TAG)\" -DINSTALL_FOLDER=\"$(INSTALL_FOLDER)\" -DSHARED_FOLDER=\"$(SHARED_FOLDER)\" -DDOCUMENT_FOLDER=\"$(DOCUMENT_FOLDER)\"
++	$(CC)    $(CFLAGS_NATIVE) -o $@ $^ $(LFLAGS_NATIVE) -L. -lhashcat -Wl,-rpath=$(LIBRARY_FOLDER) -DCOMPTIME=$(COMPTIME) -DVERSION_TAG=\"$(VERSION_TAG)\" -DINSTALL_FOLDER=\"$(INSTALL_FOLDER)\" -DSHARED_FOLDER=\"$(SHARED_FOLDER)\" -DDOCUMENT_FOLDER=\"$(DOCUMENT_FOLDER)\"
+ 
+ ##
+ ## cross compiled hashcat

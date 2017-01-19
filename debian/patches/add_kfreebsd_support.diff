@@ -1,10 +1,21 @@
-Description: Add support to kFreeBSD
-Author: Steven Chamberlain <steven@pyro.eu.org>
+From: Steven Chamberlain <steven@pyro.eu.org>
+Date: Thu, 19 Jan 2017 16:49:39 +0100
+Subject: Add support of kFreeBSD
+
 Last-Update: 2016-12-04
-Index: hashcat/include/common.h
-===================================================================
---- hashcat.orig/include/common.h
-+++ hashcat/include/common.h
+---
+ include/common.h     | 2 +-
+ include/ext_OpenCL.h | 2 +-
+ include/sort_r.h     | 2 +-
+ src/Makefile         | 8 +++++---
+ src/folder.c         | 2 +-
+ src/shared.c         | 7 ++++++-
+ 6 files changed, 15 insertions(+), 8 deletions(-)
+
+diff --git a/include/common.h b/include/common.h
+index f8881ff..d87f101 100644
+--- a/include/common.h
++++ b/include/common.h
 @@ -12,7 +12,7 @@
  #define _POSIX
  #elif defined (__APPLE__)
@@ -14,10 +25,10 @@ Index: hashcat/include/common.h
  #define _POSIX
  #elif defined (_WIN32) || defined (_WIN64)
  #define _WIN 1
-Index: hashcat/include/ext_OpenCL.h
-===================================================================
---- hashcat.orig/include/ext_OpenCL.h
-+++ hashcat/include/ext_OpenCL.h
+diff --git a/include/ext_OpenCL.h b/include/ext_OpenCL.h
+index adaf313..1cbde91 100644
+--- a/include/ext_OpenCL.h
++++ b/include/ext_OpenCL.h
 @@ -21,7 +21,7 @@
  #include <CL/cl.h>
  #endif
@@ -27,11 +38,24 @@ Index: hashcat/include/ext_OpenCL.h
  #include <CL/cl.h>
  #endif
  
-Index: hashcat/src/Makefile
-===================================================================
---- hashcat.orig/src/Makefile
-+++ hashcat/src/Makefile
-@@ -12,6 +12,9 @@ UNAME                   := $(shell uname
+diff --git a/include/sort_r.h b/include/sort_r.h
+index f8bdf50..86cfb07 100644
+--- a/include/sort_r.h
++++ b/include/sort_r.h
+@@ -25,7 +25,7 @@ Slightly modified to work with hashcat to no falsly detect _SORT_R_LINUX with mi
+ */
+ 
+ #if (defined __APPLE__ || defined __MACH__ || defined __DARWIN__ || \
+-     defined __FreeBSD__ || defined __DragonFly__)
++     defined __FreeBSD__ || defined __FreeBSD_kernel__ || defined __DragonFly__)
+ #  define _SORT_R_BSD
+ #  define _SORT_R_INLINE inline
+ #elif (defined __linux__) || defined (__CYGWIN__)
+diff --git a/src/Makefile b/src/Makefile
+index a80cbd1..0e68f20 100644
+--- a/src/Makefile
++++ b/src/Makefile
+@@ -12,6 +12,9 @@ UNAME                   := $(shell uname -s)
  # we need to strip the windows version number to be able to build hashcat on cygwin hosts
  UNAME                   := $(patsubst CYGWIN_NT-%,CYGWIN,$(UNAME))
  
@@ -60,10 +84,23 @@ Index: hashcat/src/Makefile
  LFLAGS_NATIVE           := $(LFLAGS)
  LFLAGS_NATIVE           += -lpthread
  endif
-Index: hashcat/src/shared.c
-===================================================================
---- hashcat.orig/src/shared.c
-+++ hashcat/src/shared.c
+diff --git a/src/folder.c b/src/folder.c
+index 117a994..6ca6e02 100644
+--- a/src/folder.c
++++ b/src/folder.c
+@@ -50,7 +50,7 @@ static int get_exec_path (char *exec_path, const size_t exec_path_sz)
+ 
+   const size_t len = strlen (exec_path);
+ 
+-  #elif defined (__FreeBSD__)
++  #elif defined (__FreeBSD__) || defined(__FreeBSD_kernel__)
+ 
+   #include <sys/sysctl.h>
+ 
+diff --git a/src/shared.c b/src/shared.c
+index dc74ced..0d93e0c 100644
+--- a/src/shared.c
++++ b/src/shared.c
 @@ -7,6 +7,11 @@
  #include "types.h"
  #include "shared.h"
@@ -76,36 +113,10 @@ Index: hashcat/src/shared.c
  bool is_power_of_2 (const u32 v)
  {
    return (v && !(v & (v - 1)));
-@@ -259,4 +264,4 @@ void setup_seeding (const bool rp_gen_se
+@@ -259,4 +264,4 @@ void setup_seeding (const bool rp_gen_seed_chgd, const u32 rp_gen_seed)
  
      srand (ts);
    }
 -}
 \ No newline at end of file
 +}
-Index: hashcat/include/sort_r.h
-===================================================================
---- hashcat.orig/include/sort_r.h
-+++ hashcat/include/sort_r.h
-@@ -25,7 +25,7 @@ Slightly modified to work with hashcat t
- */
- 
- #if (defined __APPLE__ || defined __MACH__ || defined __DARWIN__ || \
--     defined __FreeBSD__ || defined __DragonFly__)
-+     defined __FreeBSD__ || defined __FreeBSD_kernel__ || defined __DragonFly__)
- #  define _SORT_R_BSD
- #  define _SORT_R_INLINE inline
- #elif (defined __linux__) || defined (__CYGWIN__)
-Index: hashcat/src/folder.c
-===================================================================
---- hashcat.orig/src/folder.c
-+++ hashcat/src/folder.c
-@@ -50,7 +50,7 @@ static int get_exec_path (char *exec_pat
- 
-   const size_t len = strlen (exec_path);
- 
--  #elif defined (__FreeBSD__)
-+  #elif defined (__FreeBSD__) || defined(__FreeBSD_kernel__)
- 
-   #include <sys/sysctl.h>
- 

@@ -1,13 +1,12 @@
 #!/usr/bin/make -f
 #export DH_VERBOSE = 1
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
-INSTALL := install -o root -g root -m 755
 
 %:
 	dh $@
 
 override_dh_auto_build:
-	dh_auto_build -- PREFIX=/usr COMPTIME=$(SOURCE_DATE_EPOCH)
+	dh_auto_build -- PREFIX=/usr DEBUG=1 LIBRARY_FOLDER=/usr/lib/hashcat COMPTIME=$(SOURCE_DATE_EPOCH)
 
 override_dh_installchangelogs:
 	dh_installchangelogs docs/changes.txt

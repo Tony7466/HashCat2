@@ -13,6 +13,11 @@ hashcat (3.30-1) UNRELEASED; urgency=medium
   [ Lorenzo "Palinuro" Faletra ]
   * Include libhashcat.so in hashcat binary package.
 
+  [ Raphaël Hertzog ]
+  * Install libhashcat.so in /usr/lib/hashcat. It's not clean enough
+    to be supported as a public library.
+  * Drop -march=native from the Makefile. Closes: #851497
+
  -- Samuel Henrique <samueloph@gmail.com>  Sat, 07 Jan 2017 14:55:20 -0200
 
 hashcat (3.20-1) unstable; urgency=medium

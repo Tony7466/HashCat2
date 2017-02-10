@@ -14,9 +14,10 @@ Vcs-Browser: https://anonscm.debian.org/cgit/pkg-security/hashcat.git
 Package: hashcat
 Architecture: kfreebsd-any amd64 i386
 Depends: hashcat-data (>= ${source:Version}),
-         mesa-opencl-icd | opencl-icd,
+         pocl-opencl-icd | opencl-icd,
          ${misc:Depends},
          ${shlibs:Depends}
+Suggests: beignet-opencl-icd, nvidia-opencl-icd, mesa-opencl-icd
 Description: World's fastest and most advanced password recovery utility
  Hashcat supports five unique modes of attack for over 160 highly-optimized
  hashing algorithms. hashcat currently supports CPU's, GPU's other

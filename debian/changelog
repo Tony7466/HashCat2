@@ -1,11 +1,21 @@
 hashcat (3.30-2) UNRELEASED; urgency=medium
 
+  * Team upload.
+
+  [ Sophie Brun ]
   * debian/control: drop depends on mesa-opencl-icd as it's not compatible
     with beignet-opencl-icd and replace it with pocl-opencl-icd. Add all
     relevant *-opencl-icd in Suggests as a hint that the user should install
     the appropriate package for its hardware.
 
- -- Sophie Brun <sophie@freexian.com>  Fri, 10 Feb 2017 15:35:28 +0100
+  [ Paul Wise ]
+  * Fix apostrophe in description
+
+  [ philipp ]
+  * Fix package description (Closes: #855687)
+  * Make URLS in https mode.
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 21 Feb 2017 11:38:51 +0100
 
 hashcat (3.30-1) unstable; urgency=medium
 

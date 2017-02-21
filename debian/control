@@ -7,7 +7,7 @@ Build-Depends: debhelper (>=10),
                libgmp-dev,
                opencl-headers
 Standards-Version: 3.9.8
-Homepage: http://hashcat.net/hashcat/
+Homepage: https://hashcat.net/hashcat/
 Vcs-Git: https://anonscm.debian.org/git/pkg-security/hashcat.git
 Vcs-Browser: https://anonscm.debian.org/cgit/pkg-security/hashcat.git
 
@@ -20,7 +20,7 @@ Depends: hashcat-data (>= ${source:Version}),
 Suggests: beignet-opencl-icd, nvidia-opencl-icd, mesa-opencl-icd
 Description: World's fastest and most advanced password recovery utility
  Hashcat supports five unique modes of attack for over 160 highly-optimized
- hashing algorithms. hashcat currently supports CPU's, GPU's other
+ hashing algorithms. hashcat currently supports CPUs, GPUs and other
  hardware-accelerators on Linux, and has facilities to help enable
  distributed password cracking.
  .

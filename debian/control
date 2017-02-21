@@ -19,9 +19,9 @@ Depends: hashcat-data (>= ${source:Version}),
          ${shlibs:Depends}
 Suggests: beignet-opencl-icd, nvidia-opencl-icd, mesa-opencl-icd
 Description: World's fastest and most advanced password recovery utility
- Hashcat supports five unique modes of attack for over 160 highly-optimized
- hashing algorithms. hashcat currently supports CPUs, GPUs and other
- hardware-accelerators on Linux, and has facilities to help enable
+ Hashcat supports five unique modes of attack for over 200 highly-optimized
+ hashing algorithms. hashcat currently supports CPUs, GPUs, and other
+ hardware accelerators on Linux, and has facilities to help enable
  distributed password cracking.
  .
  Examples of hashcat supported hashing algorithms are:

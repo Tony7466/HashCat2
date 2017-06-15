@@ -19,6 +19,7 @@ hashcat (3.60-1) UNRELEASED; urgency=medium
   * New upstream release.
   * Updated watch file to work around broken versioning scheme
     (https://github.com/hashcat/hashcat/issues/1275).
+  * Update patches (reuse work made in Kali).
 
  -- Raphaël Hertzog <hertzog@debian.org>  Thu, 15 Jun 2017 16:40:38 +0200
 

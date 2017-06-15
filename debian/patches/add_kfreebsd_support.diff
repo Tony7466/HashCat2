@@ -12,37 +12,9 @@ Last-Update: 2016-12-04
  src/shared.c         | 7 ++++++-
  6 files changed, 15 insertions(+), 8 deletions(-)
 
-diff --git a/include/common.h b/include/common.h
-index f8881ff..d87f101 100644
---- a/include/common.h
-+++ b/include/common.h
-@@ -12,7 +12,7 @@
- #define _POSIX
- #elif defined (__APPLE__)
- #define _POSIX
--#elif defined (__FreeBSD__)
-+#elif defined (__FreeBSD_kernel__)
- #define _POSIX
- #elif defined (_WIN32) || defined (_WIN64)
- #define _WIN 1
-diff --git a/include/ext_OpenCL.h b/include/ext_OpenCL.h
-index adaf313..1cbde91 100644
---- a/include/ext_OpenCL.h
-+++ b/include/ext_OpenCL.h
-@@ -21,7 +21,7 @@
- #include <CL/cl.h>
- #endif
- 
--#if defined (__FreeBSD__)
-+#if defined (__FreeBSD_kernel__)
- #include <CL/cl.h>
- #endif
- 
-diff --git a/include/sort_r.h b/include/sort_r.h
-index f8bdf50..86cfb07 100644
 --- a/include/sort_r.h
 +++ b/include/sort_r.h
-@@ -25,7 +25,7 @@ Slightly modified to work with hashcat to no falsly detect _SORT_R_LINUX with mi
+@@ -25,7 +25,7 @@ Slightly modified to work with hashcat t
  */
  
  #if (defined __APPLE__ || defined __MACH__ || defined __DARWIN__ || \
@@ -51,11 +23,9 @@ index f8bdf50..86cfb07 100644
  #  define _SORT_R_BSD
  #  define _SORT_R_INLINE inline
  #elif (defined __linux__) || defined (__CYGWIN__)
-diff --git a/src/Makefile b/src/Makefile
-index a80cbd1..0e68f20 100644
 --- a/src/Makefile
 +++ b/src/Makefile
-@@ -12,6 +12,9 @@ UNAME                   := $(shell uname -s)
+@@ -16,6 +16,9 @@ UNAME                   := $(shell uname
  # we need to strip the windows version number to be able to build hashcat on cygwin hosts
  UNAME                   := $(patsubst CYGWIN_NT-%,CYGWIN,$(UNAME))
  
@@ -65,7 +35,7 @@ index a80cbd1..0e68f20 100644
  # same for msys
  UNAME                   := $(patsubst MSYS_NT-%,MSYS2,$(UNAME))
  UNAME                   := $(patsubst MINGW32_NT-%,MSYS2,$(UNAME))
-@@ -88,8 +91,8 @@ SED                     := gsed
+@@ -94,8 +97,8 @@ SED_IN_PLACE            := -i ""
  endif
  
  ifeq ($(UNAME),FreeBSD)
@@ -76,19 +46,9 @@ index a80cbd1..0e68f20 100644
  endif
  
  ##
-@@ -185,7 +188,6 @@ ifeq ($(UNAME),FreeBSD)
- ifndef PORTNAME
- CFLAGS_NATIVE           := $(CFLAGS)
- CFLAGS_NATIVE           += -I$(OPENCL_HEADERS_KHRONOS)/
--CFLAGS_NATIVE           += -march=native
- LFLAGS_NATIVE           := $(LFLAGS)
- LFLAGS_NATIVE           += -lpthread
- endif
-diff --git a/src/folder.c b/src/folder.c
-index 117a994..6ca6e02 100644
 --- a/src/folder.c
 +++ b/src/folder.c
-@@ -50,7 +50,7 @@ static int get_exec_path (char *exec_path, const size_t exec_path_sz)
+@@ -50,7 +50,7 @@ static int get_exec_path (char *exec_pat
  
    const size_t len = strlen (exec_path);
  
@@ -97,13 +57,11 @@ index 117a994..6ca6e02 100644
  
    #include <sys/sysctl.h>
  
-diff --git a/src/shared.c b/src/shared.c
-index dc74ced..0d93e0c 100644
 --- a/src/shared.c
 +++ b/src/shared.c
-@@ -7,6 +7,11 @@
- #include "types.h"
- #include "shared.h"
+@@ -57,6 +57,11 @@ bool overflow_check_u64_mul (const u64 a
+   return ((a_msb + b_msb) < 64);
+ }
  
 +#if defined(__FreeBSD__) || defined(__FreeBSD_kernel__)
 +#include <sys/types.h>
@@ -113,10 +71,14 @@ index dc74ced..0d93e0c 100644
  bool is_power_of_2 (const u32 v)
  {
    return (v && !(v & (v - 1)));
-@@ -259,4 +264,4 @@ void setup_seeding (const bool rp_gen_seed_chgd, const u32 rp_gen_seed)
+--- a/src/affinity.c
++++ b/src/affinity.c
+@@ -40,7 +40,7 @@ static int pthread_setaffinity_np (pthre
+ }
+ #endif
  
-     srand (ts);
-   }
--}
-\ No newline at end of file
-+}
+-#if defined (__FreeBSD__)
++#if defined (__FreeBSD_kernel__)
+ #include <pthread_np.h>
+ typedef cpuset_t cpu_set_t;
+ #endif

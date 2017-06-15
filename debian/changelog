@@ -1,4 +1,4 @@
-hashcat (3.60-1) UNRELEASED; urgency=medium
+hashcat (3.60-1) unstable; urgency=medium
 
   * Team upload.
 
@@ -24,7 +24,7 @@ hashcat (3.60-1) UNRELEASED; urgency=medium
   * Stop installing libhashcat.so. It's not used by the hashcat binary and has
     no stable API.
 
- -- Raphaël Hertzog <hertzog@debian.org>  Thu, 15 Jun 2017 16:40:38 +0200
+ -- Raphaël Hertzog <hertzog@debian.org>  Thu, 15 Jun 2017 17:21:21 +0200
 
 hashcat (3.30-1) unstable; urgency=medium
 

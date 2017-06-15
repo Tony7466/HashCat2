@@ -11,26 +11,17 @@
 #include "locking.h"
 #include "shared.h"
 
-static int logfile_generate_id (void)
-{
-  const int n = rand ();
-
-  time_t t;
-
-  time (&t);
-
-  return t + n;
-}
-
 void logfile_generate_topid (hashcat_ctx_t *hashcat_ctx)
 {
   logfile_ctx_t *logfile_ctx = hashcat_ctx->logfile_ctx;
 
   if (logfile_ctx->enabled == false) return;
 
-  const int id = logfile_generate_id ();
+  u32 v[4];
 
-  snprintf (logfile_ctx->topid, 1 + 16, "TOP%08x", (u32) id);
+  gettimeofday ((struct timeval *) v, NULL);
+
+  snprintf (logfile_ctx->topid, 40, "TOP.%08x.%08x", v[0], v[2]);
 }
 
 void logfile_generate_subid (hashcat_ctx_t *hashcat_ctx)
@@ -39,9 +30,11 @@ void logfile_generate_subid (hashcat_ctx_t *hashcat_ctx)
 
   if (logfile_ctx->enabled == false) return;
 
-  const int id = logfile_generate_id ();
+  u32 v[4];
 
-  snprintf (logfile_ctx->subid, 1 + 16, "SUB%08x", (u32) id);
+  gettimeofday ((struct timeval *) v, NULL);
+
+  snprintf (logfile_ctx->subid, 40, "SUB.%08x.%08x", v[0], v[2]);
 }
 
 void logfile_append (hashcat_ctx_t *hashcat_ctx, const char *fmt, ...)
@@ -54,7 +47,7 @@ void logfile_append (hashcat_ctx_t *hashcat_ctx, const char *fmt, ...)
 
   if (fp == NULL)
   {
-    event_log_error (hashcat_ctx, "%s: %m", logfile_ctx->logfile);
+    event_log_error (hashcat_ctx, "%s: %s", logfile_ctx->logfile, strerror (errno));
 
     return;
   }
@@ -90,17 +83,6 @@ int logfile_init (hashcat_ctx_t *hashcat_ctx)
   logfile_ctx->topid = (char *) hcmalloc (HCBUFSIZ_TINY);
 
   logfile_ctx->enabled = true;
-
-  FILE *fp = fopen (logfile_ctx->logfile, "ab");
-
-  if (fp == NULL)
-  {
-    event_log_error (hashcat_ctx, "%s: %m", logfile_ctx->logfile);
-
-    return -1;
-  }
-
-  fclose (fp);
 
   return 0;
 }

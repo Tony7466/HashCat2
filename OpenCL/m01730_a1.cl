@@ -3,8 +3,6 @@
  * License.....: MIT
  */
 
-#define _SHA512_
-
 #define NEW_SIMD_CODE
 
 #include "inc_vendor.cl"
@@ -14,7 +12,7 @@
 #include "inc_common.cl"
 #include "inc_simd.cl"
 
-__constant u64 k_sha512[80] =
+__constant u64a k_sha512[80] =
 {
   SHA512C00, SHA512C01, SHA512C02, SHA512C03,
   SHA512C04, SHA512C05, SHA512C06, SHA512C07,
@@ -38,7 +36,7 @@ __constant u64 k_sha512[80] =
   SHA512C4c, SHA512C4d, SHA512C4e, SHA512C4f,
 };
 
-static void sha512_transform (const u32x w0[4], const u32x w1[4], const u32x w2[4], const u32x w3[4], u64x digest[8])
+void sha512_transform (const u32x w0[4], const u32x w1[4], const u32x w2[4], const u32x w3[4], u64x digest[8])
 {
   u64x w0_t = hl32_to_64 (w0[0], w0[1]);
   u64x w1_t = hl32_to_64 (w0[2], w0[3]);
@@ -268,8 +266,8 @@ __kernel void m01730_m04 (__global pw_t *pws, __global const kernel_rule_t *rule
     w3[2] = wordl3[2] | wordr3[2];
     w3[3] = wordl3[3] | wordr3[3];
 
-    make_unicode (w1, w2, w3);
-    make_unicode (w0, w0, w1);
+    make_utf16le (w1, w2, w3);
+    make_utf16le (w0, w0, w1);
 
     const u32x pw_len2 = pw_len * 2;
 
@@ -519,8 +517,8 @@ __kernel void m01730_s04 (__global pw_t *pws, __global const kernel_rule_t *rule
     w3[2] = wordl3[2] | wordr3[2];
     w3[3] = wordl3[3] | wordr3[3];
 
-    make_unicode (w1, w2, w3);
-    make_unicode (w0, w0, w1);
+    make_utf16le (w1, w2, w3);
+    make_utf16le (w0, w0, w1);
 
     const u32x pw_len2 = pw_len * 2;
 

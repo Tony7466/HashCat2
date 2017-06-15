@@ -123,7 +123,22 @@ static int calc_stdin (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_par
 
   char *buf = (char *) hcmalloc (HCBUFSIZ_LARGE);
 
-  const u32 attack_kern = user_options_extra->attack_kern;
+  bool iconv_enabled = false;
+
+  iconv_t iconv_ctx;
+
+  char *iconv_tmp = NULL;
+
+  if (strcmp (user_options->encoding_from, user_options->encoding_to))
+  {
+    iconv_enabled = true;
+
+    iconv_ctx = iconv_open (user_options->encoding_to, user_options->encoding_from);
+
+    if (iconv_ctx == (iconv_t) -1) return -1;
+
+    iconv_tmp = (char *) hcmalloc (HCBUFSIZ_TINY);
+  }
 
   while (status_ctx->run_thread_level1 == true)
   {
@@ -144,15 +159,37 @@ static int calc_stdin (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_par
 
       if (line_buf == NULL) break;
 
-      u32 line_len = (u32) in_superchop (line_buf);
+      size_t line_len = in_superchop (line_buf);
 
       line_len = convert_from_hex (hashcat_ctx, line_buf, line_len);
 
+      // do the on-the-fly encoding
+
+      if (iconv_enabled == true)
+      {
+        char  *iconv_ptr = iconv_tmp;
+        size_t iconv_sz  = HCBUFSIZ_TINY;
+
+        const size_t iconv_rc = iconv (iconv_ctx, &line_buf, &line_len, &iconv_ptr, &iconv_sz);
+
+        if (iconv_rc == (size_t) -1)
+        {
+          line_len = PW_MAX1;
+        }
+        else
+        {
+          line_buf = iconv_tmp;
+          line_len = HCBUFSIZ_TINY - iconv_sz;
+        }
+      }
+
       // post-process rule engine
+
+      char rule_buf_out[BLOCK_SIZE];
 
       if (run_rule_engine ((int) user_options_extra->rule_len_l, user_options->rule_buf_l))
       {
-        char rule_buf_out[BLOCK_SIZE] = { 0 };
+        memset (rule_buf_out, 0, sizeof (rule_buf_out));
 
         int rule_len_out = -1;
 
@@ -173,6 +210,8 @@ static int calc_stdin (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_par
       }
 
       // hmm that's always the case, or?
+
+      const u32 attack_kern = user_options_extra->attack_kern;
 
       if (attack_kern == ATTACK_KERN_STRAIGHT)
       {
@@ -213,11 +252,21 @@ static int calc_stdin (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_par
 
     CL_rc = run_copy (hashcat_ctx, device_param, device_param->pws_cnt);
 
-    if (CL_rc == -1) return -1;
+    if (CL_rc == -1)
+    {
+      hcfree (buf);
+
+      return -1;
+    }
 
     CL_rc = run_cracker (hashcat_ctx, device_param, device_param->pws_cnt);
 
-    if (CL_rc == -1) return -1;
+    if (CL_rc == -1)
+    {
+      hcfree (buf);
+
+      return -1;
+    }
 
     device_param->pws_cnt = 0;
 
@@ -228,6 +277,15 @@ static int calc_stdin (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_par
 
   device_param->kernel_accel = 0;
   device_param->kernel_loops = 0;
+
+  if (iconv_enabled == true)
+  {
+    iconv_close (iconv_ctx);
+
+    iconv_enabled = false;
+
+    hcfree (iconv_tmp);
+  }
 
   hcfree (buf);
 
@@ -317,19 +375,7 @@ static int calc (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param)
       {
         dictfile = combinator_ctx->dict2;
       }
-    }
 
-    FILE *fd = fopen (dictfile, "rb");
-
-    if (fd == NULL)
-    {
-      event_log_error (hashcat_ctx, "%s: %m", dictfile);
-
-      return -1;
-    }
-
-    if (attack_mode == ATTACK_MODE_COMBI)
-    {
       const u32 combs_mode = combinator_ctx->combs_mode;
 
       if (combs_mode == COMBINATOR_MODE_BASE_LEFT)
@@ -340,9 +386,7 @@ static int calc (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param)
 
         if (combs_fp == NULL)
         {
-          event_log_error (hashcat_ctx, "%s: %m", combinator_ctx->dict2);
-
-          fclose (fd);
+          event_log_error (hashcat_ctx, "%s: %s", combinator_ctx->dict2, strerror (errno));
 
           return -1;
         }
@@ -357,15 +401,22 @@ static int calc (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param)
 
         if (combs_fp == NULL)
         {
-          event_log_error (hashcat_ctx, "%s: %m", dictfilec);
-
-          fclose (fd);
+          event_log_error (hashcat_ctx, "%s: %s", dictfilec, strerror (errno));
 
           return -1;
         }
 
         device_param->combs_fp = combs_fp;
       }
+    }
+
+    FILE *fd = fopen (dictfile, "rb");
+
+    if (fd == NULL)
+    {
+      event_log_error (hashcat_ctx, "%s: %s", dictfile, strerror (errno));
+
+      return -1;
     }
 
     hashcat_ctx_t *hashcat_ctx_tmp = (hashcat_ctx_t *) hcmalloc (sizeof (hashcat_ctx_t));
@@ -404,7 +455,13 @@ static int calc (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param)
 
     if (rc_wl_data_init == -1)
     {
+      if (attack_mode == ATTACK_MODE_COMBI) fclose (device_param->combs_fp);
+
       fclose (fd);
+
+      hcfree (hashcat_ctx_tmp->wl_data);
+
+      hcfree (hashcat_ctx_tmp);
 
       return -1;
     }
@@ -434,6 +491,8 @@ static int calc (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param)
         char *line_buf;
         u32   line_len;
 
+        char rule_buf_out[BLOCK_SIZE];
+
         for ( ; words_cur < words_off; words_cur++) get_next_word (hashcat_ctx_tmp, fd, &line_buf, &line_len);
 
         for ( ; words_cur < words_fin; words_cur++)
@@ -446,7 +505,7 @@ static int calc (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param)
 
           if (run_rule_engine ((int) user_options_extra->rule_len_l, user_options->rule_buf_l))
           {
-            char rule_buf_out[BLOCK_SIZE] = { 0 };
+            memset (rule_buf_out, 0, sizeof (rule_buf_out));
 
             int rule_len_out = -1;
 
@@ -519,11 +578,33 @@ static int calc (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param)
 
         CL_rc = run_copy (hashcat_ctx, device_param, pws_cnt);
 
-        if (CL_rc == -1) return -1;
+        if (CL_rc == -1)
+        {
+          if (attack_mode == ATTACK_MODE_COMBI) fclose (device_param->combs_fp);
+
+          fclose (fd);
+
+          hcfree (hashcat_ctx_tmp->wl_data);
+
+          hcfree (hashcat_ctx_tmp);
+
+          return -1;
+        }
 
         CL_rc = run_cracker (hashcat_ctx, device_param, pws_cnt);
 
-        if (CL_rc == -1) return -1;
+        if (CL_rc == -1)
+        {
+          if (attack_mode == ATTACK_MODE_COMBI) fclose (device_param->combs_fp);
+
+          fclose (fd);
+
+          hcfree (hashcat_ctx_tmp->wl_data);
+
+          hcfree (hashcat_ctx_tmp);
+
+          return -1;
+        }
 
         device_param->pws_cnt = 0;
 
@@ -533,13 +614,35 @@ static int calc (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param)
         {
           CL_rc = run_kernel_bzero (device_param, device_param->d_rules_c, device_param->size_rules_c);
 
-          if (CL_rc == -1) return -1;
+          if (CL_rc == -1)
+          {
+            if (attack_mode == ATTACK_MODE_COMBI) fclose (device_param->combs_fp);
+
+            fclose (fd);
+
+            hcfree (hashcat_ctx_tmp->wl_data);
+
+            hcfree (hashcat_ctx_tmp);
+
+            return -1;
+          }
         }
         else if (attack_kern == ATTACK_KERN_COMBI)
         {
           CL_rc = run_kernel_bzero (device_param, device_param->d_combs_c, device_param->size_combs);
 
-          if (CL_rc == -1) return -1;
+          if (CL_rc == -1)
+          {
+            if (attack_mode == ATTACK_MODE_COMBI) fclose (device_param->combs_fp);
+
+            fclose (fd);
+
+            hcfree (hashcat_ctx_tmp->wl_data);
+
+            hcfree (hashcat_ctx_tmp);
+
+            return -1;
+          }
         }
         */
       }
@@ -558,18 +661,15 @@ static int calc (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param)
       if (words_fin == 0) break;
     }
 
-    if (attack_mode == ATTACK_MODE_COMBI)
-    {
-      fclose (device_param->combs_fp);
-    }
+    if (attack_mode == ATTACK_MODE_COMBI) fclose (device_param->combs_fp);
+
+    fclose (fd);
 
     wl_data_destroy (hashcat_ctx_tmp);
 
     hcfree (hashcat_ctx_tmp->wl_data);
 
     hcfree (hashcat_ctx_tmp);
-
-    fclose (fd);
   }
 
   device_param->kernel_accel = 0;

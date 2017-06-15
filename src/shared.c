@@ -7,16 +7,59 @@
 #include "types.h"
 #include "shared.h"
 
+static inline int get_msb32 (const u32 v)
+{
+  int i;
+
+  for (i = 32; i > 0; i--) if ((v >> (i - 1)) & 1) break;
+
+  return i;
+}
+
+static inline int get_msb64 (const u64 v)
+{
+  int i;
+
+  for (i = 64; i > 0; i--) if ((v >> (i - 1)) & 1) break;
+
+  return i;
+}
+
+bool overflow_check_u32_add (const u32 a, const u32 b)
+{
+  const int a_msb = get_msb32 (a);
+  const int b_msb = get_msb32 (b);
+
+  return ((a_msb < 32) && (b_msb < 32));
+}
+
+bool overflow_check_u32_mul (const u32 a, const u32 b)
+{
+  const int a_msb = get_msb32 (a);
+  const int b_msb = get_msb32 (b);
+
+  return ((a_msb + b_msb) < 32);
+}
+
+bool overflow_check_u64_add (const u64 a, const u64 b)
+{
+  const int a_msb = get_msb64 (a);
+  const int b_msb = get_msb64 (b);
+
+  return ((a_msb < 64) && (b_msb < 64));
+}
+
+bool overflow_check_u64_mul (const u64 a, const u64 b)
+{
+  const int a_msb = get_msb64 (a);
+  const int b_msb = get_msb64 (b);
+
+  return ((a_msb + b_msb) < 64);
+}
+
 bool is_power_of_2 (const u32 v)
 {
   return (v && !(v & (v - 1)));
-}
-
-u32 get_random_num (const u32 min, const u32 max)
-{
-  if (min == max) return (min);
-
-  return (((u32) rand () % (max - min)) + min);
 }
 
 u32 mydivc32 (const u32 dividend, const u32 divisor)
@@ -108,18 +151,6 @@ void hc_asprintf (char **strp, const char *fmt, ...)
   va_end (args);
 }
 
-#if defined (_POSIX)
-int hc_stat (const char *pathname, hc_stat_t *buf)
-{
-  return stat (pathname, buf);
-}
-
-int hc_fstat (int fd, hc_stat_t *buf)
-{
-  return fstat (fd, buf);
-}
-#endif
-
 #if defined (_WIN)
 int hc_stat (const char *pathname, hc_stat_t *buf)
 {
@@ -129,6 +160,16 @@ int hc_stat (const char *pathname, hc_stat_t *buf)
 int hc_fstat (int fd, hc_stat_t *buf)
 {
   return fstat64 (fd, buf);
+}
+#else
+int hc_stat (const char *pathname, hc_stat_t *buf)
+{
+  return stat (pathname, buf);
+}
+
+int hc_fstat (int fd, hc_stat_t *buf)
+{
+  return fstat (fd, buf);
 }
 #endif
 
@@ -186,6 +227,93 @@ void *hc_bsearch_r (const void *key, const void *base, size_t nmemb, size_t size
   }
 
   return (NULL);
+}
+
+bool hc_path_is_file (const char *path)
+{
+  hc_stat_t s;
+
+  if (hc_stat (path, &s) == -1) return false;
+
+  if (S_ISREG (s.st_mode)) return true;
+
+  return false;
+}
+
+bool hc_path_is_directory (const char *path)
+{
+  hc_stat_t s;
+
+  if (hc_stat (path, &s) == -1) return false;
+
+  if (S_ISDIR (s.st_mode)) return true;
+
+  return false;
+}
+
+bool hc_path_is_empty (const char *path)
+{
+  hc_stat_t s;
+
+  if (hc_stat (path, &s) == -1) return false;
+
+  if (s.st_size == 0) return true;
+
+  return false;
+}
+
+bool hc_path_exist (const char *path)
+{
+  if (access (path, F_OK) == -1) return false;
+
+  return true;
+}
+
+bool hc_path_read (const char *path)
+{
+  if (access (path, R_OK) == -1) return false;
+
+  return true;
+}
+
+bool hc_path_write (const char *path)
+{
+  if (access (path, W_OK) == -1) return false;
+
+  return true;
+}
+
+bool hc_path_create (const char *path)
+{
+  if (hc_path_exist (path) == true) return false;
+
+  const int fd = creat (path, S_IRUSR | S_IWUSR);
+
+  if (fd == -1) return false;
+
+  close (fd);
+
+  unlink (path);
+
+  return true;
+}
+
+bool hc_string_is_digit (const char *s)
+{
+  if (s == NULL) return false;
+
+  const size_t len = strlen (s);
+
+  if (len == 0) return false;
+
+  for (size_t i = 0; i < len; i++)
+  {
+    const int c = (const int) s[i];
+
+    if (isdigit (c) == 0) return false;
+  }
+
+  return true;
 }
 
 void setup_environment_variables ()
@@ -259,4 +387,83 @@ void setup_seeding (const bool rp_gen_seed_chgd, const u32 rp_gen_seed)
 
     srand (ts);
   }
+}
+
+u32 get_random_num (const u32 min, const u32 max)
+{
+  if (min == max) return (min);
+
+  const u32 low = max - min;
+
+  if (low == 0) return (0);
+
+  #if defined (__linux__)
+
+  u32 data;
+
+  FILE *fp = fopen ("/dev/urandom", "rb");
+
+  if (fp == NULL) return (0);
+
+  const int nread = fread (&data, sizeof (u32), 1, fp);
+
+  fclose (fp);
+
+  if (nread != 1) return 0;
+
+  u64 r = data % low; r += min;
+
+  return (u32) r;
+
+  #else
+
+  return (((u32) rand () % (max - min)) + min);
+
+  #endif
+}
+
+void hc_string_trim_leading (char *s)
+{
+  int skip = 0;
+
+  const int len = (int) strlen (s);
+
+  for (int i = 0; i < len; i++)
+  {
+    const int c = (const int) s[i];
+
+    if (isspace (c) == 0) break;
+
+    skip++;
+  }
+
+  if (skip == 0) return;
+
+  const int new_len = len - skip;
+
+  memmove (s, s + skip, new_len);
+
+  s[new_len] = 0;
+}
+
+void hc_string_trim_trailing (char *s)
+{
+  int skip = 0;
+
+  const int len = (int) strlen (s);
+
+  for (int i = len - 1; i >= 0; i--)
+  {
+    const int c = (const int) s[i];
+
+    if (isspace (c) == 0) break;
+
+    skip++;
+  }
+
+  if (skip == 0) return;
+
+  const size_t new_len = len - skip;
+
+  s[new_len] = 0;
 }

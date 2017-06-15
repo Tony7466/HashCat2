@@ -26,22 +26,24 @@ static int outfile_remove (hashcat_ctx_t *hashcat_ctx)
   status_ctx_t   *status_ctx   = hashcat_ctx->status_ctx;
   user_options_t *user_options = hashcat_ctx->user_options;
 
-  u32  dgst_size  = hashconfig->dgst_size;
-  u32  is_salted  = hashconfig->is_salted;
-  u32  esalt_size = hashconfig->esalt_size;
-  u32  hash_mode  = hashconfig->hash_mode;
-  char separator  = hashconfig->separator;
+  u32  dgst_size      = hashconfig->dgst_size;
+  u32  is_salted      = hashconfig->is_salted;
+  u32  esalt_size     = hashconfig->esalt_size;
+  u32  hook_salt_size = hashconfig->hook_salt_size;
+  u32  hash_mode      = hashconfig->hash_mode;
+  char separator      = hashconfig->separator;
 
   char *root_directory      = outcheck_ctx->root_directory;
   u32   outfile_check_timer = user_options->outfile_check_timer;
 
   // buffers
-  hash_t hash_buf = { 0, 0, 0, 0, 0, NULL, 0 };
+  hash_t hash_buf = { 0, 0, 0, 0, 0, 0, NULL, 0 };
 
   hash_buf.digest = hcmalloc (dgst_size);
 
-  if (is_salted)  hash_buf.salt =  (salt_t *) hcmalloc (sizeof (salt_t));
-  if (esalt_size) hash_buf.esalt = (void   *) hcmalloc (esalt_size);
+  if (is_salted)      hash_buf.salt      = (salt_t *) hcmalloc (sizeof (salt_t));
+  if (esalt_size)     hash_buf.esalt     = (void   *) hcmalloc (esalt_size);
+  if (hook_salt_size) hash_buf.hook_salt = (void   *) hcmalloc (hook_salt_size);
 
   u32 digest_buf[64] = { 0 };
 
@@ -65,14 +67,24 @@ static int outfile_remove (hashcat_ctx_t *hashcat_ctx)
 
     if (check_left == 0)
     {
-      hc_stat_t outfile_check_stat;
-
-      if (hc_stat (root_directory, &outfile_check_stat) == 0)
+      if (hc_path_exist (root_directory) == true)
       {
-        u32 is_dir = S_ISDIR (outfile_check_stat.st_mode);
+        const bool is_dir = hc_path_is_directory (root_directory);
 
-        if (is_dir == 1)
+        if (is_dir == true)
         {
+          hc_stat_t outfile_check_stat;
+
+          if (hc_stat (root_directory, &outfile_check_stat) == -1)
+          {
+            event_log_error (hashcat_ctx, "%s: %s", root_directory, strerror (errno));
+
+            hcfree (out_files);
+            hcfree (out_info);
+
+            return -1;
+          }
+
           if (outfile_check_stat.st_mtime > folder_mtime)
           {
             char **out_files_new = scan_directory (root_directory);
@@ -130,7 +142,12 @@ static int outfile_remove (hashcat_ctx_t *hashcat_ctx)
 
               hc_stat_t outfile_stat;
 
-              hc_fstat (fileno (fp), &outfile_stat);
+              if (hc_fstat (fileno (fp), &outfile_stat))
+              {
+                fclose (fp);
+
+                continue;
+              }
 
               if (outfile_stat.st_ctime > out_info[j].ctime)
               {
@@ -194,44 +211,13 @@ static int outfile_remove (hashcat_ctx_t *hashcat_ctx)
                         }
                         else if (hash_mode == 2500)
                         {
-                          // BSSID : MAC1 : MAC2 (:plain)
-                          if (i == (salt_buf->salt_len + 1 + 12 + 1 + 12))
+                          // this comparison is a bit inaccurate as we compare only ESSID
+                          // call it a bug, but it's good enough for a special case used in a special case
+                          // in this case all essid will be marked as cracked that match the essid
+
+                          if (i == salt_buf->salt_len)
                           {
                             cracked = (memcmp (line_buf, salt_buf->salt_buf, salt_buf->salt_len) == 0);
-
-                            if (!cracked) continue;
-
-                            // now compare MAC1 and MAC2 too, since we have this additional info
-                            char *mac1_pos = line_buf + salt_buf->salt_len + 1;
-                            char *mac2_pos = mac1_pos + 12 + 1;
-
-                            wpa_t *wpas = (wpa_t *) hashes->esalts_buf;
-                            wpa_t *wpa  = &wpas[salt_pos];
-
-                            // compare hex string(s) vs binary MAC address(es)
-
-                            for (u32 mac_idx = 0, orig_mac_idx = 0; mac_idx < 6; mac_idx++, orig_mac_idx += 2)
-                            {
-                              if (wpa->orig_mac1[mac_idx] != hex_to_u8 ((const u8 *) &mac1_pos[orig_mac_idx]))
-                              {
-                                cracked = 0;
-
-                                break;
-                              }
-                            }
-
-                            // early skip ;)
-                            if (!cracked) continue;
-
-                            for (u32 mac_idx = 0, orig_mac_idx = 0; mac_idx < 6; mac_idx++, orig_mac_idx += 2)
-                            {
-                              if (wpa->orig_mac2[mac_idx] != hex_to_u8 ((const u8 *) &mac2_pos[orig_mac_idx]))
-                              {
-                                cracked = 0;
-
-                                break;
-                              }
-                            }
                           }
                         }
                         else
@@ -293,6 +279,7 @@ static int outfile_remove (hashcat_ctx_t *hashcat_ctx)
   }
 
   hcfree (hash_buf.esalt);
+  hcfree (hash_buf.hook_salt);
 
   hcfree (hash_buf.salt);
 
@@ -346,30 +333,17 @@ int outcheck_ctx_init (hashcat_ctx_t *hashcat_ctx)
     outcheck_ctx->root_directory = user_options->outfile_check_dir;
   }
 
-  hc_stat_t outfile_check_stat;
+  outcheck_ctx->enabled = true;
 
-  if (hc_stat (outcheck_ctx->root_directory, &outfile_check_stat) == 0)
-  {
-    const u32 is_dir = S_ISDIR (outfile_check_stat.st_mode);
-
-    if (is_dir == 0)
-    {
-      event_log_error (hashcat_ctx, "Directory specified in outfile-check '%s' is not a valid directory", outcheck_ctx->root_directory);
-
-      return -1;
-    }
-  }
-  else
+  if (hc_path_exist (outcheck_ctx->root_directory) == false)
   {
     if (hc_mkdir (outcheck_ctx->root_directory, 0700) == -1)
     {
-      event_log_error (hashcat_ctx, "%s: %m", outcheck_ctx->root_directory);
+      event_log_error (hashcat_ctx, "%s: %s", outcheck_ctx->root_directory, strerror (errno));
 
       return -1;
     }
   }
-
-  outcheck_ctx->enabled = true;
 
   return 0;
 }
@@ -393,7 +367,7 @@ void outcheck_ctx_destroy (hashcat_ctx_t *hashcat_ctx)
     }
     else
     {
-      event_log_error (hashcat_ctx, "%s: %m", outcheck_ctx->root_directory);
+      event_log_error (hashcat_ctx, "%s: %s", outcheck_ctx->root_directory, strerror (errno));
 
       //return -1;
     }

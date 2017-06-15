@@ -10,18 +10,13 @@
 #include <unistd.h>
 #include <errno.h>
 
-#if defined (_POSIX)
-#include <sys/types.h>
-#include <sys/stat.h>
-#endif // _POSIX
-
 #if defined (_WIN)
 #include <windows.h>
 #include <psapi.h>
 #endif // _WIN
 
-#define RESTORE_VERSION_MIN 320
-#define RESTORE_VERSION_CUR 330
+#define RESTORE_VERSION_MIN 340
+#define RESTORE_VERSION_CUR 350
 
 int cycle_restore (hashcat_ctx_t *hashcat_ctx);
 

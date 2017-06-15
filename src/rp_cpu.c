@@ -9,7 +9,18 @@
 #include "rp_cpu.h"
 
 #define NEXT_RULEPOS(rp)      if (++(rp) == rule_len) return (RULE_RC_SYNTAX_ERROR)
-#define NEXT_RPTOI(r,rp,up)   if (((up) = conv_ctoi ((r)[(rp)])) == -1) return (RULE_RC_SYNTAX_ERROR)
+#define NEXT_RPTOI(r,rp,up)   if (((up) = conv_pos ((r)[(rp)], pos_mem)) == -1) return (RULE_RC_SYNTAX_ERROR)
+
+static int conv_pos (const u8 c, const int pos_mem) {
+  if (c == RULE_LAST_REJECTED_SAVED_POS)
+  {
+    return pos_mem;
+  }
+  else
+  {
+    return conv_ctoi (c);
+  }
+}
 
 static void MANGLE_TOGGLE_AT (char *arr, const int pos)
 {
@@ -199,7 +210,7 @@ static int mangle_omit (char arr[BLOCK_SIZE], int arr_len, int upos, int ulen)
 {
   if (upos >= arr_len) return (arr_len);
 
-  if ((upos + ulen) >= arr_len) return (arr_len);
+  if ((upos + ulen) > arr_len) return (arr_len);
 
   int arr_pos;
 
@@ -213,7 +224,7 @@ static int mangle_omit (char arr[BLOCK_SIZE], int arr_len, int upos, int ulen)
 
 static int mangle_insert (char arr[BLOCK_SIZE], int arr_len, int upos, char c)
 {
-  if (upos >= arr_len) return (arr_len);
+  if (upos > arr_len) return (arr_len);
 
   if ((arr_len + 1) >= BLOCK_SIZE) return (arr_len);
 
@@ -431,7 +442,7 @@ static int mangle_chr_decr (char arr[BLOCK_SIZE], int arr_len, int upos)
   return (arr_len);
 }
 
-static int mangle_title (char arr[BLOCK_SIZE], int arr_len)
+static int mangle_title_sep (char arr[BLOCK_SIZE], int arr_len, char c)
 {
   int upper_next = 1;
 
@@ -439,7 +450,7 @@ static int mangle_title (char arr[BLOCK_SIZE], int arr_len)
 
   for (pos = 0; pos < arr_len; pos++)
   {
-    if (arr[pos] == ' ')
+    if (arr[pos] == c)
     {
       upper_next = 1;
 
@@ -464,6 +475,7 @@ static int mangle_title (char arr[BLOCK_SIZE], int arr_len)
 int _old_apply_rule (char *rule, int rule_len, char in[BLOCK_SIZE], int in_len, char out[BLOCK_SIZE])
 {
   char mem[BLOCK_SIZE] = { 0 };
+  int pos_mem = -1;
 
   if (in == NULL) return (RULE_RC_REJECT_ERROR);
 
@@ -702,8 +714,13 @@ int _old_apply_rule (char *rule, int rule_len, char in[BLOCK_SIZE], int in_len, 
         if ((upos >= 1) && ((upos + 0) < out_len)) mangle_overstrike (out, out_len, upos, out[upos - 1]);
         break;
 
+      case RULE_OP_MANGLE_TITLE_SEP:
+        NEXT_RULEPOS (rule_pos);
+        out_len = mangle_title_sep (out, out_len, rule[rule_pos]);
+        break;
+
       case RULE_OP_MANGLE_TITLE:
-        out_len = mangle_title (out, out_len);
+        out_len = mangle_title_sep (out, out_len, ' ');
         break;
 
       case RULE_OP_MANGLE_EXTRACT_MEMORY:
@@ -719,14 +736,14 @@ int _old_apply_rule (char *rule, int rule_len, char in[BLOCK_SIZE], int in_len, 
 
       case RULE_OP_MANGLE_APPEND_MEMORY:
         if (mem_len < 1) return (RULE_RC_REJECT_ERROR);
-        if ((out_len + mem_len) > BLOCK_SIZE) return (RULE_RC_REJECT_ERROR);
+        if ((out_len + mem_len) >= BLOCK_SIZE) return (RULE_RC_REJECT_ERROR);
         memcpy (out + out_len, mem, mem_len);
         out_len += mem_len;
         break;
 
       case RULE_OP_MANGLE_PREPEND_MEMORY:
         if (mem_len < 1) return (RULE_RC_REJECT_ERROR);
-        if ((mem_len + out_len) > BLOCK_SIZE) return (RULE_RC_REJECT_ERROR);
+        if ((mem_len + out_len) >= BLOCK_SIZE) return (RULE_RC_REJECT_ERROR);
         memcpy (mem + mem_len, out, out_len);
         out_len += mem_len;
         memcpy (out, mem, out_len);
@@ -749,6 +766,12 @@ int _old_apply_rule (char *rule, int rule_len, char in[BLOCK_SIZE], int in_len, 
         if (out_len < upos) return (RULE_RC_REJECT_ERROR);
         break;
 
+      case RULE_OP_REJECT_EQUAL:
+        NEXT_RULEPOS (rule_pos);
+        NEXT_RPTOI (rule, rule_pos, upos);
+        if (out_len != upos) return (RULE_RC_REJECT_ERROR);
+        break;
+
       case RULE_OP_REJECT_CONTAIN:
         NEXT_RULEPOS (rule_pos);
         if (strchr (out, rule[rule_pos]) != NULL) return (RULE_RC_REJECT_ERROR);
@@ -756,7 +779,15 @@ int _old_apply_rule (char *rule, int rule_len, char in[BLOCK_SIZE], int in_len, 
 
       case RULE_OP_REJECT_NOT_CONTAIN:
         NEXT_RULEPOS (rule_pos);
-        if (strchr (out, rule[rule_pos]) == NULL) return (RULE_RC_REJECT_ERROR);
+        char *match = strchr (out, rule[rule_pos]);
+        if (match != NULL)
+        {
+          pos_mem = (int)(match - out);
+        }
+        else
+        {
+          return (RULE_RC_REJECT_ERROR);
+        }
         break;
 
       case RULE_OP_REJECT_EQUAL_FIRST:
@@ -782,7 +813,15 @@ int _old_apply_rule (char *rule, int rule_len, char in[BLOCK_SIZE], int in_len, 
         NEXT_RPTOI (rule, rule_pos, upos);
         if ((upos + 1) > out_len) return (RULE_RC_REJECT_ERROR);
         NEXT_RULEPOS (rule_pos);
-        int c; int cnt; for (c = 0, cnt = 0; c < out_len; c++) if (out[c] == rule[rule_pos]) cnt++;
+        int c; int cnt;
+        for (c = 0, cnt = 0; c < out_len && cnt < upos; c++) {
+          if (out[c] == rule[rule_pos])
+          {
+            cnt++;
+            pos_mem = c;
+          }
+        }
+
         if (cnt < upos) return (RULE_RC_REJECT_ERROR);
         break;
 

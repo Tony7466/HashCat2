@@ -3,22 +3,20 @@
  * License.....: MIT
  */
 
-#define _SHA512_
-
 #include "inc_vendor.cl"
 #include "inc_hash_constants.h"
 #include "inc_hash_functions.cl"
 #include "inc_types.cl"
 #include "inc_common.cl"
 
-#include "inc_cipher_aes256.cl"
-#include "inc_cipher_twofish256.cl"
-#include "inc_cipher_serpent256.cl"
+#include "inc_cipher_aes.cl"
+#include "inc_cipher_twofish.cl"
+#include "inc_cipher_serpent.cl"
 
 #include "inc_truecrypt_crc32.cl"
 #include "inc_truecrypt_xts.cl"
 
-__constant u64 k_sha512[80] =
+__constant u64a k_sha512[80] =
 {
   SHA512C00, SHA512C01, SHA512C02, SHA512C03,
   SHA512C04, SHA512C05, SHA512C06, SHA512C07,
@@ -42,7 +40,7 @@ __constant u64 k_sha512[80] =
   SHA512C4c, SHA512C4d, SHA512C4e, SHA512C4f,
 };
 
-static void sha512_transform (const u64 w[16], u64 dgst[8])
+void sha512_transform (const u64 w[16], u64 dgst[8])
 {
   u64 a = dgst[0];
   u64 b = dgst[1];
@@ -130,7 +128,7 @@ static void sha512_transform (const u64 w[16], u64 dgst[8])
   dgst[7] += h;
 }
 
-static void hmac_run (const u64 w1[16], const u64 ipad[8], const u64 opad[8], u64 dgst[8])
+void hmac_run (const u64 w1[16], const u64 ipad[8], const u64 opad[8], u64 dgst[8])
 {
   dgst[0] = ipad[0];
   dgst[1] = ipad[1];
@@ -174,7 +172,7 @@ static void hmac_run (const u64 w1[16], const u64 ipad[8], const u64 opad[8], u6
   sha512_transform (w, dgst);
 }
 
-static void hmac_init (u64 w[16], u64 ipad[8], u64 opad[8])
+void hmac_init (u64 w[16], u64 ipad[8], u64 opad[8])
 {
   w[ 0] ^= 0x3636363636363636;
   w[ 1] ^= 0x3636363636363636;
@@ -233,7 +231,7 @@ static void hmac_init (u64 w[16], u64 ipad[8], u64 opad[8])
   sha512_transform (w, opad);
 }
 
-static u32 u8add (const u32 a, const u32 b)
+u32 u8add (const u32 a, const u32 b)
 {
   const u32 a1 = (a >>  0) & 0xff;
   const u32 a2 = (a >>  8) & 0xff;
@@ -300,22 +298,22 @@ __kernel void m06221_init (__global pw_t *pws, __global const kernel_rule_t *rul
    * keyfile
    */
 
-  w0[0] = u8add (w0[0], esalt_bufs[salt_pos].keyfile_buf[ 0]);
-  w0[1] = u8add (w0[1], esalt_bufs[salt_pos].keyfile_buf[ 1]);
-  w0[2] = u8add (w0[2], esalt_bufs[salt_pos].keyfile_buf[ 2]);
-  w0[3] = u8add (w0[3], esalt_bufs[salt_pos].keyfile_buf[ 3]);
-  w1[0] = u8add (w1[0], esalt_bufs[salt_pos].keyfile_buf[ 4]);
-  w1[1] = u8add (w1[1], esalt_bufs[salt_pos].keyfile_buf[ 5]);
-  w1[2] = u8add (w1[2], esalt_bufs[salt_pos].keyfile_buf[ 6]);
-  w1[3] = u8add (w1[3], esalt_bufs[salt_pos].keyfile_buf[ 7]);
-  w2[0] = u8add (w2[0], esalt_bufs[salt_pos].keyfile_buf[ 8]);
-  w2[1] = u8add (w2[1], esalt_bufs[salt_pos].keyfile_buf[ 9]);
-  w2[2] = u8add (w2[2], esalt_bufs[salt_pos].keyfile_buf[10]);
-  w2[3] = u8add (w2[3], esalt_bufs[salt_pos].keyfile_buf[11]);
-  w3[0] = u8add (w3[0], esalt_bufs[salt_pos].keyfile_buf[12]);
-  w3[1] = u8add (w3[1], esalt_bufs[salt_pos].keyfile_buf[13]);
-  w3[2] = u8add (w3[2], esalt_bufs[salt_pos].keyfile_buf[14]);
-  w3[3] = u8add (w3[3], esalt_bufs[salt_pos].keyfile_buf[15]);
+  w0[0] = u8add (w0[0], esalt_bufs[digests_offset].keyfile_buf[ 0]);
+  w0[1] = u8add (w0[1], esalt_bufs[digests_offset].keyfile_buf[ 1]);
+  w0[2] = u8add (w0[2], esalt_bufs[digests_offset].keyfile_buf[ 2]);
+  w0[3] = u8add (w0[3], esalt_bufs[digests_offset].keyfile_buf[ 3]);
+  w1[0] = u8add (w1[0], esalt_bufs[digests_offset].keyfile_buf[ 4]);
+  w1[1] = u8add (w1[1], esalt_bufs[digests_offset].keyfile_buf[ 5]);
+  w1[2] = u8add (w1[2], esalt_bufs[digests_offset].keyfile_buf[ 6]);
+  w1[3] = u8add (w1[3], esalt_bufs[digests_offset].keyfile_buf[ 7]);
+  w2[0] = u8add (w2[0], esalt_bufs[digests_offset].keyfile_buf[ 8]);
+  w2[1] = u8add (w2[1], esalt_bufs[digests_offset].keyfile_buf[ 9]);
+  w2[2] = u8add (w2[2], esalt_bufs[digests_offset].keyfile_buf[10]);
+  w2[3] = u8add (w2[3], esalt_bufs[digests_offset].keyfile_buf[11]);
+  w3[0] = u8add (w3[0], esalt_bufs[digests_offset].keyfile_buf[12]);
+  w3[1] = u8add (w3[1], esalt_bufs[digests_offset].keyfile_buf[13]);
+  w3[2] = u8add (w3[2], esalt_bufs[digests_offset].keyfile_buf[14]);
+  w3[3] = u8add (w3[3], esalt_bufs[digests_offset].keyfile_buf[15]);
 
   /**
    * salt
@@ -325,14 +323,14 @@ __kernel void m06221_init (__global pw_t *pws, __global const kernel_rule_t *rul
 
   // swap fehlt
 
-  salt_buf[ 0] = ((u64) swap32 (esalt_bufs[salt_pos].salt_buf[ 0])) << 32 | (u64) swap32 (esalt_bufs[salt_pos].salt_buf[ 1]);
-  salt_buf[ 1] = ((u64) swap32 (esalt_bufs[salt_pos].salt_buf[ 2])) << 32 | (u64) swap32 (esalt_bufs[salt_pos].salt_buf[ 3]);
-  salt_buf[ 2] = ((u64) swap32 (esalt_bufs[salt_pos].salt_buf[ 4])) << 32 | (u64) swap32 (esalt_bufs[salt_pos].salt_buf[ 5]);
-  salt_buf[ 3] = ((u64) swap32 (esalt_bufs[salt_pos].salt_buf[ 6])) << 32 | (u64) swap32 (esalt_bufs[salt_pos].salt_buf[ 7]);
-  salt_buf[ 4] = ((u64) swap32 (esalt_bufs[salt_pos].salt_buf[ 8])) << 32 | (u64) swap32 (esalt_bufs[salt_pos].salt_buf[ 9]);
-  salt_buf[ 5] = ((u64) swap32 (esalt_bufs[salt_pos].salt_buf[10])) << 32 | (u64) swap32 (esalt_bufs[salt_pos].salt_buf[11]);
-  salt_buf[ 6] = ((u64) swap32 (esalt_bufs[salt_pos].salt_buf[12])) << 32 | (u64) swap32 (esalt_bufs[salt_pos].salt_buf[13]);
-  salt_buf[ 7] = ((u64) swap32 (esalt_bufs[salt_pos].salt_buf[14])) << 32 | (u64) swap32 (esalt_bufs[salt_pos].salt_buf[15]);
+  salt_buf[ 0] = ((u64) swap32 (esalt_bufs[digests_offset].salt_buf[ 0])) << 32 | (u64) swap32 (esalt_bufs[digests_offset].salt_buf[ 1]);
+  salt_buf[ 1] = ((u64) swap32 (esalt_bufs[digests_offset].salt_buf[ 2])) << 32 | (u64) swap32 (esalt_bufs[digests_offset].salt_buf[ 3]);
+  salt_buf[ 2] = ((u64) swap32 (esalt_bufs[digests_offset].salt_buf[ 4])) << 32 | (u64) swap32 (esalt_bufs[digests_offset].salt_buf[ 5]);
+  salt_buf[ 3] = ((u64) swap32 (esalt_bufs[digests_offset].salt_buf[ 6])) << 32 | (u64) swap32 (esalt_bufs[digests_offset].salt_buf[ 7]);
+  salt_buf[ 4] = ((u64) swap32 (esalt_bufs[digests_offset].salt_buf[ 8])) << 32 | (u64) swap32 (esalt_bufs[digests_offset].salt_buf[ 9]);
+  salt_buf[ 5] = ((u64) swap32 (esalt_bufs[digests_offset].salt_buf[10])) << 32 | (u64) swap32 (esalt_bufs[digests_offset].salt_buf[11]);
+  salt_buf[ 6] = ((u64) swap32 (esalt_bufs[digests_offset].salt_buf[12])) << 32 | (u64) swap32 (esalt_bufs[digests_offset].salt_buf[13]);
+  salt_buf[ 7] = ((u64) swap32 (esalt_bufs[digests_offset].salt_buf[14])) << 32 | (u64) swap32 (esalt_bufs[digests_offset].salt_buf[15]);
   salt_buf[ 8] = 0;
   salt_buf[ 9] = 0;
   salt_buf[10] = 0;
@@ -519,12 +517,60 @@ __kernel void m06221_loop (__global pw_t *pws, __global const kernel_rule_t *rul
 
 __kernel void m06221_comp (__global pw_t *pws, __global const kernel_rule_t *rules_buf, __global const comb_t *combs_buf, __global const bf_t *bfs_buf, __global tc64_tmp_t *tmps, __global void *hooks, __global const u32 *bitmaps_buf_s1_a, __global const u32 *bitmaps_buf_s1_b, __global const u32 *bitmaps_buf_s1_c, __global const u32 *bitmaps_buf_s1_d, __global const u32 *bitmaps_buf_s2_a, __global const u32 *bitmaps_buf_s2_b, __global const u32 *bitmaps_buf_s2_c, __global const u32 *bitmaps_buf_s2_d, __global plain_t *plains_buf, __global const digest_t *digests_buf, __global u32 *hashes_shown, __global const salt_t *salt_bufs, __global tc_t *esalt_bufs, __global u32 *d_return_buf, __global u32 *d_scryptV0_buf, __global u32 *d_scryptV1_buf, __global u32 *d_scryptV2_buf, __global u32 *d_scryptV3_buf, const u32 bitmap_mask, const u32 bitmap_shift1, const u32 bitmap_shift2, const u32 salt_pos, const u32 loop_pos, const u32 loop_cnt, const u32 il_cnt, const u32 digests_cnt, const u32 digests_offset, const u32 combs_mode, const u32 gid_max)
 {
-  /**
-   * base
-   */
-
   const u32 gid = get_global_id (0);
   const u32 lid = get_local_id (0);
+  const u32 lsz = get_local_size (0);
+
+  /**
+   * aes shared
+   */
+
+  #ifdef REAL_SHM
+
+  __local u32 s_td0[256];
+  __local u32 s_td1[256];
+  __local u32 s_td2[256];
+  __local u32 s_td3[256];
+  __local u32 s_td4[256];
+
+  __local u32 s_te0[256];
+  __local u32 s_te1[256];
+  __local u32 s_te2[256];
+  __local u32 s_te3[256];
+  __local u32 s_te4[256];
+
+  for (u32 i = lid; i < 256; i += lsz)
+  {
+    s_td0[i] = td0[i];
+    s_td1[i] = td1[i];
+    s_td2[i] = td2[i];
+    s_td3[i] = td3[i];
+    s_td4[i] = td4[i];
+
+    s_te0[i] = te0[i];
+    s_te1[i] = te1[i];
+    s_te2[i] = te2[i];
+    s_te3[i] = te3[i];
+    s_te4[i] = te4[i];
+  }
+
+  barrier (CLK_LOCAL_MEM_FENCE);
+
+  #else
+
+  __constant u32a *s_td0 = td0;
+  __constant u32a *s_td1 = td1;
+  __constant u32a *s_td2 = td2;
+  __constant u32a *s_td3 = td3;
+  __constant u32a *s_td4 = td4;
+
+  __constant u32a *s_te0 = te0;
+  __constant u32a *s_te1 = te1;
+  __constant u32a *s_te2 = te2;
+  __constant u32a *s_te3 = te3;
+  __constant u32a *s_te4 = te4;
+
+  #endif
 
   if (gid >= gid_max) return;
 
@@ -550,18 +596,18 @@ __kernel void m06221_comp (__global pw_t *pws, __global const kernel_rule_t *rul
   ukey2[6] = swap32 (h32_from_64 (tmps[gid].out[ 7]));
   ukey2[7] = swap32 (l32_from_64 (tmps[gid].out[ 7]));
 
-  if (verify_header_aes (esalt_bufs, ukey1, ukey2) == 1)
+  if (verify_header_aes (esalt_bufs, ukey1, ukey2, s_te0, s_te1, s_te2, s_te3, s_te4, s_td0, s_td1, s_td2, s_td3, s_td4) == 1)
   {
-    mark_hash (plains_buf, d_return_buf, salt_pos, 0, 0, gid, 0);
+    mark_hash (plains_buf, d_return_buf, salt_pos, digests_cnt, 0, 0, gid, 0);
   }
 
   if (verify_header_serpent (esalt_bufs, ukey1, ukey2) == 1)
   {
-    mark_hash (plains_buf, d_return_buf, salt_pos, 0, 0, gid, 0);
+    mark_hash (plains_buf, d_return_buf, salt_pos, digests_cnt, 0, 0, gid, 0);
   }
 
   if (verify_header_twofish (esalt_bufs, ukey1, ukey2) == 1)
   {
-    mark_hash (plains_buf, d_return_buf, salt_pos, 0, 0, gid, 0);
+    mark_hash (plains_buf, d_return_buf, salt_pos, digests_cnt, 0, 0, gid, 0);
   }
 }

@@ -627,3 +627,28 @@ typedef enum mysql323_constants
   MYSQL323_B=0x12345671u
 
 } mysql323_constants_t;
+
+typedef enum fortigate_constants
+{
+  FORTIGATE_A=0x2eba88a3,
+  FORTIGATE_B=0x4ab04c42,
+  FORTIGATE_C=0xc1307953,
+  FORTIGATE_D=0x3fcc0731,
+  FORTIGATE_E=0x299032a1,
+  FORTIGATE_F=0x705b81a9
+
+} fortigate_constants_t;
+
+typedef enum blake2b_constants
+{
+  BLAKE2B_IV_00=0x6a09e667f3bcc908,
+  BLAKE2B_IV_01=0xbb67ae8584caa73b,
+  BLAKE2B_IV_02=0x3c6ef372fe94f82b,
+  BLAKE2B_IV_03=0xa54ff53a5f1d36f1,
+  BLAKE2B_IV_04=0x510e527fade682d1,
+  BLAKE2B_IV_05=0x9b05688c2b3e6c1f,
+  BLAKE2B_IV_06=0x1f83d9abfb41bd6b,
+  BLAKE2B_IV_07=0x5be0cd19137e2179
+
+} blake2b_constants_t;
+

@@ -12,6 +12,12 @@
 #include <unistd.h>
 #include <time.h>
 #include <fcntl.h>
+#include <ctype.h>
+
+bool overflow_check_u32_add (const u32 a, const u32 b);
+bool overflow_check_u32_mul (const u32 a, const u32 b);
+bool overflow_check_u64_add (const u64 a, const u64 b);
+bool overflow_check_u64_mul (const u64 a, const u64 b);
 
 bool is_power_of_2 (const u32 v);
 
@@ -39,5 +45,18 @@ int hc_fstat (int fd, hc_stat_t *buf);
 
 void  hc_qsort_r (void *base, size_t nmemb, size_t size, int (*compar) (const void *, const void *, void *), void *arg);
 void *hc_bsearch_r (const void *key, const void *base, size_t nmemb, size_t size, int (*compar) (const void *, const void *, void *), void *arg);
+
+bool hc_path_is_file (const char *path);
+bool hc_path_is_directory (const char *path);
+bool hc_path_is_empty (const char *path);
+bool hc_path_exist (const char *path);
+bool hc_path_read (const char *path);
+bool hc_path_write (const char *path);
+bool hc_path_create (const char *path);
+
+bool hc_string_is_digit (const char *s);
+
+void hc_string_trim_trailing (char *s);
+void hc_string_trim_leading (char *s);
 
 #endif // _SHARED_H

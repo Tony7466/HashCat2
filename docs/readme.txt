@@ -1,12 +1,12 @@
-hashcat v3.30
-=============
+hashcat v3.6.0
+==============
 
-AMD users on Windows require "AMD Radeon Software Crimson Edition" (15.12 or later)
-AMD users on Linux require "AMDGPU-Pro Driver" (16.40 or later)
-Intel CPU users require "OpenCL Runtime for Intel Core and Intel Xeon Processors" (16.1.1 or later)
-Intel GPU on Windows users require "OpenCL Driver for Intel Iris and Intel HD Graphics"
-Intel GPU on Linux users require "OpenCL 2.0 GPU Driver Package for Linux" (2.0 or later)
-NVidia users require "NVIDIA Driver" (367.x or later)
+AMD GPUs on Windows require "AMD Radeon Software Crimson Edition" (15.12 or later)
+AMD GPUs on Linux require "AMDGPU-PRO Driver" (16.40 or later)
+Intel CPUs require "OpenCL Runtime for Intel Core and Intel Xeon Processors" (16.1.1 or later)
+Intel GPUs on Windows require "OpenCL Driver for Intel Iris and Intel HD Graphics"
+Intel GPUs on Linux require "OpenCL 2.0 GPU Driver Package for Linux" (2.0 or later)
+NVIDIA GPUs require "NVIDIA Driver" (367.x or later)
 
 ##
 ## Features
@@ -31,7 +31,7 @@ NVidia users require "NVIDIA Driver" (367.x or later)
 - Supports automatic keyspace ordering markov-chains
 - Built-in benchmarking system
 - Integrated thermal watchdog
-- 160+ Hash-types implemented with performance in mind
+- 200+ Hash-types implemented with performance in mind
 
 ##
 ## Hash-Types
@@ -46,28 +46,35 @@ NVidia users require "NVIDIA Driver" (367.x or later)
 - SHA-384
 - SHA-512
 - SHA-3 (Keccak)
+- BLAKE2b-512
 - SipHash
-- RipeMD160
+- Skip32
+- RIPEMD-160
 - Whirlpool
 - DES (PT = $salt, key = $pass)
 - 3DES (PT = $salt, key = $pass)
+- ChaCha20
 - GOST R 34.11-94
 - GOST R 34.11-2012 (Streebog) 256-bit
 - GOST R 34.11-2012 (Streebog) 512-bit
-- Double MD5
-- Double SHA1
 - md5($pass.$salt)
 - md5($salt.$pass)
 - md5(unicode($pass).$salt)
 - md5($salt.unicode($pass))
-- md5(sha1($pass))
-- md5($salt.md5($pass))
 - md5($salt.$pass.$salt)
+- md5($salt.md5($pass))
+- md5($salt.md5($salt.$pass))
+- md5($salt.md5($pass.$salt))
+- md5(md5($pass))
+- md5(md5($pass).md5($salt))
 - md5(strtoupper(md5($pass)))
+- md5(sha1($pass))
 - sha1($pass.$salt)
 - sha1($salt.$pass)
 - sha1(unicode($pass).$salt)
 - sha1($salt.unicode($pass))
+- sha1(sha1($pass))
+- sha1($salt.sha1($pass))
 - sha1(md5($pass))
 - sha1($salt.$pass.$salt)
 - sha1(CX)
@@ -93,21 +100,21 @@ NVidia users require "NVIDIA Driver" (367.x or later)
 - PBKDF2-HMAC-SHA512
 - MyBB
 - phpBB3
-- SMF
+- SMF (Simple Machines Forum)
 - vBulletin
-- IPB
-- Woltlab Burning Board
+- IPB (Invision Power Board)
+- WBB (Woltlab Burning Board)
 - osCommerce
 - xt:Commerce
 - PrestaShop
-- Mediawiki B type
-- Wordpress
-- Drupal
+- MediaWiki B type
+- WordPress
+- Drupal 7
 - Joomla
 - PHPS
 - Django (SHA-1)
 - Django (PBKDF2-SHA256)
-- EPiServer
+- Episerver
 - ColdFusion 10+
 - Apache MD5-APR
 - MySQL
@@ -122,22 +129,24 @@ NVidia users require "NVIDIA Driver" (367.x or later)
 - IKE-PSK
 - IPMI2 RAKP
 - iSCSI CHAP
-- Cram MD5
-- MySQL Challenge-Response Authentication (SHA1)
-- PostgreSQL Challenge-Response Authentication (MD5)
-- SIP Digest Authentication (MD5)
+- CRAM-MD5
+- MySQL CRAM (SHA1)
+- PostgreSQL CRAM (MD5)
+- SIP digest authentication (MD5)
 - WPA
 - WPA2
 - NetNTLMv1
-- NetNTLMv1 + ESS
+- NetNTLMv1+ESS
 - NetNTLMv2
 - Kerberos 5 AS-REQ Pre-Auth etype 23
 - Kerberos 5 TGS-REP etype 23
 - Netscape LDAP SHA/SSHA
+- FileZilla Server
 - LM
 - NTLM
 - Domain Cached Credentials (DCC), MS Cache
 - Domain Cached Credentials 2 (DCC2), MS Cache 2
+- DPAPI masterkey file v1 and v2
 - MS-AzureSync PBKDF2-HMAC-SHA256
 - descrypt
 - bsdicrypt
@@ -153,26 +162,33 @@ NVidia users require "NVIDIA Driver" (367.x or later)
 - OSX v10.8
 - OSX v10.9
 - OSX v10.10
+- iTunes backup < 10.0
+- iTunes backup >= 10.0
 - AIX {smd5}
 - AIX {ssha1}
 - AIX {ssha256}
 - AIX {ssha512}
-- Cisco-ASA
-- Cisco-PIX
-- Cisco-IOS
-- Cisco $8$
-- Cisco $9$
+- Cisco-ASA MD5
+- Cisco-PIX MD5
+- Cisco-IOS $1$ (MD5)
+- Cisco-IOS type 4 (SHA256)
+- Cisco $8$ (PBKDF2-SHA256)
+- Cisco $9$ (scrypt)
 - Juniper IVE
-- Juniper Netscreen/SSG (ScreenOS)
-- Android PIN
-- Windows 8+ phone PIN/Password
+- Juniper NetScreen/SSG (ScreenOS)
+- Juniper/NetBSD sha1crypt
+- Fortigate (FortiOS)
+- Samsung Android Password/PIN
+- Windows Phone 8+ PIN/password
 - GRUB 2
 - CRC32
 - RACF
 - Radmin2
 - Redmine
+- PunBB
 - OpenCart
-- Citrix Netscaler
+- Atlassian (PBKDF2-HMAC-SHA1)
+- Citrix NetScaler
 - SAP CODVN B (BCODE)
 - SAP CODVN F/G (PASSCODE)
 - SAP CODVN H (PWDSALTEDHASH) iSSHA-1
@@ -184,7 +200,7 @@ NVidia users require "NVIDIA Driver" (367.x or later)
 - RAR3-hp
 - RAR5
 - AxCrypt
-- AxCrypt in memory SHA1
+- AxCrypt in-memory SHA1
 - PDF 1.1 - 1.3 (Acrobat 2 - 4)
 - PDF 1.4 - 1.6 (Acrobat 5 - 8)
 - PDF 1.7 Level 3 (Acrobat 9)
@@ -199,18 +215,23 @@ NVidia users require "NVIDIA Driver" (367.x or later)
 - Lotus Notes/Domino 8
 - Bitcoin/Litecoin wallet.dat
 - Blockchain, My Wallet
+- Blockchain, My Wallet, V2
 - 1Password, agilekeychain
 - 1Password, cloudkeychain
-- Lastpass
+- LastPass
 - Password Safe v2
 - Password Safe v3
-- Keepass 1 (AES/Twofish) and Keepass 2 (AES)
-- Plaintext
+- KeePass 1 (AES/Twofish) and KeePass 2 (AES)
+- JKS Java Key Store Private Keys (SHA1)
+- Ethereum Wallet, PBKDF2-HMAC-SHA256
+- Ethereum Wallet, SCRYPT
 - eCryptfs
 - Android FDE <= 4.3
 - Android FDE (Samsung DEK)
 - TrueCrypt
 - VeraCrypt
+- LUKS
+- Plaintext
 
 ##
 ## Attack-Modes

@@ -21,6 +21,8 @@ hashcat (3.60-1) UNRELEASED; urgency=medium
     (https://github.com/hashcat/hashcat/issues/1275).
   * Update patches (reuse work made in Kali).
   * Update copyright file.
+  * Stop installing libhashcat.so. It's not used by the hashcat binary and has
+    no stable API.
 
  -- Raphaël Hertzog <hertzog@debian.org>  Thu, 15 Jun 2017 16:40:38 +0200
 

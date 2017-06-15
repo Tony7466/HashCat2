@@ -110,7 +110,7 @@ int debugfile_init (hashcat_ctx_t *hashcat_ctx)
 
     if (fp == NULL)
     {
-      event_log_error (hashcat_ctx, "Could not open debug-file for writing");
+      event_log_error (hashcat_ctx, "Could not open --debug-file file for writing.");
 
       return -1;
     }
@@ -119,7 +119,7 @@ int debugfile_init (hashcat_ctx_t *hashcat_ctx)
     {
       fclose (fp);
 
-      event_log_error (hashcat_ctx, "%s: %m", debugfile_ctx->filename);
+      event_log_error (hashcat_ctx, "%s: %s", debugfile_ctx->filename, strerror (errno));
 
       return -1;
     }

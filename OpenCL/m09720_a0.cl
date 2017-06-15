@@ -3,8 +3,6 @@
  * License.....: MIT
  */
 
-#define _OLDOFFICE01_
-
 #define NEW_SIMD_CODE
 
 #include "inc_vendor.cl"
@@ -16,7 +14,7 @@
 #include "inc_rp.cl"
 #include "inc_simd.cl"
 
-static void md5_transform (const u32x w0[4], const u32x w1[4], const u32x w2[4], const u32x w3[4], u32x digest[4])
+void md5_transform (const u32x w0[4], const u32x w1[4], const u32x w2[4], const u32x w3[4], u32x digest[4])
 {
   u32x a = digest[0];
   u32x b = digest[1];
@@ -114,7 +112,7 @@ static void md5_transform (const u32x w0[4], const u32x w1[4], const u32x w2[4],
   digest[3] += d;
 }
 
-static void gen336 (u32x digest_pre[4], u32 salt_buf[4], u32x digest[4])
+void gen336 (u32x digest_pre[4], u32 salt_buf[4], u32x digest[4])
 {
   u32x digest_t0[2];
   u32x digest_t1[2];
@@ -518,8 +516,8 @@ __kernel void m09720_m04 (__global pw_t *pws, __global const kernel_rule_t *rule
      * md5
      */
 
-    make_unicode (w1, w2, w3);
-    make_unicode (w0, w0, w1);
+    make_utf16le (w1, w2, w3);
+    make_utf16le (w0, w0, w1);
 
     w3[2] = out_len * 8 * 2;
     w3[3] = 0;
@@ -636,8 +634,8 @@ __kernel void m09720_s04 (__global pw_t *pws, __global const kernel_rule_t *rule
      * md5
      */
 
-    make_unicode (w1, w2, w3);
-    make_unicode (w0, w0, w1);
+    make_utf16le (w1, w2, w3);
+    make_utf16le (w0, w0, w1);
 
     w3[2] = out_len * 8 * 2;
     w3[3] = 0;

@@ -3,8 +3,6 @@
  * License.....: MIT
  */
 
-#define _OLDOFFICE34_
-
 #define NEW_SIMD_CODE
 
 #include "inc_vendor.cl"
@@ -16,7 +14,7 @@
 #include "inc_rp.cl"
 #include "inc_simd.cl"
 
-static void sha1_transform (const u32x w0[4], const u32x w1[4], const u32x w2[4], const u32x w3[4], u32x digest[5])
+void sha1_transform (const u32x w0[4], const u32x w1[4], const u32x w2[4], const u32x w3[4], u32x digest[5])
 {
   u32x A = digest[0];
   u32x B = digest[1];
@@ -204,8 +202,8 @@ __kernel void m09820_m04 (__global pw_t *pws, __global const kernel_rule_t *rule
      * sha1
      */
 
-    make_unicode (w1, w2, w3);
-    make_unicode (w0, w0, w1);
+    make_utf16le (w1, w2, w3);
+    make_utf16le (w0, w0, w1);
 
     const u32x pw_salt_len = (out_len * 2) + 16;
 
@@ -350,8 +348,8 @@ __kernel void m09820_s04 (__global pw_t *pws, __global const kernel_rule_t *rule
      * sha1
      */
 
-    make_unicode (w1, w2, w3);
-    make_unicode (w0, w0, w1);
+    make_utf16le (w1, w2, w3);
+    make_utf16le (w0, w0, w1);
 
     const u32x pw_salt_len = (out_len * 2) + 16;
 

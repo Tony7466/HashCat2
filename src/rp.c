@@ -58,7 +58,8 @@ static const char grp_op_chr[] =
 {
   RULE_OP_MANGLE_APPEND,
   RULE_OP_MANGLE_PREPEND,
-  RULE_OP_MANGLE_PURGECHAR
+  RULE_OP_MANGLE_PURGECHAR,
+  RULE_OP_MANGLE_TITLE_SEP
 };
 
 static const char grp_op_chr_chr[] =
@@ -444,6 +445,11 @@ int cpu_rule_to_kernel_rule (char *rule_buf, u32 rule_len, kernel_rule_t *rule)
         SET_NAME (rule, rule_buf[rule_pos]);
         break;
 
+      case RULE_OP_MANGLE_TITLE_SEP:
+        SET_NAME (rule, rule_buf[rule_pos]);
+        SET_P0   (rule, rule_buf[rule_pos]);
+        break;
+
       default:
         return -1;
     }
@@ -662,7 +668,13 @@ int kernel_rule_to_cpu_rule (char *rule_buf, kernel_rule_t *rule)
         rule_buf[rule_pos] = rule_cmd;
         break;
 
+      case RULE_OP_MANGLE_TITLE_SEP:
+        rule_buf[rule_pos] = rule_cmd;
+        GET_P0 (rule);
+        break;
+
       case 0:
+        if (rule_pos == 0) return -1;
         return rule_pos - 1;
 
       default:
@@ -670,12 +682,7 @@ int kernel_rule_to_cpu_rule (char *rule_buf, kernel_rule_t *rule)
     }
   }
 
-  if (rule_cnt > 0)
-  {
-    return rule_pos;
-  }
-
-  return -1;
+  return rule_pos;
 }
 
 bool kernel_rules_has_noop (const kernel_rule_t *kernel_rules_buf, const u32 kernel_rules_cnt)
@@ -733,7 +740,12 @@ int kernel_rules_load (hashcat_ctx_t *hashcat_ctx, kernel_rule_t **out_buf, u32 
 
     if ((fp = fopen (rp_file, "rb")) == NULL)
     {
-      event_log_error (hashcat_ctx, "%s: %m", rp_file);
+      event_log_error (hashcat_ctx, "%s: %s", rp_file, strerror (errno));
+
+      hcfree (all_kernel_rules_cnt);
+      hcfree (all_kernel_rules_buf);
+
+      hcfree (rule_buf);
 
       return -1;
     }
@@ -823,7 +835,7 @@ int kernel_rules_load (hashcat_ctx_t *hashcat_ctx, kernel_rule_t **out_buf, u32 
       {
         if (out_pos == RULES_MAX - 1)
         {
-          // event_log_warning (hashcat_ctx, "Truncating chaining of rule %d and rule %d as maximum number of function calls per rule exceeded", i, in_off);
+          // event_log_warning (hashcat_ctx, "Truncated chaining of rule %d and rule %d - maximum functions per rule exceeded.", i, in_off);
 
           break;
         }
@@ -835,15 +847,17 @@ int kernel_rules_load (hashcat_ctx_t *hashcat_ctx, kernel_rule_t **out_buf, u32 
 
   hcfree (repeats);
 
+  hcfree (all_kernel_rules_cnt);
+  hcfree (all_kernel_rules_buf);
+
   if (kernel_rules_cnt == 0)
   {
-    event_log_error (hashcat_ctx, "No valid rules left");
+    event_log_error (hashcat_ctx, "No valid rules left.");
+
+    hcfree (kernel_rules_buf);
 
     return -1;
   }
-
-  hcfree (all_kernel_rules_cnt);
-  hcfree (all_kernel_rules_buf);
 
   *out_cnt = kernel_rules_cnt;
   *out_buf = kernel_rules_buf;

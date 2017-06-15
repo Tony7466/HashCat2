@@ -3,8 +3,6 @@
  * License.....: MIT
  */
 
-#define _MD4_
-
 #define NEW_SIMD_CODE
 
 #include "inc_vendor.cl"
@@ -83,8 +81,8 @@ __kernel void m01100_m04 (__global pw_t *pws, __global const kernel_rule_t *rule
 
     append_0x80_2x4_VV (w0, w1, out_len);
 
-    make_unicode (w1, w2, w3);
-    make_unicode (w0, w0, w1);
+    make_utf16le (w1, w2, w3);
+    make_utf16le (w0, w0, w1);
 
     w3[2] = out_len * 2 * 8;
     w3[3] = 0;
@@ -314,8 +312,8 @@ __kernel void m01100_s04 (__global pw_t *pws, __global const kernel_rule_t *rule
 
     append_0x80_2x4_VV (w0, w1, out_len);
 
-    make_unicode (w1, w2, w3);
-    make_unicode (w0, w0, w1);
+    make_utf16le (w1, w2, w3);
+    make_utf16le (w0, w0, w1);
 
     w3[2] = out_len * 2 * 8;
     w3[3] = 0;

@@ -19,6 +19,8 @@
 #include "terminal.h"
 #include "hashcat.h"
 
+static const size_t TERMINAL_LINE_LENGTH = 79;
+
 static const char *PROMPT = "[s]tatus [p]ause [r]esume [b]ypass [c]heckpoint [q]uit => ";
 
 void welcome_screen (hashcat_ctx_t *hashcat_ctx, const char *version_tag)
@@ -36,7 +38,7 @@ void welcome_screen (hashcat_ctx_t *hashcat_ctx, const char *version_tag)
     if (user_options->machine_readable == false)
     {
       event_log_info (hashcat_ctx, "%s (%s) starting in benchmark mode...", PROGNAME, version_tag);
-      event_log_info (hashcat_ctx, "");
+      event_log_info (hashcat_ctx, NULL);
     }
     else
     {
@@ -46,22 +48,22 @@ void welcome_screen (hashcat_ctx_t *hashcat_ctx, const char *version_tag)
   else if (user_options->restore == true)
   {
     event_log_info (hashcat_ctx, "%s (%s) starting in restore mode...", PROGNAME, version_tag);
-    event_log_info (hashcat_ctx, "");
+    event_log_info (hashcat_ctx, NULL);
   }
   else if (user_options->speed_only == true)
   {
     event_log_info (hashcat_ctx, "%s (%s) starting in speed-only mode...", PROGNAME, version_tag);
-    event_log_info (hashcat_ctx, "");
+    event_log_info (hashcat_ctx, NULL);
   }
   else if (user_options->progress_only == true)
   {
     event_log_info (hashcat_ctx, "%s (%s) starting in progress-only mode...", PROGNAME, version_tag);
-    event_log_info (hashcat_ctx, "");
+    event_log_info (hashcat_ctx, NULL);
   }
   else
   {
     event_log_info (hashcat_ctx, "%s (%s) starting...", PROGNAME, version_tag);
-    event_log_info (hashcat_ctx, "");
+    event_log_info (hashcat_ctx, NULL);
   }
 }
 
@@ -75,10 +77,11 @@ void goodbye_screen (hashcat_ctx_t *hashcat_ctx, const time_t proc_start, const 
   if (user_options->show        == true) return;
   if (user_options->left        == true) return;
 
-  char start_buf[32], stop_buf[32];
+  char start_buf[32]; memset (start_buf, 0, sizeof (start_buf));
+  char stop_buf[32];  memset (start_buf, 0, sizeof (stop_buf));
 
   event_log_info_nn (hashcat_ctx, "Started: %s", ctime_r (&proc_start, start_buf));
-  event_log_info_nn (hashcat_ctx, "Stopped: %s", ctime_r (&proc_stop, stop_buf));
+  event_log_info_nn (hashcat_ctx, "Stopped: %s", ctime_r (&proc_stop,  stop_buf));
 }
 
 int setup_console ()
@@ -159,7 +162,7 @@ static void keypress (hashcat_ctx_t *hashcat_ctx)
 
     hc_thread_mutex_lock (status_ctx->mux_display);
 
-    event_log_info (hashcat_ctx, "");
+    event_log_info (hashcat_ctx, NULL);
 
     switch (ch)
     {
@@ -167,11 +170,11 @@ static void keypress (hashcat_ctx_t *hashcat_ctx)
       case '\r':
       case '\n':
 
-        event_log_info (hashcat_ctx, "");
+        event_log_info (hashcat_ctx, NULL);
 
         status_display (hashcat_ctx);
 
-        event_log_info (hashcat_ctx, "");
+        event_log_info (hashcat_ctx, NULL);
 
         if (quiet == false) send_prompt ();
 
@@ -179,13 +182,13 @@ static void keypress (hashcat_ctx_t *hashcat_ctx)
 
       case 'b':
 
-        event_log_info (hashcat_ctx, "");
+        event_log_info (hashcat_ctx, NULL);
 
         bypass (hashcat_ctx);
 
-        event_log_info (hashcat_ctx, "Next dictionary / mask in queue selected, bypassing current one");
+        event_log_info (hashcat_ctx, "Next dictionary / mask in queue selected. Bypassing current one.");
 
-        event_log_info (hashcat_ctx, "");
+        event_log_info (hashcat_ctx, NULL);
 
         if (quiet == false) send_prompt ();
 
@@ -193,7 +196,7 @@ static void keypress (hashcat_ctx_t *hashcat_ctx)
 
       case 'p':
 
-        event_log_info (hashcat_ctx, "");
+        event_log_info (hashcat_ctx, NULL);
 
         SuspendThreads (hashcat_ctx);
 
@@ -202,7 +205,7 @@ static void keypress (hashcat_ctx_t *hashcat_ctx)
           event_log_info (hashcat_ctx, "Paused");
         }
 
-        event_log_info (hashcat_ctx, "");
+        event_log_info (hashcat_ctx, NULL);
 
         if (quiet == false) send_prompt ();
 
@@ -210,7 +213,7 @@ static void keypress (hashcat_ctx_t *hashcat_ctx)
 
       case 'r':
 
-        event_log_info (hashcat_ctx, "");
+        event_log_info (hashcat_ctx, NULL);
 
         ResumeThreads (hashcat_ctx);
 
@@ -219,7 +222,7 @@ static void keypress (hashcat_ctx_t *hashcat_ctx)
           event_log_info (hashcat_ctx, "Resumed");
         }
 
-        event_log_info (hashcat_ctx, "");
+        event_log_info (hashcat_ctx, NULL);
 
         if (quiet == false) send_prompt ();
 
@@ -227,20 +230,20 @@ static void keypress (hashcat_ctx_t *hashcat_ctx)
 
       case 'c':
 
-        event_log_info (hashcat_ctx, "");
+        event_log_info (hashcat_ctx, NULL);
 
         stop_at_checkpoint (hashcat_ctx);
 
         if (status_ctx->checkpoint_shutdown == true)
         {
-          event_log_info (hashcat_ctx, "Checkpoint enabled: Will quit at next Restore Point update");
+          event_log_info (hashcat_ctx, "Checkpoint enabled. Will quit at next restore-point update.");
         }
         else
         {
-          event_log_info (hashcat_ctx, "Checkpoint disabled: Restore Point updates will no longer be monitored");
+          event_log_info (hashcat_ctx, "Checkpoint disabled. Restore-point updates will no longer be monitored.");
         }
 
-        event_log_info (hashcat_ctx, "");
+        event_log_info (hashcat_ctx, NULL);
 
         if (quiet == false) send_prompt ();
 
@@ -248,7 +251,7 @@ static void keypress (hashcat_ctx_t *hashcat_ctx)
 
       case 'q':
 
-        event_log_info (hashcat_ctx, "");
+        event_log_info (hashcat_ctx, NULL);
 
         myquit (hashcat_ctx);
 
@@ -350,7 +353,7 @@ int tty_fix()
 }
 #endif
 
-#if defined(__APPLE__) || defined(__FreeBSD__)
+#if defined (__APPLE__) || defined (__FreeBSD__)
 static struct termios savemodes;
 static int havemodes = 0;
 
@@ -462,12 +465,35 @@ int tty_fix()
 }
 #endif
 
+void compress_terminal_line_length (char *out_buf, const size_t keep_from_beginning, const size_t keep_from_end)
+{
+  const size_t target_len = TERMINAL_LINE_LENGTH - keep_from_beginning;
+
+  const size_t out_len = strlen (out_buf);
+
+  if (out_len < target_len) return;
+
+  char *ptr1 = out_buf + target_len - 3 - keep_from_end;
+  char *ptr2 = out_buf + out_len - keep_from_end;
+
+  *ptr1++ = '.';
+  *ptr1++ = '.';
+  *ptr1++ = '.';
+
+  for (size_t i = 0; i < keep_from_end; i++)
+  {
+    *ptr1++ = *ptr2++;
+  }
+
+  *ptr1 = 0;
+}
+
 void opencl_info (hashcat_ctx_t *hashcat_ctx)
 {
   const opencl_ctx_t *opencl_ctx = hashcat_ctx->opencl_ctx;
 
   event_log_info (hashcat_ctx, "OpenCL Info:");
-  event_log_info (hashcat_ctx, "");
+  event_log_info (hashcat_ctx, NULL);
 
   cl_uint         platforms_cnt         = opencl_ctx->platforms_cnt;
   cl_platform_id *platforms             = opencl_ctx->platforms;
@@ -487,7 +513,7 @@ void opencl_info (hashcat_ctx_t *hashcat_ctx)
     event_log_info (hashcat_ctx, "  Vendor  : %s",  platform_vendor);
     event_log_info (hashcat_ctx, "  Name    : %s",  platform_name);
     event_log_info (hashcat_ctx, "  Version : %s",  platform_version);
-    event_log_info (hashcat_ctx, "");
+    event_log_info (hashcat_ctx, NULL);
 
     for (cl_uint devices_idx = 0; devices_idx < devices_cnt; devices_idx++)
     {
@@ -518,7 +544,7 @@ void opencl_info (hashcat_ctx_t *hashcat_ctx)
       event_log_info (hashcat_ctx, "    Memory         : %" PRIu64 "/%" PRIu64 " MB allocatable", device_maxmem_alloc / 1024 / 1024, device_global_mem / 1024 / 1024);
       event_log_info (hashcat_ctx, "    OpenCL Version : %s", device_opencl_version);
       event_log_info (hashcat_ctx, "    Driver Version : %s", driver_version);
-      event_log_info (hashcat_ctx, "");
+      event_log_info (hashcat_ctx, NULL);
     }
   }
 }
@@ -557,7 +583,7 @@ void opencl_info_compact (hashcat_ctx_t *hashcat_ctx)
     }
     else
     {
-      event_log_info (hashcat_ctx, "OpenCL Platform #%u: %s, skipped or no OpenCL compatible devices found", platforms_idx + 1, platform_vendor);
+      event_log_info (hashcat_ctx, "OpenCL Platform #%u: %s, skipped or no OpenCL compatible devices found.", platforms_idx + 1, platform_vendor);
     }
 
     for (cl_uint devices_idx = 0; devices_idx < devices_cnt; devices_idx++)
@@ -582,13 +608,13 @@ void opencl_info_compact (hashcat_ctx_t *hashcat_ctx)
       }
       else
       {
-        event_log_info (hashcat_ctx, "* Device #%u: %s, skipped",
+        event_log_info (hashcat_ctx, "* Device #%u: %s, skipped.",
                   devices_idx + 1,
                   device_name);
       }
     }
 
-    event_log_info (hashcat_ctx, "");
+    event_log_info (hashcat_ctx, NULL);
   }
 }
 
@@ -660,9 +686,13 @@ void status_display_machine_readable (hashcat_ctx_t *hashcat_ctx)
     }
   }
 
+  printf ("REJECTED\t%" PRIu64 "\t", hashcat_status->progress_rejected);
+
   fwrite (EOL, strlen (EOL), 1, stdout);
 
   fflush (stdout);
+
+  status_status_destroy (hashcat_ctx, hashcat_status);
 
   hcfree (hashcat_status);
 }
@@ -719,255 +749,255 @@ void status_display (hashcat_ctx_t *hashcat_ctx)
     hashcat_status->time_estimated_absolute,
     hashcat_status->time_estimated_relative);
 
-  switch (hashcat_status->input_mode)
+  switch (hashcat_status->guess_mode)
   {
-    case INPUT_MODE_STRAIGHT_FILE:
+    case GUESS_MODE_STRAIGHT_FILE:
 
       event_log_info (hashcat_ctx,
-        "Input.Base.......: File (%s)",
-        hashcat_status->input_base);
+        "Guess.Base.......: File (%s)",
+        hashcat_status->guess_base);
 
       break;
 
-    case INPUT_MODE_STRAIGHT_FILE_RULES_FILE:
+    case GUESS_MODE_STRAIGHT_FILE_RULES_FILE:
 
       event_log_info (hashcat_ctx,
-        "Input.Base.......: File (%s)",
-        hashcat_status->input_base);
+        "Guess.Base.......: File (%s)",
+        hashcat_status->guess_base);
 
       event_log_info (hashcat_ctx,
-        "Input.Mod........: Rules (%s)",
-        hashcat_status->input_mod);
+        "Guess.Mod........: Rules (%s)",
+        hashcat_status->guess_mod);
 
       break;
 
-    case INPUT_MODE_STRAIGHT_FILE_RULES_GEN:
+    case GUESS_MODE_STRAIGHT_FILE_RULES_GEN:
 
       event_log_info (hashcat_ctx,
-        "Input.Base.......: File (%s)",
-        hashcat_status->input_base);
+        "Guess.Base.......: File (%s)",
+        hashcat_status->guess_base);
 
       event_log_info (hashcat_ctx,
-        "Input.Mod........: Rules (Generated)");
+        "Guess.Mod........: Rules (Generated)");
 
       break;
 
-    case INPUT_MODE_STRAIGHT_STDIN:
+    case GUESS_MODE_STRAIGHT_STDIN:
 
       event_log_info (hashcat_ctx,
-        "Input.Base.......: Pipe");
+        "Guess.Base.......: Pipe");
 
       break;
 
-    case INPUT_MODE_STRAIGHT_STDIN_RULES_FILE:
+    case GUESS_MODE_STRAIGHT_STDIN_RULES_FILE:
 
       event_log_info (hashcat_ctx,
-        "Input.Base.......: Pipe");
+        "Guess.Base.......: Pipe");
 
       event_log_info (hashcat_ctx,
-        "Input.Mod........: Rules (%s)",
-        hashcat_status->input_mod);
+        "Guess.Mod........: Rules (%s)",
+        hashcat_status->guess_mod);
 
       break;
 
-    case INPUT_MODE_STRAIGHT_STDIN_RULES_GEN:
+    case GUESS_MODE_STRAIGHT_STDIN_RULES_GEN:
 
       event_log_info (hashcat_ctx,
-        "Input.Base.......: Pipe");
+        "Guess.Base.......: Pipe");
 
       event_log_info (hashcat_ctx,
-        "Input.Mod........: Rules (Generated)");
+        "Guess.Mod........: Rules (Generated)");
 
       break;
 
-    case INPUT_MODE_COMBINATOR_BASE_LEFT:
+    case GUESS_MODE_COMBINATOR_BASE_LEFT:
 
       event_log_info (hashcat_ctx,
-        "Input.Base.......: File (%s), Left Side",
-        hashcat_status->input_base);
+        "Guess.Base.......: File (%s), Left Side",
+        hashcat_status->guess_base);
 
       event_log_info (hashcat_ctx,
-        "Input.Mod........: File (%s), Right Side",
-        hashcat_status->input_mod);
+        "Guess.Mod........: File (%s), Right Side",
+        hashcat_status->guess_mod);
 
       break;
 
-    case INPUT_MODE_COMBINATOR_BASE_RIGHT:
+    case GUESS_MODE_COMBINATOR_BASE_RIGHT:
 
       event_log_info (hashcat_ctx,
-        "Input.Base.......: File (%s), Right Side",
-        hashcat_status->input_base);
+        "Guess.Base.......: File (%s), Right Side",
+        hashcat_status->guess_base);
 
       event_log_info (hashcat_ctx,
-        "Input.Mod........: File (%s), Left Side",
-        hashcat_status->input_mod);
+        "Guess.Mod........: File (%s), Left Side",
+        hashcat_status->guess_mod);
 
       break;
 
-    case INPUT_MODE_MASK:
+    case GUESS_MODE_MASK:
 
       event_log_info (hashcat_ctx,
-        "Input.Mask.......: %s [%d]",
-        hashcat_status->input_base,
-        hashcat_status->input_mask_length);
+        "Guess.Mask.......: %s [%d]",
+        hashcat_status->guess_base,
+        hashcat_status->guess_mask_length);
 
       break;
 
-    case INPUT_MODE_MASK_CS:
+    case GUESS_MODE_MASK_CS:
 
       event_log_info (hashcat_ctx,
-        "Input.Mask.......: %s [%d]",
-        hashcat_status->input_base,
-        hashcat_status->input_mask_length);
+        "Guess.Mask.......: %s [%d]",
+        hashcat_status->guess_base,
+        hashcat_status->guess_mask_length);
 
       event_log_info (hashcat_ctx,
-        "Input.Charset....: %s ",
-        hashcat_status->input_charset);
+        "Guess.Charset....: %s ",
+        hashcat_status->guess_charset);
 
       break;
 
-    case INPUT_MODE_HYBRID1:
+    case GUESS_MODE_HYBRID1:
 
       event_log_info (hashcat_ctx,
-        "Input.Base.......: File (%s), Left Side",
-        hashcat_status->input_base);
+        "Guess.Base.......: File (%s), Left Side",
+        hashcat_status->guess_base);
 
       event_log_info (hashcat_ctx,
-        "Input.Mod........: Mask (%s) [%d], Right Side",
-        hashcat_status->input_mod,
-        hashcat_status->input_mask_length);
+        "Guess.Mod........: Mask (%s) [%d], Right Side",
+        hashcat_status->guess_mod,
+        hashcat_status->guess_mask_length);
 
       break;
 
-    case INPUT_MODE_HYBRID1_CS:
+    case GUESS_MODE_HYBRID1_CS:
 
       event_log_info (hashcat_ctx,
-        "Input.Base.......: File (%s), Left Side",
-        hashcat_status->input_base);
+        "Guess.Base.......: File (%s), Left Side",
+        hashcat_status->guess_base);
 
       event_log_info (hashcat_ctx,
-        "Input.Mod........: Mask (%s) [%d], Right Side",
-        hashcat_status->input_mod,
-        hashcat_status->input_mask_length);
+        "Guess.Mod........: Mask (%s) [%d], Right Side",
+        hashcat_status->guess_mod,
+        hashcat_status->guess_mask_length);
 
       event_log_info (hashcat_ctx,
-        "Input.Charset....: %s",
-        hashcat_status->input_charset);
+        "Guess.Charset....: %s",
+        hashcat_status->guess_charset);
 
       break;
 
-    case INPUT_MODE_HYBRID2:
+    case GUESS_MODE_HYBRID2:
 
       event_log_info (hashcat_ctx,
-        "Input.Base.......: File (%s), Right Side",
-        hashcat_status->input_base);
+        "Guess.Base.......: File (%s), Right Side",
+        hashcat_status->guess_base);
 
       event_log_info (hashcat_ctx,
-        "Input.Mod........: Mask (%s) [%d], Left Side",
-        hashcat_status->input_mod,
-        hashcat_status->input_mask_length);
+        "Guess.Mod........: Mask (%s) [%d], Left Side",
+        hashcat_status->guess_mod,
+        hashcat_status->guess_mask_length);
 
       break;
 
-    case INPUT_MODE_HYBRID2_CS:
+    case GUESS_MODE_HYBRID2_CS:
 
       event_log_info (hashcat_ctx,
-        "Input.Base.......: File (%s), Right Side",
-        hashcat_status->input_base);
+        "Guess.Base.......: File (%s), Right Side",
+        hashcat_status->guess_base);
 
       event_log_info (hashcat_ctx,
-        "Input.Mod........: Mask (%s) [%d], Left Side",
-        hashcat_status->input_mod,
-        hashcat_status->input_mask_length);
+        "Guess.Mod........: Mask (%s) [%d], Left Side",
+        hashcat_status->guess_mod,
+        hashcat_status->guess_mask_length);
 
       event_log_info (hashcat_ctx,
-        "Input.Charset....: %s",
-        hashcat_status->input_charset);
+        "Guess.Charset....: %s",
+        hashcat_status->guess_charset);
 
       break;
   }
 
-  switch (hashcat_status->input_mode)
+  switch (hashcat_status->guess_mode)
   {
-    case INPUT_MODE_STRAIGHT_FILE:
+    case GUESS_MODE_STRAIGHT_FILE:
 
       event_log_info (hashcat_ctx,
-        "Input.Queue......: %d/%d (%.02f%%)",
-        hashcat_status->input_base_offset,
-        hashcat_status->input_base_count,
-        hashcat_status->input_base_percent);
+        "Guess.Queue......: %d/%d (%.02f%%)",
+        hashcat_status->guess_base_offset,
+        hashcat_status->guess_base_count,
+        hashcat_status->guess_base_percent);
 
       break;
 
-    case INPUT_MODE_STRAIGHT_FILE_RULES_FILE:
+    case GUESS_MODE_STRAIGHT_FILE_RULES_FILE:
 
       event_log_info (hashcat_ctx,
-        "Input.Queue......: %d/%d (%.02f%%)",
-        hashcat_status->input_base_offset,
-        hashcat_status->input_base_count,
-        hashcat_status->input_base_percent);
+        "Guess.Queue......: %d/%d (%.02f%%)",
+        hashcat_status->guess_base_offset,
+        hashcat_status->guess_base_count,
+        hashcat_status->guess_base_percent);
 
       break;
 
-    case INPUT_MODE_STRAIGHT_FILE_RULES_GEN:
+    case GUESS_MODE_STRAIGHT_FILE_RULES_GEN:
 
       event_log_info (hashcat_ctx,
-        "Input.Queue......: %d/%d (%.02f%%)",
-        hashcat_status->input_base_offset,
-        hashcat_status->input_base_count,
-        hashcat_status->input_base_percent);
+        "Guess.Queue......: %d/%d (%.02f%%)",
+        hashcat_status->guess_base_offset,
+        hashcat_status->guess_base_count,
+        hashcat_status->guess_base_percent);
 
       break;
 
-    case INPUT_MODE_MASK:
+    case GUESS_MODE_MASK:
 
       event_log_info (hashcat_ctx,
-        "Input.Queue......: %d/%d (%.02f%%)",
-        hashcat_status->input_base_offset,
-        hashcat_status->input_base_count,
-        hashcat_status->input_base_percent);
+        "Guess.Queue......: %d/%d (%.02f%%)",
+        hashcat_status->guess_base_offset,
+        hashcat_status->guess_base_count,
+        hashcat_status->guess_base_percent);
 
       break;
 
-    case INPUT_MODE_MASK_CS:
+    case GUESS_MODE_MASK_CS:
 
       event_log_info (hashcat_ctx,
-        "Input.Queue......: %d/%d (%.02f%%)",
-        hashcat_status->input_base_offset,
-        hashcat_status->input_base_count,
-        hashcat_status->input_base_percent);
+        "Guess.Queue......: %d/%d (%.02f%%)",
+        hashcat_status->guess_base_offset,
+        hashcat_status->guess_base_count,
+        hashcat_status->guess_base_percent);
 
       break;
 
-    case INPUT_MODE_HYBRID1:
+    case GUESS_MODE_HYBRID1:
 
       event_log_info (hashcat_ctx,
-        "Input.Queue.Base.: %d/%d (%.02f%%)",
-        hashcat_status->input_base_offset,
-        hashcat_status->input_base_count,
-        hashcat_status->input_base_percent);
+        "Guess.Queue.Base.: %d/%d (%.02f%%)",
+        hashcat_status->guess_base_offset,
+        hashcat_status->guess_base_count,
+        hashcat_status->guess_base_percent);
 
       event_log_info (hashcat_ctx,
-        "Input.Queue.Mod..: %d/%d (%.02f%%)",
-        hashcat_status->input_mod_offset,
-        hashcat_status->input_mod_count,
-        hashcat_status->input_mod_percent);
+        "Guess.Queue.Mod..: %d/%d (%.02f%%)",
+        hashcat_status->guess_mod_offset,
+        hashcat_status->guess_mod_count,
+        hashcat_status->guess_mod_percent);
 
       break;
 
-    case INPUT_MODE_HYBRID2:
+    case GUESS_MODE_HYBRID2:
 
       event_log_info (hashcat_ctx,
-        "Input.Queue.Base.: %d/%d (%.02f%%)",
-        hashcat_status->input_base_offset,
-        hashcat_status->input_base_count,
-        hashcat_status->input_base_percent);
+        "Guess.Queue.Base.: %d/%d (%.02f%%)",
+        hashcat_status->guess_base_offset,
+        hashcat_status->guess_base_count,
+        hashcat_status->guess_base_percent);
 
       event_log_info (hashcat_ctx,
-        "Input.Queue.Mod..: %d/%d (%.02f%%)",
-        hashcat_status->input_mod_offset,
-        hashcat_status->input_mod_count,
-        hashcat_status->input_mod_percent);
+        "Guess.Queue.Mod..: %d/%d (%.02f%%)",
+        hashcat_status->guess_mod_offset,
+        hashcat_status->guess_mod_count,
+        hashcat_status->guess_mod_percent);
 
       break;
   }
@@ -1054,11 +1084,11 @@ void status_display (hashcat_ctx_t *hashcat_ctx)
 
     if (device_info->skipped_dev == true) continue;
 
-    if (device_info->input_candidates_dev == NULL) continue;
+    if (device_info->guess_candidates_dev == NULL) continue;
 
     event_log_info (hashcat_ctx,
       "Candidates.#%d....: %s", device_id + 1,
-      device_info->input_candidates_dev);
+      device_info->guess_candidates_dev);
   }
 
   if (user_options->gpu_temp_disable == false)
@@ -1076,6 +1106,8 @@ void status_display (hashcat_ctx_t *hashcat_ctx)
         device_info->hwmon_dev);
     }
   }
+
+  status_status_destroy (hashcat_ctx, hashcat_status);
 
   hcfree (hashcat_status);
 }
@@ -1105,6 +1137,8 @@ void status_benchmark_machine_readable (hashcat_ctx_t *hashcat_ctx)
 
     event_log_info (hashcat_ctx, "%d:%u:%d:%d:%.2f:%" PRIu64, device_id + 1, hash_mode, device_info->corespeed_dev, device_info->memoryspeed_dev, device_info->exec_msec_dev, (u64) (device_info->hashes_msec_dev_benchmark * 1000));
   }
+
+  status_status_destroy (hashcat_ctx, hashcat_status);
 
   hcfree (hashcat_status);
 }
@@ -1150,6 +1184,8 @@ void status_benchmark (hashcat_ctx_t *hashcat_ctx)
       hashcat_status->speed_sec_all);
   }
 
+  status_status_destroy (hashcat_ctx, hashcat_status);
+
   hcfree (hashcat_status);
 }
 
@@ -1174,6 +1210,8 @@ void status_speed_machine_readable (hashcat_ctx_t *hashcat_ctx)
 
     event_log_info (hashcat_ctx, "%d:%" PRIu64, device_id + 1, (u64) (device_info->hashes_msec_dev_benchmark * 1000));
   }
+
+  status_status_destroy (hashcat_ctx, hashcat_status);
 
   hcfree (hashcat_status);
 }
@@ -1219,6 +1257,8 @@ void status_speed (hashcat_ctx_t *hashcat_ctx)
       hashcat_status->speed_sec_all);
   }
 
+  status_status_destroy (hashcat_ctx, hashcat_status);
+
   hcfree (hashcat_status);
 }
 
@@ -1243,6 +1283,8 @@ void status_progress_machine_readable (hashcat_ctx_t *hashcat_ctx)
 
     event_log_info (hashcat_ctx, "%d:%d:%0.2f", device_id + 1, device_info->progress_dev, device_info->runtime_msec_dev);
   }
+
+  status_status_destroy (hashcat_ctx, hashcat_status);
 
   hcfree (hashcat_status);
 }
@@ -1290,6 +1332,8 @@ void status_progress (hashcat_ctx_t *hashcat_ctx)
       "Runtime.Dev.#%d...: %0.2fms", device_id + 1,
       device_info->runtime_msec_dev);
   }
+
+  status_status_destroy (hashcat_ctx, hashcat_status);
 
   hcfree (hashcat_status);
 }

@@ -19,6 +19,7 @@ void event_call (const u32 id, hashcat_ctx_t *hashcat_ctx, const void *buf, cons
     case EVENT_LOG_INFO:    is_log = true; break;
     case EVENT_LOG_WARNING: is_log = true; break;
     case EVENT_LOG_ERROR:   is_log = true; break;
+    case EVENT_LOG_ADVICE:  is_log = true; break;
   }
 
   if (is_log == false)
@@ -56,26 +57,64 @@ void event_call (const u32 id, hashcat_ctx_t *hashcat_ctx, const void *buf, cons
 __attribute__ ((format (printf, 1, 0)))
 static int event_log (const char *fmt, va_list ap, char *s, const size_t sz)
 {
-#if defined (__MINGW32__)
-  return __mingw_vsnprintf (s, sz, fmt, ap);
-#else
-  return vsnprintf (s, sz, fmt, ap);
-#endif
+  size_t length;
+
+  length = vsnprintf (s, sz, fmt, ap);
+  length = MIN (length, sz);
+
+  s[length] = 0;
+
+  return (int) length;
+}
+
+size_t event_log_advice_nn (hashcat_ctx_t *hashcat_ctx, const char *fmt, ...)
+{
+  event_ctx_t *event_ctx = hashcat_ctx->event_ctx;
+
+  if (fmt == NULL)
+  {
+    event_ctx->msg_buf[0] = 0;
+
+    event_ctx->msg_len = 0;
+  }
+  else
+  {
+    va_list ap;
+
+    va_start (ap, fmt);
+
+    event_ctx->msg_len = event_log (fmt, ap, event_ctx->msg_buf, HCBUFSIZ_TINY - 1);
+
+    va_end (ap);
+  }
+
+  event_ctx->msg_newline = false;
+
+  event_call (EVENT_LOG_ADVICE, hashcat_ctx, NULL, 0);
+
+  return event_ctx->msg_len;
 }
 
 size_t event_log_info_nn (hashcat_ctx_t *hashcat_ctx, const char *fmt, ...)
 {
-  va_list ap;
-
-  va_start (ap, fmt);
-
   event_ctx_t *event_ctx = hashcat_ctx->event_ctx;
 
-  event_ctx->msg_len = event_log (fmt, ap, event_ctx->msg_buf, HCBUFSIZ_TINY - 1);
+  if (fmt == NULL)
+  {
+    event_ctx->msg_buf[0] = 0;
 
-  event_ctx->msg_buf[event_ctx->msg_len] = 0;
+    event_ctx->msg_len = 0;
+  }
+  else
+  {
+    va_list ap;
 
-  va_end (ap);
+    va_start (ap, fmt);
+
+    event_ctx->msg_len = event_log (fmt, ap, event_ctx->msg_buf, HCBUFSIZ_TINY - 1);
+
+    va_end (ap);
+  }
 
   event_ctx->msg_newline = false;
 
@@ -86,17 +125,24 @@ size_t event_log_info_nn (hashcat_ctx_t *hashcat_ctx, const char *fmt, ...)
 
 size_t event_log_warning_nn (hashcat_ctx_t *hashcat_ctx, const char *fmt, ...)
 {
-  va_list ap;
-
-  va_start (ap, fmt);
-
   event_ctx_t *event_ctx = hashcat_ctx->event_ctx;
 
-  event_ctx->msg_len = event_log (fmt, ap, event_ctx->msg_buf, HCBUFSIZ_TINY - 1);
+  if (fmt == NULL)
+  {
+    event_ctx->msg_buf[0] = 0;
 
-  event_ctx->msg_buf[event_ctx->msg_len] = 0;
+    event_ctx->msg_len = 0;
+  }
+  else
+  {
+    va_list ap;
 
-  va_end (ap);
+    va_start (ap, fmt);
+
+    event_ctx->msg_len = event_log (fmt, ap, event_ctx->msg_buf, HCBUFSIZ_TINY - 1);
+
+    va_end (ap);
+  }
 
   event_ctx->msg_newline = false;
 
@@ -107,17 +153,24 @@ size_t event_log_warning_nn (hashcat_ctx_t *hashcat_ctx, const char *fmt, ...)
 
 size_t event_log_error_nn (hashcat_ctx_t *hashcat_ctx, const char *fmt, ...)
 {
-  va_list ap;
-
-  va_start (ap, fmt);
-
   event_ctx_t *event_ctx = hashcat_ctx->event_ctx;
 
-  event_ctx->msg_len = event_log (fmt, ap, event_ctx->msg_buf, HCBUFSIZ_TINY - 1);
+  if (fmt == NULL)
+  {
+    event_ctx->msg_buf[0] = 0;
 
-  event_ctx->msg_buf[event_ctx->msg_len] = 0;
+    event_ctx->msg_len = 0;
+  }
+  else
+  {
+    va_list ap;
 
-  va_end (ap);
+    va_start (ap, fmt);
+
+    event_ctx->msg_len = event_log (fmt, ap, event_ctx->msg_buf, HCBUFSIZ_TINY - 1);
+
+    va_end (ap);
+  }
 
   event_ctx->msg_newline = false;
 
@@ -126,19 +179,54 @@ size_t event_log_error_nn (hashcat_ctx_t *hashcat_ctx, const char *fmt, ...)
   return event_ctx->msg_len;
 }
 
-size_t event_log_info (hashcat_ctx_t *hashcat_ctx, const char *fmt, ...)
+size_t event_log_advice (hashcat_ctx_t *hashcat_ctx, const char *fmt, ...)
 {
-  va_list ap;
-
-  va_start (ap, fmt);
-
   event_ctx_t *event_ctx = hashcat_ctx->event_ctx;
 
-  event_ctx->msg_len = event_log (fmt, ap, event_ctx->msg_buf, HCBUFSIZ_TINY - 1);
+  if (fmt == NULL)
+  {
+    event_ctx->msg_buf[0] = 0;
 
-  event_ctx->msg_buf[event_ctx->msg_len] = 0;
+    event_ctx->msg_len = 0;
+  }
+  else
+  {
+    va_list ap;
 
-  va_end (ap);
+    va_start (ap, fmt);
+
+    event_ctx->msg_len = event_log (fmt, ap, event_ctx->msg_buf, HCBUFSIZ_TINY - 1);
+
+    va_end (ap);
+  }
+
+  event_ctx->msg_newline = true;
+
+  event_call (EVENT_LOG_ADVICE, hashcat_ctx, NULL, 0);
+
+  return event_ctx->msg_len;
+}
+
+size_t event_log_info (hashcat_ctx_t *hashcat_ctx, const char *fmt, ...)
+{
+  event_ctx_t *event_ctx = hashcat_ctx->event_ctx;
+
+  if (fmt == NULL)
+  {
+    event_ctx->msg_buf[0] = 0;
+
+    event_ctx->msg_len = 0;
+  }
+  else
+  {
+    va_list ap;
+
+    va_start (ap, fmt);
+
+    event_ctx->msg_len = event_log (fmt, ap, event_ctx->msg_buf, HCBUFSIZ_TINY - 1);
+
+    va_end (ap);
+  }
 
   event_ctx->msg_newline = true;
 
@@ -149,17 +237,24 @@ size_t event_log_info (hashcat_ctx_t *hashcat_ctx, const char *fmt, ...)
 
 size_t event_log_warning (hashcat_ctx_t *hashcat_ctx, const char *fmt, ...)
 {
-  va_list ap;
-
-  va_start (ap, fmt);
-
   event_ctx_t *event_ctx = hashcat_ctx->event_ctx;
 
-  event_ctx->msg_len = event_log (fmt, ap, event_ctx->msg_buf, HCBUFSIZ_TINY - 1);
+  if (fmt == NULL)
+  {
+    event_ctx->msg_buf[0] = 0;
 
-  event_ctx->msg_buf[event_ctx->msg_len] = 0;
+    event_ctx->msg_len = 0;
+  }
+  else
+  {
+    va_list ap;
 
-  va_end (ap);
+    va_start (ap, fmt);
+
+    event_ctx->msg_len = event_log (fmt, ap, event_ctx->msg_buf, HCBUFSIZ_TINY - 1);
+
+    va_end (ap);
+  }
 
   event_ctx->msg_newline = true;
 
@@ -170,17 +265,24 @@ size_t event_log_warning (hashcat_ctx_t *hashcat_ctx, const char *fmt, ...)
 
 size_t event_log_error (hashcat_ctx_t *hashcat_ctx, const char *fmt, ...)
 {
-  va_list ap;
-
-  va_start (ap, fmt);
-
   event_ctx_t *event_ctx = hashcat_ctx->event_ctx;
 
-  event_ctx->msg_len = event_log (fmt, ap, event_ctx->msg_buf, HCBUFSIZ_TINY - 1);
+  if (fmt == NULL)
+  {
+    event_ctx->msg_buf[0] = 0;
 
-  event_ctx->msg_buf[event_ctx->msg_len] = 0;
+    event_ctx->msg_len = 0;
+  }
+  else
+  {
+    va_list ap;
 
-  va_end (ap);
+    va_start (ap, fmt);
+
+    event_ctx->msg_len = event_log (fmt, ap, event_ctx->msg_buf, HCBUFSIZ_TINY - 1);
+
+    va_end (ap);
+  }
 
   event_ctx->msg_newline = true;
 

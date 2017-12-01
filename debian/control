@@ -6,7 +6,7 @@ Uploaders: Daniel Echeverry <epsilon77@gmail.com>
 Build-Depends: debhelper (>=10),
                libgmp-dev,
                opencl-headers
-Standards-Version: 3.9.8
+Standards-Version: 4.1.3
 Homepage: https://hashcat.net/hashcat/
 Vcs-Git: https://anonscm.debian.org/git/pkg-security/hashcat.git
 Vcs-Browser: https://anonscm.debian.org/cgit/pkg-security/hashcat.git

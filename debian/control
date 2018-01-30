@@ -65,6 +65,7 @@ Description: World's fastest and most advanced password recovery utility
 
 Package: hashcat-data
 Architecture: all
+Multi-Arch: foreign
 Depends: ${misc:Depends}
 Suggests: hashcat
 Replaces: hashcat (<= 2.00-0kali3)

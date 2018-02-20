@@ -1,12 +1,13 @@
-hashcat (4.0.1-1) UNRELEASED; urgency=medium
+hashcat (4.0.1-1) unstable; urgency=medium
 
+  [ Sophie Brun ]
   * Team upload.
   * Import new upstream release
   * Bump Standards-version to 4.1.3 (no change required)
   * Update debian/control with new Vcs-*
   * Add "Multi-Arch: foreign" for hashcat-data
 
- -- Sophie Brun <sophie@freexian.com>  Mon, 19 Feb 2018 13:57:13 +0100
+ -- Raphaël Hertzog <hertzog@debian.org>  Tue, 20 Feb 2018 18:26:15 +0100
 
 hashcat (3.60-1) unstable; urgency=medium
 

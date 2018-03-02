@@ -1,7 +1,7 @@
 Source: hashcat
 Section: net
 Priority: optional
-Maintainer: Debian Security Tools Packaging Team <pkg-security-team@lists.alioth.debian.org>
+Maintainer: Debian Security Tools <team+pkg-security@tracker.debian.org>
 Uploaders: Daniel Echeverry <epsilon77@gmail.com>
 Build-Depends: debhelper (>=10),
                libgmp-dev,

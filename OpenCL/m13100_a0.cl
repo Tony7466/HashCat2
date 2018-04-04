@@ -24,7 +24,7 @@ typedef struct
 
 } RC4_KEY;
 
-void swap (SCR_TYPE RC4_KEY *rc4_key, const u8 i, const u8 j)
+DECLSPEC void swap (SCR_TYPE RC4_KEY *rc4_key, const u8 i, const u8 j)
 {
   u8 tmp;
 
@@ -33,7 +33,7 @@ void swap (SCR_TYPE RC4_KEY *rc4_key, const u8 i, const u8 j)
   rc4_key->S[j] = tmp;
 }
 
-void rc4_init_16 (SCR_TYPE RC4_KEY *rc4_key, const u32 data[4])
+DECLSPEC void rc4_init_16 (SCR_TYPE RC4_KEY *rc4_key, const u32 data[4])
 {
   u32 v = 0x03020100;
   u32 a = 0x04040404;
@@ -86,7 +86,7 @@ void rc4_init_16 (SCR_TYPE RC4_KEY *rc4_key, const u32 data[4])
   }
 }
 
-u8 rc4_next_16 (SCR_TYPE RC4_KEY *rc4_key, u8 i, u8 j, __global const u32 in[4], u32 out[4])
+DECLSPEC u8 rc4_next_16 (SCR_TYPE RC4_KEY *rc4_key, u8 i, u8 j, const __global u32 *in, u32 out[4])
 {
   #ifdef _unroll
   #pragma unroll
@@ -139,7 +139,7 @@ u8 rc4_next_16 (SCR_TYPE RC4_KEY *rc4_key, u8 i, u8 j, __global const u32 in[4],
   return j;
 }
 
-int decrypt_and_check (SCR_TYPE RC4_KEY *rc4_key, u32 data[4], __global const u32 *edata2, const u32 edata2_len, const u32 K2[4], const u32 checksum[4])
+DECLSPEC int decrypt_and_check (SCR_TYPE RC4_KEY *rc4_key, u32 data[4], __global const u32 *edata2, const u32 edata2_len, const u32 K2[4], const u32 checksum[4])
 {
   rc4_init_16 (rc4_key, data);
 
@@ -273,7 +273,7 @@ int decrypt_and_check (SCR_TYPE RC4_KEY *rc4_key, u32 data[4], __global const u3
   return 1;
 }
 
-void kerb_prepare (const u32 K[4], const u32 checksum[4], u32 digest[4], u32 K2[4])
+DECLSPEC void kerb_prepare (const u32 K[4], const u32 checksum[4], u32 digest[4], u32 K2[4])
 {
   // K1=MD5_HMAC(K,1); with 1 encoded as little indian on 4 bytes (01000000 in hexa);
 
@@ -377,7 +377,7 @@ void kerb_prepare (const u32 K[4], const u32 checksum[4], u32 digest[4], u32 K2[
   K2[3] = ctx1.opad.h[3];
 }
 
-__kernel void m13100_mxx (__global pw_t *pws, __constant const kernel_rule_t *rules_buf, __global const pw_t *combs_buf, __global const bf_t *bfs_buf, __global void *tmps, __global void *hooks, __global const u32 *bitmaps_buf_s1_a, __global const u32 *bitmaps_buf_s1_b, __global const u32 *bitmaps_buf_s1_c, __global const u32 *bitmaps_buf_s1_d, __global const u32 *bitmaps_buf_s2_a, __global const u32 *bitmaps_buf_s2_b, __global const u32 *bitmaps_buf_s2_c, __global const u32 *bitmaps_buf_s2_d, __global plain_t *plains_buf, __global const digest_t *digests_buf, __global u32 *hashes_shown, __global const salt_t *salt_bufs, __global const krb5tgs_t *krb5tgs_bufs, __global u32 *d_return_buf, __global u32 *d_scryptV0_buf, __global u32 *d_scryptV1_buf, __global u32 *d_scryptV2_buf, __global u32 *d_scryptV3_buf, const u32 bitmap_mask, const u32 bitmap_shift1, const u32 bitmap_shift2, const u32 salt_pos, const u32 loop_pos, const u32 loop_cnt, const u32 il_cnt, const u32 digests_cnt, const u32 digests_offset, const u32 combs_mode, const u64 gid_max)
+__kernel void __attribute__((reqd_work_group_size(64, 1, 1))) m13100_mxx (__global pw_t *pws, __constant const kernel_rule_t *rules_buf, __global const pw_t *combs_buf, __global const bf_t *bfs_buf, __global void *tmps, __global void *hooks, __global const u32 *bitmaps_buf_s1_a, __global const u32 *bitmaps_buf_s1_b, __global const u32 *bitmaps_buf_s1_c, __global const u32 *bitmaps_buf_s1_d, __global const u32 *bitmaps_buf_s2_a, __global const u32 *bitmaps_buf_s2_b, __global const u32 *bitmaps_buf_s2_c, __global const u32 *bitmaps_buf_s2_d, __global plain_t *plains_buf, __global const digest_t *digests_buf, __global u32 *hashes_shown, __global const salt_t *salt_bufs, __global const krb5tgs_t *krb5tgs_bufs, __global u32 *d_return_buf, __global u32 *d_scryptV0_buf, __global u32 *d_scryptV1_buf, __global u32 *d_scryptV2_buf, __global u32 *d_scryptV3_buf, const u32 bitmap_mask, const u32 bitmap_shift1, const u32 bitmap_shift2, const u32 salt_pos, const u32 loop_pos, const u32 loop_cnt, const u32 il_cnt, const u32 digests_cnt, const u32 digests_offset, const u32 combs_mode, const u64 gid_max)
 {
   /**
    * modifier
@@ -449,7 +449,7 @@ __kernel void m13100_mxx (__global pw_t *pws, __constant const kernel_rule_t *ru
   }
 }
 
-__kernel void m13100_sxx (__global pw_t *pws, __constant const kernel_rule_t *rules_buf, __global const pw_t *combs_buf, __global const bf_t *bfs_buf, __global void *tmps, __global void *hooks, __global const u32 *bitmaps_buf_s1_a, __global const u32 *bitmaps_buf_s1_b, __global const u32 *bitmaps_buf_s1_c, __global const u32 *bitmaps_buf_s1_d, __global const u32 *bitmaps_buf_s2_a, __global const u32 *bitmaps_buf_s2_b, __global const u32 *bitmaps_buf_s2_c, __global const u32 *bitmaps_buf_s2_d, __global plain_t *plains_buf, __global const digest_t *digests_buf, __global u32 *hashes_shown, __global const salt_t *salt_bufs, __global const krb5tgs_t *krb5tgs_bufs, __global u32 *d_return_buf, __global u32 *d_scryptV0_buf, __global u32 *d_scryptV1_buf, __global u32 *d_scryptV2_buf, __global u32 *d_scryptV3_buf, const u32 bitmap_mask, const u32 bitmap_shift1, const u32 bitmap_shift2, const u32 salt_pos, const u32 loop_pos, const u32 loop_cnt, const u32 il_cnt, const u32 digests_cnt, const u32 digests_offset, const u32 combs_mode, const u64 gid_max)
+__kernel void __attribute__((reqd_work_group_size(64, 1, 1))) m13100_sxx (__global pw_t *pws, __constant const kernel_rule_t *rules_buf, __global const pw_t *combs_buf, __global const bf_t *bfs_buf, __global void *tmps, __global void *hooks, __global const u32 *bitmaps_buf_s1_a, __global const u32 *bitmaps_buf_s1_b, __global const u32 *bitmaps_buf_s1_c, __global const u32 *bitmaps_buf_s1_d, __global const u32 *bitmaps_buf_s2_a, __global const u32 *bitmaps_buf_s2_b, __global const u32 *bitmaps_buf_s2_c, __global const u32 *bitmaps_buf_s2_d, __global plain_t *plains_buf, __global const digest_t *digests_buf, __global u32 *hashes_shown, __global const salt_t *salt_bufs, __global const krb5tgs_t *krb5tgs_bufs, __global u32 *d_return_buf, __global u32 *d_scryptV0_buf, __global u32 *d_scryptV1_buf, __global u32 *d_scryptV2_buf, __global u32 *d_scryptV3_buf, const u32 bitmap_mask, const u32 bitmap_shift1, const u32 bitmap_shift2, const u32 salt_pos, const u32 loop_pos, const u32 loop_cnt, const u32 il_cnt, const u32 digests_cnt, const u32 digests_offset, const u32 combs_mode, const u64 gid_max)
 {
   /**
    * modifier

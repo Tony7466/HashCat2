@@ -33,8 +33,6 @@ int combinator_ctx_init (hashcat_ctx_t *hashcat_ctx)
 
   combinator_ctx->enabled = true;
 
-  combinator_ctx->scratch_buf = (char *) hcmalloc (HCBUFSIZ_LARGE);
-
   if (hashconfig->opti_type & OPTI_TYPE_OPTIMIZED_KERNEL)
   {
     if (user_options->attack_mode == ATTACK_MODE_COMBI)
@@ -150,7 +148,7 @@ int combinator_ctx_init (hashcat_ctx_t *hashcat_ctx)
 
         // we also have to switch wordlist related rules!
 
-        char *tmpc = user_options->rule_buf_l;
+        const char *tmpc = user_options->rule_buf_l;
 
         user_options->rule_buf_l = user_options->rule_buf_r;
         user_options->rule_buf_r = tmpc;
@@ -336,8 +334,6 @@ void combinator_ctx_destroy (hashcat_ctx_t *hashcat_ctx)
   combinator_ctx_t *combinator_ctx = hashcat_ctx->combinator_ctx;
 
   if (combinator_ctx->enabled == false) return;
-
-  hcfree (combinator_ctx->scratch_buf);
 
   memset (combinator_ctx, 0, sizeof (combinator_ctx_t));
 }

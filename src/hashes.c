@@ -14,6 +14,7 @@
 #include "filehandling.h"
 #include "hlfmt.h"
 #include "interface.h"
+#include "terminal.h"
 #include "logfile.h"
 #include "loopback.h"
 #include "mpsp.h"
@@ -329,10 +330,11 @@ void check_hash (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param, pl
 
 int check_cracked (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param, const u32 salt_pos)
 {
-  cpt_ctx_t    *cpt_ctx    = hashcat_ctx->cpt_ctx;
-  hashconfig_t *hashconfig = hashcat_ctx->hashconfig;
-  hashes_t     *hashes     = hashcat_ctx->hashes;
-  status_ctx_t *status_ctx = hashcat_ctx->status_ctx;
+  cpt_ctx_t      *cpt_ctx      = hashcat_ctx->cpt_ctx;
+  hashconfig_t   *hashconfig   = hashcat_ctx->hashconfig;
+  hashes_t       *hashes       = hashcat_ctx->hashes;
+  status_ctx_t   *status_ctx   = hashcat_ctx->status_ctx;
+  user_options_t *user_options = hashcat_ctx->user_options;
 
   salt_t *salt_buf = &hashes->salts_buf[salt_pos];
 
@@ -347,6 +349,14 @@ int check_cracked (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param, 
     event_log_error (hashcat_ctx, "clEnqueueReadBuffer(): %s", val2cstr_cl (CL_err));
 
     return -1;
+  }
+
+  if (user_options->speed_only == true)
+  {
+    // we want the hc_clEnqueueReadBuffer to run in benchmark mode because it has an influence in performance
+    // however if the benchmark cracks the artificial hash used for benchmarks we don't want to see that!
+
+    return 0;
   }
 
   if (num_cracked)
@@ -403,7 +413,7 @@ int check_cracked (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param, 
     {
       hc_thread_mutex_lock (status_ctx->mux_display);
 
-      cpt_ctx->cpt_buf[cpt_ctx->cpt_pos].timestamp = hc_time (NULL);
+      cpt_ctx->cpt_buf[cpt_ctx->cpt_pos].timestamp = time (NULL);
       cpt_ctx->cpt_buf[cpt_ctx->cpt_pos].cracked   = cpt_cracked;
 
       cpt_ctx->cpt_pos++;
@@ -448,7 +458,7 @@ int check_cracked (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param, 
   return 0;
 }
 
-int hashes_init_stage1 (hashcat_ctx_t *hashcat_ctx)
+void hashes_init_filename (hashcat_ctx_t *hashcat_ctx)
 {
   hashconfig_t         *hashconfig         = hashcat_ctx->hashconfig;
   hashes_t             *hashes             = hashcat_ctx->hashes;
@@ -461,31 +471,61 @@ int hashes_init_stage1 (hashcat_ctx_t *hashcat_ctx)
    * load hashes, part I: find input mode, count hashes
    */
 
-  u32 hashlist_mode   = 0;
+  if ((user_options->benchmark == false) && (user_options->stdout_flag == false) && (user_options->keyspace == false))
+  {
+    if (hashconfig->opts_type & OPTS_TYPE_BINARY_HASHFILE)
+    {
+      hashes->hashlist_mode = HL_MODE_ARG;
+
+      hashes->hashfile = hash_or_file;
+
+      hc_asprintf (&hashes->hashfile_hcdmp, "%s.hcdmp", hashes->hashfile);
+    }
+    else
+    {
+      hashes->hashlist_mode = (hc_path_exist (hash_or_file) == true) ? HL_MODE_FILE : HL_MODE_ARG;
+
+      if (hashes->hashlist_mode == HL_MODE_FILE)
+      {
+        hashes->hashfile = hash_or_file;
+
+        hc_asprintf (&hashes->hashfile_hcdmp, "%s.hcdmp", hashes->hashfile);
+      }
+    }
+  }
+  else
+  {
+    hashes->hashlist_mode = HL_MODE_ARG;
+  }
+}
+
+int hashes_init_stage1 (hashcat_ctx_t *hashcat_ctx)
+{
+  hashconfig_t          *hashconfig         = hashcat_ctx->hashconfig;
+  hashes_t              *hashes             = hashcat_ctx->hashes;
+  user_options_t        *user_options       = hashcat_ctx->user_options;
+  user_options_extra_t  *user_options_extra = hashcat_ctx->user_options_extra;
+
+  /**
+   * load hashes, part I: find input mode, count hashes
+   */
+
+  const char *hashfile      = hashes->hashfile;
+  const u32   hashlist_mode = hashes->hashlist_mode;
+
   u32 hashlist_format = HLFMT_HASHCAT;
 
-  u32 hashes_avail = 0;
+  u64 hashes_avail = 0;
 
   if ((user_options->benchmark == false) && (user_options->stdout_flag == false) && (user_options->keyspace == false))
   {
-    hashlist_mode = (hc_path_exist (hash_or_file) == true) ? HL_MODE_FILE : HL_MODE_ARG;
-
-    if (hashconfig->opts_type & OPTS_TYPE_BINARY_HASHFILE)
-    {
-      hashlist_mode = HL_MODE_ARG;
-
-      char *hashfile = hash_or_file;
-
-      hashes->hashfile = hashfile;
-    }
-
     if (hashlist_mode == HL_MODE_ARG)
     {
       if ((hashconfig->hash_mode == 2500) || (hashconfig->hash_mode == 2501))
       {
-        hc_stat_t st;
+        struct stat st;
 
-        if (hc_stat (hashes->hashfile, &st) == -1)
+        if (stat (hashes->hashfile, &st) == -1)
         {
           event_log_error (hashcat_ctx, "%s: %s", hashes->hashfile, strerror (errno));
 
@@ -510,9 +550,9 @@ int hashes_init_stage1 (hashcat_ctx_t *hashcat_ctx)
       }
       else if (hashconfig->hash_mode == 14600)
       {
-        hc_stat_t st;
+        struct stat st;
 
-        if (hc_stat (hashes->hashfile, &st) == -1)
+        if (stat (hashes->hashfile, &st) == -1)
         {
           event_log_error (hashcat_ctx, "%s: %s", hashes->hashfile, strerror (errno));
 
@@ -528,10 +568,6 @@ int hashes_init_stage1 (hashcat_ctx_t *hashcat_ctx)
     }
     else if (hashlist_mode == HL_MODE_FILE)
     {
-      char *hashfile = hash_or_file;
-
-      hashes->hashfile = hashfile;
-
       FILE *fp = NULL;
 
       if ((fp = fopen (hashfile, "rb")) == NULL)
@@ -574,14 +610,11 @@ int hashes_init_stage1 (hashcat_ctx_t *hashcat_ctx)
   }
   else
   {
-    hashlist_mode = HL_MODE_ARG;
-
     hashes_avail = 1;
   }
 
   if (hashconfig->hash_mode == 3000) hashes_avail *= 2;
 
-  hashes->hashlist_mode   = hashlist_mode;
   hashes->hashlist_format = hashlist_format;
 
   /**
@@ -707,12 +740,12 @@ int hashes_init_stage1 (hashcat_ctx_t *hashcat_ctx)
     }
     else if (hashlist_mode == HL_MODE_ARG)
     {
-      char *input_buf = hash_or_file;
+      char *input_buf = user_options_extra->hc_hash;
 
-      u32 input_len = strlen (input_buf);
+      size_t input_len = strlen (input_buf);
 
-      char *hash_buf = NULL;
-      int   hash_len = 0;
+      char  *hash_buf = NULL;
+      size_t hash_len = 0;
 
       hlfmt_hash (hashcat_ctx, hashlist_format, input_buf, input_len, &hash_buf, &hash_len);
 
@@ -753,9 +786,7 @@ int hashes_init_stage1 (hashcat_ctx_t *hashcat_ctx)
 
         if ((hashconfig->hash_mode == 2500) || (hashconfig->hash_mode == 2501))
         {
-          hashlist_mode = HL_MODE_FILE;
-
-          hashes->hashlist_mode = hashlist_mode;
+          hashes->hashlist_mode = HL_MODE_FILE;
 
           FILE *fp = fopen (hash_buf, "rb");
 
@@ -859,7 +890,7 @@ int hashes_init_stage1 (hashcat_ctx_t *hashcat_ctx)
           }
           else
           {
-            parser_status = hashconfig->parse_func ((u8 *) hash_buf, hash_len, &hashes_buf[hashes_cnt], hashconfig);
+            parser_status = hashconfig->parse_func ((u8 *) hash_buf, (u32) hash_len, &hashes_buf[hashes_cnt], hashconfig);
 
             if (parser_status == PARSER_OK)
             {
@@ -876,13 +907,11 @@ int hashes_init_stage1 (hashcat_ctx_t *hashcat_ctx)
         }
         else if (hashconfig->hash_mode == 14600)
         {
-          hashlist_mode = HL_MODE_FILE;
-
-          hashes->hashlist_mode = hashlist_mode;
+          hashes->hashlist_mode = HL_MODE_FILE;
 
           for (int keyslot_idx = 0; keyslot_idx < LUKS_NUMKEYS; keyslot_idx++)
           {
-            parser_status = luks_parse_hash ((u8 *) hash_buf, hash_len, &hashes_buf[hashes_cnt], hashconfig, keyslot_idx);
+            parser_status = luks_parse_hash ((u8 *) hash_buf, (u32) hash_len, &hashes_buf[hashes_cnt], hashconfig, keyslot_idx);
 
             if (parser_status != PARSER_OK)
             {
@@ -899,7 +928,7 @@ int hashes_init_stage1 (hashcat_ctx_t *hashcat_ctx)
         }
         else
         {
-          parser_status = hashconfig->parse_func ((u8 *) hash_buf, hash_len, &hashes_buf[hashes_cnt], hashconfig);
+          parser_status = hashconfig->parse_func ((u8 *) hash_buf, (u32) hash_len, &hashes_buf[hashes_cnt], hashconfig);
 
           if (parser_status == PARSER_OK)
           {
@@ -914,8 +943,6 @@ int hashes_init_stage1 (hashcat_ctx_t *hashcat_ctx)
     }
     else if (hashlist_mode == HL_MODE_FILE)
     {
-      const char *hashfile = hashes->hashfile;
-
       FILE *fp;
 
       if ((fp = fopen (hashfile, "rb")) == NULL)
@@ -929,14 +956,14 @@ int hashes_init_stage1 (hashcat_ctx_t *hashcat_ctx)
 
       char *line_buf = (char *) hcmalloc (HCBUFSIZ_LARGE);
 
-      hc_time_t prev = 0;
-      hc_time_t now  = 0;
+      time_t prev = 0;
+      time_t now  = 0;
 
       while (!feof (fp))
       {
         line_num++;
 
-        int line_len = fgetl (fp, line_buf);
+        const size_t line_len = fgetl (fp, line_buf);
 
         if (line_len == 0) continue;
 
@@ -947,8 +974,8 @@ int hashes_init_stage1 (hashcat_ctx_t *hashcat_ctx)
           break;
         }
 
-        char *hash_buf = NULL;
-        int   hash_len = 0;
+        char  *hash_buf = NULL;
+        size_t hash_len = 0;
 
         hlfmt_hash (hashcat_ctx, hashlist_format, line_buf, line_len, &hash_buf, &hash_len);
 
@@ -966,8 +993,8 @@ int hashes_init_stage1 (hashcat_ctx_t *hashcat_ctx)
 
         if (user_options->username == true)
         {
-          char *user_buf = NULL;
-          int   user_len = 0;
+          char  *user_buf = NULL;
+          size_t user_len = 0;
 
           hlfmt_user (hashcat_ctx, hashlist_format, line_buf, line_len, &user_buf, &user_len);
 
@@ -1001,7 +1028,7 @@ int hashes_init_stage1 (hashcat_ctx_t *hashcat_ctx)
               user_ptr->user_name = hcstrdup ("");
             }
 
-            user_ptr->user_len = user_len;
+            user_ptr->user_len = (u32) user_len;
           }
         }
 
@@ -1035,7 +1062,15 @@ int hashes_init_stage1 (hashcat_ctx_t *hashcat_ctx)
 
             if (parser_status < PARSER_GLOBAL_ZERO)
             {
-              event_log_warning (hashcat_ctx, "Hashfile '%s' on line %u (%s): %s", hashes->hashfile, line_num, line_buf, strparser (parser_status));
+              char *tmp_line_buf;
+
+              hc_asprintf (&tmp_line_buf, "%s", line_buf);
+
+              compress_terminal_line_length (tmp_line_buf, 38, 32);
+
+              event_log_warning (hashcat_ctx, "Hashfile '%s' on line %u (%s): %s", hashes->hashfile, line_num, tmp_line_buf, strparser (parser_status));
+
+              hcfree (tmp_line_buf);
 
               continue;
             }
@@ -1049,7 +1084,15 @@ int hashes_init_stage1 (hashcat_ctx_t *hashcat_ctx)
 
             if (parser_status < PARSER_GLOBAL_ZERO)
             {
-              event_log_warning (hashcat_ctx, "Hashfile '%s' on line %u (%s): %s", hashes->hashfile, line_num, line_buf, strparser (parser_status));
+              char *tmp_line_buf;
+
+              hc_asprintf (&tmp_line_buf, "%s", line_buf);
+
+              compress_terminal_line_length (tmp_line_buf, 38, 32);
+
+              event_log_warning (hashcat_ctx, "Hashfile '%s' on line %u (%s): %s", hashes->hashfile, line_num, tmp_line_buf, strparser (parser_status));
+
+              hcfree (tmp_line_buf);
 
               continue;
             }
@@ -1061,11 +1104,19 @@ int hashes_init_stage1 (hashcat_ctx_t *hashcat_ctx)
           }
           else
           {
-            int parser_status = hashconfig->parse_func ((u8 *) hash_buf, hash_len, &hashes_buf[hashes_cnt], hashconfig);
+            int parser_status = hashconfig->parse_func ((u8 *) hash_buf, (u32) hash_len, &hashes_buf[hashes_cnt], hashconfig);
 
             if (parser_status < PARSER_GLOBAL_ZERO)
             {
-              event_log_warning (hashcat_ctx, "Hashfile '%s' on line %u (%s): %s", hashes->hashfile, line_num, line_buf, strparser (parser_status));
+              char *tmp_line_buf;
+
+              hc_asprintf (&tmp_line_buf, "%s", line_buf);
+
+              compress_terminal_line_length (tmp_line_buf, 38, 32);
+
+              event_log_warning (hashcat_ctx, "Hashfile '%s' on line %u (%s): %s", hashes->hashfile, line_num, tmp_line_buf, strparser (parser_status));
+
+              hcfree (tmp_line_buf);
 
               continue;
             }
@@ -1078,11 +1129,19 @@ int hashes_init_stage1 (hashcat_ctx_t *hashcat_ctx)
         }
         else
         {
-          int parser_status = hashconfig->parse_func ((u8 *) hash_buf, hash_len, &hashes_buf[hashes_cnt], hashconfig);
+          int parser_status = hashconfig->parse_func ((u8 *) hash_buf, (u32) hash_len, &hashes_buf[hashes_cnt], hashconfig);
 
           if (parser_status < PARSER_GLOBAL_ZERO)
           {
-            event_log_warning (hashcat_ctx, "Hashfile '%s' on line %u (%s): %s", hashes->hashfile, line_num, line_buf, strparser (parser_status));
+            char *tmp_line_buf;
+
+            hc_asprintf (&tmp_line_buf, "%s", line_buf);
+
+            compress_terminal_line_length (tmp_line_buf, 38, 32);
+
+            event_log_warning (hashcat_ctx, "Hashfile '%s' on line %u (%s): %s", hashes->hashfile, line_num, tmp_line_buf, strparser (parser_status));
+
+            hcfree (tmp_line_buf);
 
             continue;
           }
@@ -1090,11 +1149,11 @@ int hashes_init_stage1 (hashcat_ctx_t *hashcat_ctx)
           hashes_cnt++;
         }
 
-        hc_time (&now);
+        time (&now);
 
         if ((now - prev) == 0) continue;
 
-        hc_time (&prev);
+        time (&prev);
 
         hashlist_parse_t hashlist_parse;
 
@@ -1578,11 +1637,11 @@ int hashes_init_selftest (hashcat_ctx_t *hashcat_ctx)
   {
     char *tmpdata = (char *) hcmalloc (sizeof (hccapx_t));
 
-    const int st_hash_len = strlen (hashconfig->st_hash);
+    const size_t st_hash_len = strlen (hashconfig->st_hash);
 
-    for (int i = 0, j = 0; j < st_hash_len; i += 1, j += 2)
+    for (size_t i = 0, j = 0; j < st_hash_len; i += 1, j += 2)
     {
-      const u8 c = hex_to_u8 ((u8 *) hashconfig->st_hash + j);
+      const u8 c = hex_to_u8 ((const u8 *) hashconfig->st_hash + j);
 
       tmpdata[i] = c;
     }
@@ -1603,18 +1662,18 @@ int hashes_init_selftest (hashcat_ctx_t *hashcat_ctx)
 
     FILE *fp = fopen (tmpfile_bin, "wb");
 
-    const int st_hash_len = strlen (hashconfig->st_hash);
+    const size_t st_hash_len = strlen (hashconfig->st_hash);
 
-    for (int i = 0; i < st_hash_len; i += 2)
+    for (size_t i = 0; i < st_hash_len; i += 2)
     {
-      const u8 c = hex_to_u8 ((u8 *) hashconfig->st_hash + i);
+      const u8 c = hex_to_u8 ((const u8 *) hashconfig->st_hash + i);
 
       fputc (c, fp);
     }
 
     fclose (fp);
 
-    parser_status = hashconfig->parse_func ((u8 *) tmpfile_bin, strlen (tmpfile_bin), &hash, hashconfig);
+    parser_status = hashconfig->parse_func ((u8 *) tmpfile_bin, (u32) strlen (tmpfile_bin), &hash, hashconfig);
 
     unlink (tmpfile_bin);
 
@@ -1638,7 +1697,14 @@ int hashes_init_selftest (hashcat_ctx_t *hashcat_ctx)
       }
     }
 
-    parser_status = hashconfig->parse_func ((u8 *) hashconfig->st_hash, strlen (hashconfig->st_hash), &hash, hashconfig_st);
+    // Make sure that we do not modify constant data. Make a copy of the constant self-test hash
+    // Note: sometimes parse_func () modifies the data internally. We always need to use a copy of the original data
+
+    char *tmpdata = hcstrdup (hashconfig->st_hash);
+
+    parser_status = hashconfig->parse_func ((u8 *) tmpdata, (u32) strlen (hashconfig->st_hash), &hash, hashconfig_st);
+
+    hcfree (tmpdata);
 
     hcfree (hashconfig_st);
   }
@@ -1708,6 +1774,8 @@ void hashes_destroy (hashcat_ctx_t *hashcat_ctx)
   hcfree (hashes->st_salts_buf);
   hcfree (hashes->st_esalts_buf);
   hcfree (hashes->st_hook_salts_buf);
+
+  hcfree (hashes->hashfile_hcdmp);
 
   memset (hashes, 0, sizeof (hashes_t));
 }

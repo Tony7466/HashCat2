@@ -1,0 +1,15 @@
+Description: Fix spelling error
+Author: Sophie Brun <sophie@freexian.com>
+Last-Update: 2018-04-04
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+--- a/src/user_options.c
++++ b/src/user_options.c
+@@ -94,7 +94,6 @@ static const struct option long_options[
+   {"self-test-disable",         no_argument,       NULL, IDX_SELF_TEST_DISABLE},
+   {"segment-size",              required_argument, NULL, IDX_SEGMENT_SIZE},
+   {"separator",                 required_argument, NULL, IDX_SEPARATOR},
+-  {"seperator",                 required_argument, NULL, IDX_SEPARATOR},
+   {"session",                   required_argument, NULL, IDX_SESSION},
+   {"show",                      no_argument,       NULL, IDX_SHOW},
+   {"skip",                      required_argument, NULL, IDX_SKIP},

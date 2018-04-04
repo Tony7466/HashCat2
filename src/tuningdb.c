@@ -85,7 +85,7 @@ int tuning_db_init (hashcat_ctx_t *hashcat_ctx)
 
   hcfree (tuning_db_file);
 
-  int num_lines = count_lines (fp);
+  const size_t num_lines = count_lines (fp);
 
   // a bit over-allocated
 
@@ -109,7 +109,7 @@ int tuning_db_init (hashcat_ctx_t *hashcat_ctx)
 
     line_num++;
 
-    const int line_len = in_superchop (line_buf);
+    const size_t line_len = in_superchop (line_buf);
 
     if (line_len == 0) continue;
 
@@ -121,7 +121,7 @@ int tuning_db_init (hashcat_ctx_t *hashcat_ctx)
 
     int token_cnt = 0;
 
-    char *saveptr;
+    char *saveptr = NULL;
 
     char *next = strtok_r (line_buf, "\t ", &saveptr);
 
@@ -129,7 +129,7 @@ int tuning_db_init (hashcat_ctx_t *hashcat_ctx)
 
     token_cnt++;
 
-    while ((next = strtok_r (NULL, "\t ", &saveptr)) != NULL)
+    while ((next = strtok_r ((char *) NULL, "\t ", &saveptr)) != NULL)
     {
       token_ptr[token_cnt] = next;
 
@@ -179,9 +179,9 @@ int tuning_db_init (hashcat_ctx_t *hashcat_ctx)
       int kernel_accel     = -1;
       int kernel_loops     = -1;
 
-      if (token_ptr[1][0] != '*') attack_mode      = atoi (token_ptr[1]);
-      if (token_ptr[2][0] != '*') hash_type        = atoi (token_ptr[2]);
-      if (token_ptr[3][0] != 'N') vector_width     = atoi (token_ptr[3]);
+      if (token_ptr[1][0] != '*') attack_mode   = (int) strtol (token_ptr[1], NULL, 10);
+      if (token_ptr[2][0] != '*') hash_type     = (int) strtol (token_ptr[2], NULL, 10);
+      if (token_ptr[3][0] != 'N') vector_width  = (int) strtol (token_ptr[3], NULL, 10);
 
       if (token_ptr[4][0] == 'A')
       {
@@ -193,7 +193,7 @@ int tuning_db_init (hashcat_ctx_t *hashcat_ctx)
       }
       else
       {
-        kernel_accel = atoi (token_ptr[4]);
+        kernel_accel = (int) strtol (token_ptr[4], NULL, 10);
 
         if ((kernel_accel < 1) || (kernel_accel > 1024))
         {
@@ -224,7 +224,7 @@ int tuning_db_init (hashcat_ctx_t *hashcat_ctx)
       }
       else
       {
-        kernel_loops = atoi (token_ptr[5]);
+        kernel_loops = (int) strtol (token_ptr[5], NULL, 10);
 
         if (kernel_loops < 1)
         {
@@ -327,9 +327,9 @@ tuning_db_entry_t *tuning_db_search (hashcat_ctx_t *hashcat_ctx, const char *dev
 
   char *device_name_nospace = hcstrdup (device_name);
 
-  int device_name_length = strlen (device_name_nospace);
+  const size_t device_name_length = strlen (device_name_nospace);
 
-  int i;
+  size_t i;
 
   for (i = 0; i < device_name_length; i++)
   {

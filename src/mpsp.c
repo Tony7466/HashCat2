@@ -17,16 +17,22 @@
 #include "ext_lzma.h"
 #include "mpsp.h"
 
-static const char DEF_MASK[] = "?1?2?2?2?2?2?2?3?3?3?3?d?d?d?d";
+static const char *DEF_MASK = "?1?2?2?2?2?2?2?3?3?3?3?d?d?d?d";
 
 #define MAX_MFS 5 // 4*charset, 1*mask
 
 static int sp_comp_val (const void *p1, const void *p2)
 {
-  hcstat_table_t *b1 = (hcstat_table_t *) p1;
-  hcstat_table_t *b2 = (hcstat_table_t *) p2;
+  const hcstat_table_t *b1 = (const hcstat_table_t *) p1;
+  const hcstat_table_t *b2 = (const hcstat_table_t *) p2;
 
-  return b2->val - b1->val;
+  const u64 v1 = b1->val;
+  const u64 v2 = b2->val;
+
+  if (v1 < v2) return  1;
+  if (v1 > v2) return -1;
+
+  return 0;
 }
 
 static void mp_css_split_cnt (hashcat_ctx_t *hashcat_ctx, const u32 css_cnt_orig, u32 css_cnt_lr[2])
@@ -240,7 +246,7 @@ static int mp_add_cs_buf (hashcat_ctx_t *hashcat_ctx, const u32 *in_buf, size_t 
   return 0;
 }
 
-static int mp_expand (hashcat_ctx_t *hashcat_ctx, char *in_buf, size_t in_len, cs_t *mp_sys, cs_t *mp_usr, u32 mp_usr_offset, int interpret)
+static int mp_expand (hashcat_ctx_t *hashcat_ctx, const char *in_buf, size_t in_len, cs_t *mp_sys, cs_t *mp_usr, u32 mp_usr_offset, int interpret)
 {
   const user_options_t *user_options = hashcat_ctx->user_options;
 
@@ -557,7 +563,7 @@ static void mp_setup_sys (cs_t *mp_sys)
                                                    mp_sys[7].cs_len = pos; }
 }
 
-static int mp_setup_usr (hashcat_ctx_t *hashcat_ctx, cs_t *mp_sys, cs_t *mp_usr, char *buf, const u32 userindex)
+static int mp_setup_usr (hashcat_ctx_t *hashcat_ctx, cs_t *mp_sys, cs_t *mp_usr, const char *buf, const u32 userindex)
 {
   FILE *fp = fopen (buf, "rb");
 
@@ -678,9 +684,9 @@ static int sp_setup_tbl (hashcat_ctx_t *hashcat_ctx)
     hcstat = hcstat_tmp;
   }
 
-  hc_stat_t s;
+  struct stat s;
 
-  if (hc_stat (hcstat, &s) == -1)
+  if (stat (hcstat, &s) == -1)
   {
     event_log_error (hashcat_ctx, "%s: %s", hcstat, strerror (errno));
 
@@ -1113,9 +1119,9 @@ u32 mp_get_length (const char *mask)
 {
   u32 len = 0;
 
-  u32 mask_len = strlen (mask);
+  const size_t mask_len = strlen (mask);
 
-  for (u32 i = 0; i < mask_len; i++)
+  for (size_t i = 0; i < mask_len; i++)
   {
     if (mask[i] == '?') i++;
 
@@ -1125,13 +1131,13 @@ u32 mp_get_length (const char *mask)
   return len;
 }
 
-static char *mask_ctx_parse_maskfile_find_mask (char *line_buf, int line_len)
+static char *mask_ctx_parse_maskfile_find_mask (char *line_buf, const size_t line_len)
 {
   char *mask_buf = line_buf;
 
   bool escaped = false;
 
-  for (int i = 0; i < line_len; i++)
+  for (size_t i = 0; i < line_len; i++)
   {
     if (escaped == true)
     {
@@ -1284,18 +1290,20 @@ int mask_ctx_update_loop (hashcat_ctx_t *hashcat_ctx)
         if (mask_ctx->css_cnt < mask_min)
         {
           event_log_warning (hashcat_ctx, "Skipping mask '%s' because it is smaller than the minimum password length.", mask_ctx->mask);
+          event_log_warning (hashcat_ctx, NULL);
         }
 
         if (mask_ctx->css_cnt > mask_max)
         {
           event_log_warning (hashcat_ctx, "Skipping mask '%s' because it is larger than the maximum password length.", mask_ctx->mask);
+          event_log_warning (hashcat_ctx, NULL);
         }
 
         // skip to next mask
 
         logfile_sub_msg ("STOP");
 
-        return 0;
+        return -1;
       }
 
       if (hashconfig->opts_type & OPTS_TYPE_PT_UTF16LE)
@@ -1385,7 +1393,9 @@ int mask_ctx_init (hashcat_ctx_t *hashcat_ctx)
   mask_ctx->root_table_buf   = (hcstat_table_t *) hccalloc (SP_ROOT_CNT,   sizeof (hcstat_table_t));
   mask_ctx->markov_table_buf = (hcstat_table_t *) hccalloc (SP_MARKOV_CNT, sizeof (hcstat_table_t));
 
-  sp_setup_tbl (hashcat_ctx);
+  const int rc_setup_tbl = sp_setup_tbl (hashcat_ctx);
+
+  if (rc_setup_tbl == -1) return -1;
 
   mask_ctx->root_css_buf   = (cs_t *) hccalloc (SP_PW_MAX,           sizeof (cs_t));
   mask_ctx->markov_css_buf = (cs_t *) hccalloc (SP_PW_MAX * CHARSIZ, sizeof (cs_t));
@@ -1445,7 +1455,7 @@ int mask_ctx_init (hashcat_ctx_t *hashcat_ctx)
 
               while (!feof (mask_fp))
               {
-                const int line_len = fgetl (mask_fp, line_buf);
+                const size_t line_len = fgetl (mask_fp, line_buf);
 
                 if (line_len == 0) continue;
 
@@ -1538,7 +1548,7 @@ int mask_ctx_init (hashcat_ctx_t *hashcat_ctx)
 
         while (!feof (mask_fp))
         {
-          const int line_len = fgetl (mask_fp, line_buf);
+          const size_t line_len = fgetl (mask_fp, line_buf);
 
           if (line_len == 0) continue;
 
@@ -1612,7 +1622,7 @@ int mask_ctx_init (hashcat_ctx_t *hashcat_ctx)
 
         while (!feof (mask_fp))
         {
-          const int line_len = fgetl (mask_fp, line_buf);
+          const size_t line_len = fgetl (mask_fp, line_buf);
 
           if (line_len == 0) continue;
 
@@ -1709,15 +1719,15 @@ int mask_ctx_parse_maskfile (hashcat_ctx_t *hashcat_ctx)
   mfs_buf[3].mf_len = 0;
   mfs_buf[4].mf_len = 0;
 
-  int mfs_cnt = 0;
+  size_t mfs_cnt = 0;
 
   char *mask_buf = mask_ctx->mask;
 
-  const int mask_len = strlen (mask_buf);
+  const size_t mask_len = strlen (mask_buf);
 
   bool escaped = false;
 
-  for (int i = 0; i < mask_len; i++)
+  for (size_t i = 0; i < mask_len; i++)
   {
     mf_t *mf = mfs_buf + mfs_cnt;
 
@@ -1771,7 +1781,7 @@ int mask_ctx_parse_maskfile (hashcat_ctx_t *hashcat_ctx)
   mp_reset_usr (mask_ctx->mp_usr, 2);
   mp_reset_usr (mask_ctx->mp_usr, 3);
 
-  for (int i = 0; i < mfs_cnt; i++)
+  for (size_t i = 0; i < mfs_cnt; i++)
   {
     switch (i)
     {

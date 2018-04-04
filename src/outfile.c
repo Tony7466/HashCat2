@@ -28,7 +28,7 @@ int build_plain (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param, pl
   const straight_ctx_t   *straight_ctx   = hashcat_ctx->straight_ctx;
   const user_options_t   *user_options   = hashcat_ctx->user_options;
 
-  const u32 gidvid = plain->gidvid;
+  const u64 gidvid = plain->gidvid;
   const u32 il_pos = plain->il_pos;
 
   int plain_len = 0;
@@ -43,7 +43,7 @@ int build_plain (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param, pl
 
     if (rc == -1) return -1;
 
-    const u32 off = device_param->innerloop_pos + il_pos;
+    const u64 off = device_param->innerloop_pos + il_pos;
 
     if (hashconfig->opti_type & OPTI_TYPE_OPTIMIZED_KERNEL)
     {
@@ -63,8 +63,6 @@ int build_plain (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param, pl
 
       plain_len = apply_rules (straight_ctx->kernel_rules_buf[off].cmds, plain_buf, pw.pw_len);
     }
-
-    if (plain_len > (int) hashconfig->pw_max) plain_len = (int) hashconfig->pw_max;
   }
   else if (user_options->attack_mode == ATTACK_MODE_COMBI)
   {
@@ -96,28 +94,6 @@ int build_plain (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param, pl
     }
 
     plain_len += comb_len;
-
-    if (hashconfig->opti_type & OPTI_TYPE_OPTIMIZED_KERNEL)
-    {
-      int pw_max_combi;
-
-      #define PW_DICTMAX 32
-
-      if (hashconfig->pw_max < PW_DICTMAX)
-      {
-        pw_max_combi = hashconfig->pw_max;
-      }
-      else
-      {
-        pw_max_combi = PW_MAX_OLD;
-      }
-
-      plain_len = MIN ((int) plain_len, (int) pw_max_combi);
-    }
-    else
-    {
-      plain_len = MIN ((int) plain_len, (int) hashconfig->pw_max);
-    }
   }
   else if (user_options->attack_mode == ATTACK_MODE_BF)
   {
@@ -158,8 +134,6 @@ int build_plain (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param, pl
     sp_exec (off, (char *) plain_ptr + plain_len, mask_ctx->root_css_buf, mask_ctx->markov_css_buf, start, start + stop);
 
     plain_len += start + stop;
-
-    if (plain_len > (int) hashconfig->pw_max) plain_len = (int) hashconfig->pw_max;
   }
   else if (user_options->attack_mode == ATTACK_MODE_HYBRID2)
   {
@@ -188,8 +162,6 @@ int build_plain (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param, pl
       sp_exec (off, (char *) plain_ptr, mask_ctx->root_css_buf, mask_ctx->markov_css_buf, start, start + stop);
 
       plain_len += start + stop;
-
-      if (plain_len > (int) hashconfig->pw_max) plain_len = (int) hashconfig->pw_max;
     }
     else
     {
@@ -214,8 +186,6 @@ int build_plain (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param, pl
       memcpy (plain_ptr + plain_len, comb_buf, comb_len);
 
       plain_len += comb_len;
-
-      if (plain_len > (int) hashconfig->pw_max) plain_len = (int) hashconfig->pw_max;
     }
   }
 
@@ -252,6 +222,10 @@ int build_plain (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param, pl
     }
   }
 
+  const u32 pw_max = hashconfig_get_pw_max (hashcat_ctx, false);
+
+  if (plain_len > (int) hashconfig->pw_max) plain_len = MIN (plain_len, (int) pw_max);
+
   plain_ptr[plain_len] = 0;
 
   *out_len = plain_len;
@@ -266,7 +240,7 @@ int build_crackpos (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param,
   const straight_ctx_t        *straight_ctx       = hashcat_ctx->straight_ctx;
   const user_options_extra_t  *user_options_extra = hashcat_ctx->user_options_extra;
 
-  const u32 gidvid = plain->gidvid;
+  const u64 gidvid = plain->gidvid;
   const u32 il_pos = plain->il_pos;
 
   u64 crackpos = device_param->words_off;
@@ -301,7 +275,7 @@ int build_debugdata (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param
   const straight_ctx_t  *straight_ctx  = hashcat_ctx->straight_ctx;
   const user_options_t  *user_options  = hashcat_ctx->user_options;
 
-  const u32 gidvid = plain->gidvid;
+  const u64 gidvid = plain->gidvid;
   const u32 il_pos = plain->il_pos;
 
   if (user_options->attack_mode != ATTACK_MODE_STRAIGHT) return 0;
@@ -318,7 +292,7 @@ int build_debugdata (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param
 
   int plain_len = (int) pw.pw_len;
 
-  const u32 off = device_param->innerloop_pos + il_pos;
+  const u64 off = device_param->innerloop_pos + il_pos;
 
   // save rule
   if ((debug_mode == 1) || (debug_mode == 3) || (debug_mode == 4))
@@ -444,9 +418,19 @@ int outfile_write (hashcat_ctx_t *hashcat_ctx, const char *out_buf, const unsign
 
   if (outfile_ctx->outfile_format & OUTFILE_FMT_PLAIN)
   {
-    const bool always_ascii = (hashconfig->hash_type & OPTS_TYPE_PT_ALWAYS_ASCII) ? true : false;
+    bool convert_to_hex = false;
 
-    if ((user_options->outfile_autohex == true) && (need_hexify (plain_ptr, plain_len, hashconfig->separator, always_ascii) == true))
+    if (user_options->show == false)
+    {
+      if (user_options->outfile_autohex == true)
+      {
+        const bool always_ascii = (hashconfig->hash_type & OPTS_TYPE_PT_ALWAYS_ASCII) ? true : false;
+
+        convert_to_hex = need_hexify (plain_ptr, plain_len, hashconfig->separator, always_ascii);
+      }
+    }
+
+    if (convert_to_hex)
     {
       tmp_buf[tmp_len++] = '$';
       tmp_buf[tmp_len++] = 'H';
@@ -454,7 +438,7 @@ int outfile_write (hashcat_ctx_t *hashcat_ctx, const char *out_buf, const unsign
       tmp_buf[tmp_len++] = 'X';
       tmp_buf[tmp_len++] = '[';
 
-      exec_hexify ((const u8 *) plain_ptr, plain_len, (u8 *) tmp_buf + tmp_len);
+      exec_hexify (plain_ptr, plain_len, (u8 *) tmp_buf + tmp_len);
 
       tmp_len += plain_len * 2;
 
@@ -477,7 +461,7 @@ int outfile_write (hashcat_ctx_t *hashcat_ctx, const char *out_buf, const unsign
 
   if (outfile_ctx->outfile_format & OUTFILE_FMT_HEXPLAIN)
   {
-    exec_hexify ((const u8 *) plain_ptr, plain_len, (u8 *) tmp_buf + tmp_len);
+    exec_hexify (plain_ptr, plain_len, (u8 *) tmp_buf + tmp_len);
 
     tmp_len += plain_len * 2;
 

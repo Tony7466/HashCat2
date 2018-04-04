@@ -2069,7 +2069,7 @@ __constant u32a c_pc_len[1024] =
   4
 };
 
-void append_word (u32 w0[4], u32 w1[4], const u32 append[4], const u32 offset)
+DECLSPEC void append_word (u32 w0[4], u32 w1[4], const u32 append[4], const u32 offset)
 {
   switch (offset)
   {
@@ -2103,7 +2103,7 @@ void append_word (u32 w0[4], u32 w1[4], const u32 append[4], const u32 offset)
   }
 }
 
-void append_salt (u32 w0[4], u32 w1[4], u32 w2[4], const u32 append[5], const u32 offset)
+DECLSPEC void append_salt (u32 w0[4], u32 w1[4], u32 w2[4], const u32 append[5], const u32 offset)
 {
   u32 tmp0;
   u32 tmp1;
@@ -2264,7 +2264,7 @@ __kernel void m05800_loop (__global pw_t *pws, __global const kernel_rule_t *rul
 
   for (int i = 0, idx = 0; i < pw_len; i += 4, idx += 1)
   {
-    w[idx] = swap32 (pws[gid].i[idx]);
+    w[idx] = swap32_S (pws[gid].i[idx]);
   }
 
   const u32 salt_len = salt_bufs[salt_pos].salt_len;
@@ -2273,7 +2273,7 @@ __kernel void m05800_loop (__global pw_t *pws, __global const kernel_rule_t *rul
 
   for (int i = 0, idx = 0; i < salt_len; i += 4, idx += 1)
   {
-    s[idx] = swap32 (salt_bufs[salt_pos].salt_buf[idx]);
+    s[idx] = swap32_S (salt_bufs[salt_pos].salt_buf[idx]);
   }
 
   u32 digest[5];
@@ -2302,7 +2302,7 @@ __kernel void m05800_loop (__global pw_t *pws, __global const kernel_rule_t *rul
     ctx.w0[2] = digest[2];
     ctx.w0[3] = digest[3];
     ctx.w1[0] = digest[4];
-    ctx.w1[1] = swap32 (pc_dec);
+    ctx.w1[1] = swap32_S (pc_dec);
 
     ctx.len = 20 + pc_len;
 

@@ -6,7 +6,8 @@ hashcat (4.1.0-1) UNRELEASED; urgency=medium
   * Refresh patches
 
   [ Raphaël Hertzog ]
-  * Update team maintainer address to Debian Security Tools <team+pkg-security@tracker.debian.org>
+  * Update team maintainer address to Debian Security Tools
+    <team+pkg-security@tracker.debian.org>
 
  -- Sophie Brun <sophie@freexian.com>  Wed, 04 Apr 2018 15:08:31 +0200
 

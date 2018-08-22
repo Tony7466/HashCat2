@@ -357,17 +357,17 @@ void generate_source_kernel_filename (const u32 attack_exec, const u32 attack_ke
     if (attack_exec == ATTACK_EXEC_INSIDE_KERNEL)
     {
       if (attack_kern == ATTACK_KERN_STRAIGHT)
-        snprintf (source_file, 255, "%s/OpenCL/m%05d_a0.cl", shared_dir, (int) kern_type);
+        snprintf (source_file, 255, "%s/OpenCL/m%05d_a0-pure.cl", shared_dir, (int) kern_type);
       else if (attack_kern == ATTACK_KERN_COMBI)
-        snprintf (source_file, 255, "%s/OpenCL/m%05d_a1.cl", shared_dir, (int) kern_type);
+        snprintf (source_file, 255, "%s/OpenCL/m%05d_a1-pure.cl", shared_dir, (int) kern_type);
       else if (attack_kern == ATTACK_KERN_BF)
-        snprintf (source_file, 255, "%s/OpenCL/m%05d_a3.cl", shared_dir, (int) kern_type);
+        snprintf (source_file, 255, "%s/OpenCL/m%05d_a3-pure.cl", shared_dir, (int) kern_type);
       else if (attack_kern == ATTACK_KERN_NONE)
-        snprintf (source_file, 255, "%s/OpenCL/m%05d_a0.cl", shared_dir, (int) kern_type);
+        snprintf (source_file, 255, "%s/OpenCL/m%05d_a0-pure.cl", shared_dir, (int) kern_type);
     }
     else
     {
-      snprintf (source_file, 255, "%s/OpenCL/m%05d.cl", shared_dir, (int) kern_type);
+      snprintf (source_file, 255, "%s/OpenCL/m%05d-pure.cl", shared_dir, (int) kern_type);
     }
   }
 }
@@ -397,17 +397,17 @@ void generate_cached_kernel_filename (const u32 attack_exec, const u32 attack_ke
     if (attack_exec == ATTACK_EXEC_INSIDE_KERNEL)
     {
       if (attack_kern == ATTACK_KERN_STRAIGHT)
-        snprintf (cached_file, 255, "%s/kernels/m%05d_a0.%s.kernel", profile_dir, (int) kern_type, device_name_chksum);
+        snprintf (cached_file, 255, "%s/kernels/m%05d_a0-pure.%s.kernel", profile_dir, (int) kern_type, device_name_chksum);
       else if (attack_kern == ATTACK_KERN_COMBI)
-        snprintf (cached_file, 255, "%s/kernels/m%05d_a1.%s.kernel", profile_dir, (int) kern_type, device_name_chksum);
+        snprintf (cached_file, 255, "%s/kernels/m%05d_a1-pure.%s.kernel", profile_dir, (int) kern_type, device_name_chksum);
       else if (attack_kern == ATTACK_KERN_BF)
-        snprintf (cached_file, 255, "%s/kernels/m%05d_a3.%s.kernel", profile_dir, (int) kern_type, device_name_chksum);
+        snprintf (cached_file, 255, "%s/kernels/m%05d_a3-pure.%s.kernel", profile_dir, (int) kern_type, device_name_chksum);
       else if (attack_kern == ATTACK_KERN_NONE)
-        snprintf (cached_file, 255, "%s/kernels/m%05d_a0.%s.kernel", profile_dir, (int) kern_type, device_name_chksum);
+        snprintf (cached_file, 255, "%s/kernels/m%05d_a0-pure.%s.kernel", profile_dir, (int) kern_type, device_name_chksum);
     }
     else
     {
-      snprintf (cached_file, 255, "%s/kernels/m%05d.%s.kernel", profile_dir, (int) kern_type, device_name_chksum);
+      snprintf (cached_file, 255, "%s/kernels/m%05d-pure.%s.kernel", profile_dir, (int) kern_type, device_name_chksum);
     }
   }
 }
@@ -1320,6 +1320,8 @@ int choose_kernel (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param, 
         {
           if (speed_msec > 4000)
           {
+            device_param->outerloop_multi *= (double) iter / (double) (loop_pos + loop_left);
+
             device_param->speed_pos = 1;
 
             device_param->speed_only_finish = true;
@@ -1412,23 +1414,23 @@ int choose_kernel (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param, 
 
           const u32 digests_offset = hashes->salts_buf[salt_pos].digests_offset;
 
-          wpa_t *wpas = (wpa_t *) hashes->esalts_buf;
+          wpa_eapol_t *wpa_eapols = (wpa_eapol_t *) hashes->esalts_buf;
 
-          wpa_t *wpa = &wpas[digests_offset + loops_pos];
+          wpa_eapol_t *wpa_eapol = &wpa_eapols[digests_offset + loops_pos];
 
-          if (wpa->keyver == 1)
+          if (wpa_eapol->keyver == 1)
           {
             CL_rc = run_kernel (hashcat_ctx, device_param, KERN_RUN_AUX1, pws_cnt, false, 0);
 
             if (CL_rc == -1) return -1;
           }
-          else if (wpa->keyver == 2)
+          else if (wpa_eapol->keyver == 2)
           {
             CL_rc = run_kernel (hashcat_ctx, device_param, KERN_RUN_AUX2, pws_cnt, false, 0);
 
             if (CL_rc == -1) return -1;
           }
-          else if (wpa->keyver == 3)
+          else if (wpa_eapol->keyver == 3)
           {
             CL_rc = run_kernel (hashcat_ctx, device_param, KERN_RUN_AUX3, pws_cnt, false, 0);
 
@@ -2212,8 +2214,10 @@ int run_cracker (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param, co
 
   // we make use of this in status view
 
-  device_param->outerloop_pos  = 0;
-  device_param->outerloop_left = pws_cnt;
+  device_param->outerloop_multi = 1;
+  device_param->outerloop_msec  = 0;
+  device_param->outerloop_pos   = 0;
+  device_param->outerloop_left  = pws_cnt;
 
   // loop start: most outer loop = salt iteration, then innerloops (if multi)
 
@@ -2268,13 +2272,7 @@ int run_cracker (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param, co
 
       device_param->kernel_params_buf32[30] = (u32) innerloop_left;
 
-      // i think we can get rid of this
-      if (innerloop_left == false)
-      {
-        puts ("bug, how should this happen????\n");
-
-        continue;
-      }
+      device_param->outerloop_multi = (double) innerloop_cnt / (double) (innerloop_pos + innerloop_left);
 
       if (hashes->salts_shown[salt_pos] == 1)
       {
@@ -2539,44 +2537,49 @@ int run_cracker (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param, co
        * benchmark was aborted because too long kernel runtime (slow hashes only)
        */
 
-      if (device_param->speed_only_finish == true) break;
-
-      /**
-       * speed
-       */
-
-      if (status_ctx->run_thread_level2 == true)
+      if ((user_options->speed_only == true) && (device_param->speed_only_finish == true))
       {
-        const u64 perf_sum_all = (u64) pws_cnt * innerloop_left;
-
-        const double speed_msec = hc_timer_get (device_param->timer_speed);
-
-        hc_timer_set (&device_param->timer_speed);
-
-        u32 speed_pos = device_param->speed_pos;
-
-        device_param->speed_cnt[speed_pos] = perf_sum_all;
-
-        device_param->speed_msec[speed_pos] = speed_msec;
-
-        speed_pos++;
-
-        if (speed_pos == SPEED_CACHE)
-        {
-          speed_pos = 0;
-        }
-
-        device_param->speed_pos = speed_pos;
-
+        // nothing to do in that case
+      }
+      else
+      {
         /**
-         * progress
+         * speed
          */
 
-        hc_thread_mutex_lock (status_ctx->mux_counter);
+        if (status_ctx->run_thread_level2 == true)
+        {
+          const u64 perf_sum_all = (u64) pws_cnt * innerloop_left;
 
-        status_ctx->words_progress_done[salt_pos] += perf_sum_all;
+          const double speed_msec = hc_timer_get (device_param->timer_speed);
 
-        hc_thread_mutex_unlock (status_ctx->mux_counter);
+          hc_timer_set (&device_param->timer_speed);
+
+          u32 speed_pos = device_param->speed_pos;
+
+          device_param->speed_cnt[speed_pos] = perf_sum_all;
+
+          device_param->speed_msec[speed_pos] = speed_msec;
+
+          speed_pos++;
+
+          if (speed_pos == SPEED_CACHE)
+          {
+            speed_pos = 0;
+          }
+
+          device_param->speed_pos = speed_pos;
+
+          /**
+           * progress
+           */
+
+          hc_thread_mutex_lock (status_ctx->mux_counter);
+
+          status_ctx->words_progress_done[salt_pos] += perf_sum_all;
+
+          hc_thread_mutex_unlock (status_ctx->mux_counter);
+        }
       }
 
       /**
@@ -2585,43 +2588,36 @@ int run_cracker (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param, co
 
       if (user_options->speed_only == true)
       {
-        double total = device_param->speed_msec[0];
+        // let's abort this so that the user doesn't have to wait too long on the result
+        // for slow hashes it's fine anyway as boost mode should be turned on
 
-        for (u32 speed_pos = 1; speed_pos < device_param->speed_pos; speed_pos++)
+        if (hashconfig->attack_exec == ATTACK_EXEC_OUTSIDE_KERNEL)
         {
-          total += device_param->speed_msec[speed_pos];
-        }
-
-        // it's unclear if 4s is enough to turn on boost mode for all opencl device
-
-        if ((total > 4000) || (device_param->speed_pos == SPEED_CACHE - 1))
-        {
-          u32 q = device_param->speed_pos / 10; // only use the last 10% of the recording
-
-          if (q == 0) q = 1;
-
-          u64    cnt  = 0;
-          double msec = 0;
-
-          for (u32 speed_pos = device_param->speed_pos - q; speed_pos < device_param->speed_pos; speed_pos++)
-          {
-            cnt  += device_param->speed_cnt[speed_pos];
-            msec += device_param->speed_msec[speed_pos];
-          }
-
-          memset (device_param->speed_cnt,  0, SPEED_CACHE * sizeof (u64));
-          memset (device_param->speed_msec, 0, SPEED_CACHE * sizeof (double));
-
-          device_param->speed_cnt[0]  = cnt  / q;
-          device_param->speed_msec[0] = msec / q;
-
-          device_param->speed_pos = 1;
-
           device_param->speed_only_finish = true;
 
           break;
         }
+        else
+        {
+          double total = device_param->speed_msec[0];
+
+          for (u32 speed_pos = 1; speed_pos < device_param->speed_pos; speed_pos++)
+          {
+            total += device_param->speed_msec[speed_pos];
+          }
+
+          // it's unclear if 4s is enough to turn on boost mode for all opencl device
+
+          if ((total > 4000) || (device_param->speed_pos == SPEED_CACHE - 1))
+          {
+            device_param->speed_only_finish = true;
+
+            break;
+          }
+        }
       }
+
+      if (device_param->speed_only_finish == true) break;
 
       /**
        * result
@@ -2632,16 +2628,10 @@ int run_cracker (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param, co
       if (status_ctx->run_thread_level2 == false) break;
     }
 
-    if (user_options->progress_only == true)
-    {
-      const double m = (double) innerloop_cnt / innerloop_step;
-
-      device_param->outerloop_msec += device_param->speed_msec[0] * m * hashes->salts_cnt;
-    }
-
-    if (device_param->speed_only_finish == true) break;
+    if (user_options->speed_only == true) break;
 
     //status screen makes use of this, can't reset here
+    //device_param->innerloop_msec = 0;
     //device_param->innerloop_pos  = 0;
     //device_param->innerloop_left = 0;
 
@@ -2649,8 +2639,21 @@ int run_cracker (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param, co
   }
 
   //status screen makes use of this, can't reset here
+  //device_param->outerloop_msec = 0;
   //device_param->outerloop_pos  = 0;
   //device_param->outerloop_left = 0;
+
+  if (user_options->speed_only == true)
+  {
+    double total = device_param->speed_msec[0];
+
+    for (u32 speed_pos = 1; speed_pos < device_param->speed_pos; speed_pos++)
+    {
+      total += device_param->speed_msec[speed_pos];
+    }
+
+    device_param->outerloop_msec = total * hashes->salts_cnt * device_param->outerloop_multi;
+  }
 
   return 0;
 }
@@ -3221,6 +3224,8 @@ int opencl_ctx_devices_init (hashcat_ctx_t *hashcat_ctx, const int comptime)
       if (CL_rc == -1) return -1;
 
       device_param->device_global_mem = device_global_mem;
+
+      device_param->device_available_mem = 0;
 
       // device_maxmem_alloc
 
@@ -4256,6 +4261,88 @@ int opencl_session_begin (hashcat_ctx_t *hashcat_ctx)
 
     if (CL_rc == -1) return -1;
 
+    // device_available_mem
+
+    #define MAX_ALLOC_CHECKS_CNT  8192
+    #define MAX_ALLOC_CHECKS_SIZE (64 * 1024 * 1024)
+
+    device_param->device_available_mem = device_param->device_global_mem - MAX_ALLOC_CHECKS_SIZE;
+
+    if (device_param->platform_vendor_id == VENDOR_ID_NV)
+    {
+      // OK, so the problem here is the following:
+      // There's just CL_DEVICE_GLOBAL_MEM_SIZE to ask OpenCL about the total memory on the device,
+      // but there's no way to ask for available memory on the device.
+      // In combination, most OpenCL runtimes implementation of clCreateBuffer()
+      // are doing so called lazy memory allocation on the device.
+      // Now, if the user has X11 (or a game or anything that takes a lot of GPU memory)
+      // running on the host we end up with an error type of this:
+      // clEnqueueNDRangeKernel(): CL_MEM_OBJECT_ALLOCATION_FAILURE
+      // The clEnqueueNDRangeKernel() is because of the lazy allocation
+      // The best way to workaround this problem is if we would be able to ask for available memory,
+      // The idea here is to try to evaluate available memory by allocating it till it errors
+
+      cl_mem *tmp_device = (cl_mem *) hccalloc (MAX_ALLOC_CHECKS_CNT, sizeof (cl_mem));
+
+      u64 c;
+
+      for (c = 0; c < MAX_ALLOC_CHECKS_CNT; c++)
+      {
+        if (((c + 1 + 1) * MAX_ALLOC_CHECKS_SIZE) >= device_param->device_global_mem) break;
+
+        cl_int CL_err;
+
+        OCL_PTR *ocl = opencl_ctx->ocl;
+
+        tmp_device[c] = ocl->clCreateBuffer (device_param->context, CL_MEM_READ_WRITE, MAX_ALLOC_CHECKS_SIZE, NULL, &CL_err);
+
+        if (CL_err != CL_SUCCESS)
+        {
+          c--;
+
+          break;
+        }
+
+        // transfer only a few byte should be enough to force the runtime to actually allocate the memory
+
+        u8 tmp_host[8];
+
+        CL_err = ocl->clEnqueueReadBuffer  (device_param->command_queue, tmp_device[c], CL_TRUE, 0, sizeof (tmp_host), tmp_host, 0, NULL, NULL);
+
+        if (CL_err != CL_SUCCESS) break;
+
+        CL_err = ocl->clEnqueueWriteBuffer (device_param->command_queue, tmp_device[c], CL_TRUE, 0, sizeof (tmp_host), tmp_host, 0, NULL, NULL);
+
+        if (CL_err != CL_SUCCESS) break;
+
+        CL_err = ocl->clEnqueueReadBuffer  (device_param->command_queue, tmp_device[c], CL_TRUE, MAX_ALLOC_CHECKS_SIZE - sizeof (tmp_host), sizeof (tmp_host), tmp_host, 0, NULL, NULL);
+
+        if (CL_err != CL_SUCCESS) break;
+
+        CL_err = ocl->clEnqueueWriteBuffer (device_param->command_queue, tmp_device[c], CL_TRUE, MAX_ALLOC_CHECKS_SIZE - sizeof (tmp_host), sizeof (tmp_host), tmp_host, 0, NULL, NULL);
+
+        if (CL_err != CL_SUCCESS) break;
+      }
+
+      device_param->device_available_mem = c * MAX_ALLOC_CHECKS_SIZE;
+
+      // clean up
+
+      for (c = 0; c < MAX_ALLOC_CHECKS_CNT; c++)
+      {
+        if (((c + 1 + 1) * MAX_ALLOC_CHECKS_SIZE) >= device_param->device_global_mem) break;
+
+        if (tmp_device[c] != NULL)
+        {
+          CL_rc = hc_clReleaseMemObject (hashcat_ctx, tmp_device[c]);
+
+          if (CL_rc == -1) return -1;
+        }
+      }
+
+      hcfree (tmp_device);
+    }
+
     /**
      * create input buffers on device : calculate size of fixed memory buffers
      */
@@ -4433,7 +4520,7 @@ int opencl_session_begin (hashcat_ctx_t *hashcat_ctx)
           continue;
         }
 
-        if ((size_scrypt + scrypt_extra_space) > device_param->device_global_mem)
+        if ((size_scrypt + scrypt_extra_space) > device_param->device_available_mem)
         {
           if (user_options->quiet == false) event_log_warning (hashcat_ctx, "Increasing total device memory allocatable for --scrypt-tmto %u.", tmto);
 
@@ -4530,22 +4617,22 @@ int opencl_session_begin (hashcat_ctx_t *hashcat_ctx)
     }
     #endif
 
-    char build_opts[1024] = { 0 };
+    char build_opts_base[1024] = { 0 };
 
     #if defined (_WIN)
-    snprintf (build_opts, sizeof (build_opts) - 1, "-cl-std=CL1.2 -I OpenCL -I \"%s\"", folder_config->cpath_real);
+    snprintf (build_opts_base, sizeof (build_opts_base) - 1, "-cl-std=CL1.2 -I OpenCL -I \"%s\"", folder_config->cpath_real);
     #else
-    snprintf (build_opts, sizeof (build_opts) - 1, "-cl-std=CL1.2 -I OpenCL -I %s", folder_config->cpath_real);
+    snprintf (build_opts_base, sizeof (build_opts_base) - 1, "-cl-std=CL1.2 -I OpenCL -I %s", folder_config->cpath_real);
     #endif
 
     // we don't have sm_* on vendors not NV but it doesn't matter
 
-    char build_opts_new[1024] = { 0 };
+    char build_opts[2048] = { 0 };
 
     #if defined (DEBUG)
-    snprintf (build_opts_new, sizeof (build_opts_new) - 1, "%s -D VENDOR_ID=%u -D CUDA_ARCH=%u -D AMD_ROCM=%u -D VECT_SIZE=%u -D DEVICE_TYPE=%u -D DGST_R0=%u -D DGST_R1=%u -D DGST_R2=%u -D DGST_R3=%u -D DGST_ELEM=%u -D KERN_TYPE=%u -D _unroll", build_opts, device_param->platform_vendor_id, (device_param->sm_major * 100) + device_param->sm_minor, device_param->is_rocm, device_param->vector_width, (u32) device_param->device_type, hashconfig->dgst_pos0, hashconfig->dgst_pos1, hashconfig->dgst_pos2, hashconfig->dgst_pos3, hashconfig->dgst_size / 4, hashconfig->kern_type);
+    snprintf (build_opts, sizeof (build_opts) - 1, "%s -D VENDOR_ID=%u -D CUDA_ARCH=%u -D AMD_ROCM=%u -D VECT_SIZE=%u -D DEVICE_TYPE=%u -D DGST_R0=%u -D DGST_R1=%u -D DGST_R2=%u -D DGST_R3=%u -D DGST_ELEM=%u -D KERN_TYPE=%u -D _unroll", build_opts_base, device_param->platform_vendor_id, (device_param->sm_major * 100) + device_param->sm_minor, device_param->is_rocm, device_param->vector_width, (u32) device_param->device_type, hashconfig->dgst_pos0, hashconfig->dgst_pos1, hashconfig->dgst_pos2, hashconfig->dgst_pos3, hashconfig->dgst_size / 4, hashconfig->kern_type);
     #else
-    snprintf (build_opts_new, sizeof (build_opts_new) - 1, "%s -D VENDOR_ID=%u -D CUDA_ARCH=%u -D AMD_ROCM=%u -D VECT_SIZE=%u -D DEVICE_TYPE=%u -D DGST_R0=%u -D DGST_R1=%u -D DGST_R2=%u -D DGST_R3=%u -D DGST_ELEM=%u -D KERN_TYPE=%u -D _unroll -w", build_opts, device_param->platform_vendor_id, (device_param->sm_major * 100) + device_param->sm_minor, device_param->is_rocm, device_param->vector_width, (u32) device_param->device_type, hashconfig->dgst_pos0, hashconfig->dgst_pos1, hashconfig->dgst_pos2, hashconfig->dgst_pos3, hashconfig->dgst_size / 4, hashconfig->kern_type);
+    snprintf (build_opts, sizeof (build_opts) - 1, "%s -D VENDOR_ID=%u -D CUDA_ARCH=%u -D AMD_ROCM=%u -D VECT_SIZE=%u -D DEVICE_TYPE=%u -D DGST_R0=%u -D DGST_R1=%u -D DGST_R2=%u -D DGST_R3=%u -D DGST_ELEM=%u -D KERN_TYPE=%u -D _unroll -w", build_opts_base, device_param->platform_vendor_id, (device_param->sm_major * 100) + device_param->sm_minor, device_param->is_rocm, device_param->vector_width, (u32) device_param->device_type, hashconfig->dgst_pos0, hashconfig->dgst_pos1, hashconfig->dgst_pos2, hashconfig->dgst_pos3, hashconfig->dgst_size / 4, hashconfig->kern_type);
     #endif
 
     /*
@@ -4553,12 +4640,10 @@ int opencl_session_begin (hashcat_ctx_t *hashcat_ctx)
     {
       if (device_param->platform_vendor_id == VENDOR_ID_INTEL_SDK)
       {
-        strncat (build_opts_new, " -cl-opt-disable", 16);
+        strncat (build_opts, " -cl-opt-disable", 16);
       }
     }
     */
-
-    strncpy (build_opts, build_opts_new, sizeof (build_opts) - 1);
 
     #if defined (DEBUG)
     if (user_options->quiet == false) event_log_warning (hashcat_ctx, "* Device #%u: build_opts '%s'", device_id + 1, build_opts);
@@ -6092,9 +6177,9 @@ int opencl_session_begin (hashcat_ctx_t *hashcat_ctx)
     // this value should represent a reasonable amount of memory a host system has per GPU.
     // note we're allocating 3 blocks of that size.
 
-    #define PWS_SPACE (512 * 1024 * 1024)
+    #define PWS_SPACE (1024 * 1024 * 1024)
 
-    // sometimes device_global_mem and device_maxmem_alloc reported back from the opencl runtime are a bit inaccurate.
+    // sometimes device_available_mem and device_maxmem_alloc reported back from the opencl runtime are a bit inaccurate.
     // let's add some extra space just to be sure.
 
     #define EXTRA_SPACE (64 * 1024 * 1024)
@@ -6172,7 +6257,7 @@ int opencl_session_begin (hashcat_ctx_t *hashcat_ctx)
         + size_st_salts
         + size_st_esalts;
 
-      if ((size_total + EXTRA_SPACE) > device_param->device_global_mem) memory_limit_hit = 1;
+      if ((size_total + EXTRA_SPACE) > device_param->device_available_mem) memory_limit_hit = 1;
 
       if (memory_limit_hit == 1)
       {
@@ -6502,6 +6587,7 @@ void opencl_session_reset (hashcat_ctx_t *hashcat_ctx)
 
     memset (device_param->exec_msec, 0, EXEC_CACHE * sizeof (double));
 
+    device_param->outerloop_msec = 0;
     device_param->outerloop_pos  = 0;
     device_param->outerloop_left = 0;
     device_param->innerloop_pos  = 0;

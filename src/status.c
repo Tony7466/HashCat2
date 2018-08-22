@@ -33,6 +33,7 @@ static const char *ST_0009 = "Bypass";
 static const char *ST_0010 = "Aborted (Checkpoint)";
 static const char *ST_0011 = "Aborted (Runtime)";
 static const char *ST_0012 = "Running (Checkpoint Quit requested)";
+static const char *ST_0013 = "Error";
 static const char *ST_9999 = "Unknown! Bug!";
 
 static const char UNITS[7] = { ' ', 'k', 'M', 'G', 'T', 'P', 'E' };
@@ -227,6 +228,7 @@ const char *status_get_status_string (const hashcat_ctx_t *hashcat_ctx)
     case STATUS_BYPASS:             return ST_0009;
     case STATUS_ABORTED_CHECKPOINT: return ST_0010;
     case STATUS_ABORTED_RUNTIME:    return ST_0011;
+    case STATUS_ERROR:              return ST_0013;
   }
 
   return ST_9999;
@@ -257,22 +259,22 @@ const char *status_get_hash_target (const hashcat_ctx_t *hashcat_ctx)
     {
       char *tmp_buf;
 
-      wpa_t *wpa = (wpa_t *) hashes->esalts_buf;
+      wpa_eapol_t *wpa_eapol = (wpa_eapol_t *) hashes->esalts_buf;
 
       hc_asprintf (&tmp_buf, "%s (AP:%02x:%02x:%02x:%02x:%02x:%02x STA:%02x:%02x:%02x:%02x:%02x:%02x)",
         (char *) hashes->salts_buf[0].salt_buf,
-        wpa->orig_mac_ap[0],
-        wpa->orig_mac_ap[1],
-        wpa->orig_mac_ap[2],
-        wpa->orig_mac_ap[3],
-        wpa->orig_mac_ap[4],
-        wpa->orig_mac_ap[5],
-        wpa->orig_mac_sta[0],
-        wpa->orig_mac_sta[1],
-        wpa->orig_mac_sta[2],
-        wpa->orig_mac_sta[3],
-        wpa->orig_mac_sta[4],
-        wpa->orig_mac_sta[5]);
+        wpa_eapol->orig_mac_ap[0],
+        wpa_eapol->orig_mac_ap[1],
+        wpa_eapol->orig_mac_ap[2],
+        wpa_eapol->orig_mac_ap[3],
+        wpa_eapol->orig_mac_ap[4],
+        wpa_eapol->orig_mac_ap[5],
+        wpa_eapol->orig_mac_sta[0],
+        wpa_eapol->orig_mac_sta[1],
+        wpa_eapol->orig_mac_sta[2],
+        wpa_eapol->orig_mac_sta[3],
+        wpa_eapol->orig_mac_sta[4],
+        wpa_eapol->orig_mac_sta[5]);
 
       return tmp_buf;
     }
@@ -1424,8 +1426,10 @@ double status_get_hashes_msec_dev_benchmark (const hashcat_ctx_t *hashcat_ctx, c
 
   if (device_param->skipped == false)
   {
-    speed_cnt  += device_param->speed_cnt[0];
-    speed_msec += device_param->speed_msec[0];
+    const u32 speed_pos = MAX (device_param->speed_pos, 1);
+
+    speed_cnt  += device_param->speed_cnt[speed_pos - 1];
+    speed_msec += device_param->speed_msec[speed_pos - 1];
   }
 
   double hashes_dev_msec = 0;

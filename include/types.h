@@ -155,6 +155,14 @@ typedef enum vendor_id
 
 } vendor_id_t;
 
+typedef enum st_status_rc
+{
+  ST_STATUS_PASSED        = 0,
+  ST_STATUS_FAILED        = 1,
+  ST_STATUS_IGNORED       = 2,
+
+} st_status_t;
+
 typedef enum status_rc
 {
   STATUS_INIT               = 0,
@@ -169,6 +177,7 @@ typedef enum status_rc
   STATUS_BYPASS             = 9,
   STATUS_ABORTED_CHECKPOINT = 10,
   STATUS_ABORTED_RUNTIME    = 11,
+  STATUS_ERROR              = 13,
 
 } status_rc_t;
 
@@ -439,41 +448,44 @@ typedef enum outfile_fmt
 
 typedef enum parser_rc
 {
-  PARSER_OK                  = 0,
-  PARSER_COMMENT             = -1,
-  PARSER_GLOBAL_ZERO         = -2,
-  PARSER_GLOBAL_LENGTH       = -3,
-  PARSER_HASH_LENGTH         = -4,
-  PARSER_HASH_VALUE          = -5,
-  PARSER_SALT_LENGTH         = -6,
-  PARSER_SALT_VALUE          = -7,
-  PARSER_SALT_ITERATION      = -8,
-  PARSER_SEPARATOR_UNMATCHED = -9,
-  PARSER_SIGNATURE_UNMATCHED = -10,
-  PARSER_HCCAPX_FILE_SIZE    = -11,
-  PARSER_HCCAPX_EAPOL_LEN    = -12,
-  PARSER_PSAFE2_FILE_SIZE    = -13,
-  PARSER_PSAFE3_FILE_SIZE    = -14,
-  PARSER_TC_FILE_SIZE        = -15,
-  PARSER_VC_FILE_SIZE        = -16,
-  PARSER_SIP_AUTH_DIRECTIVE  = -17,
-  PARSER_HASH_FILE           = -18,
-  PARSER_HASH_ENCODING       = -19,
-  PARSER_SALT_ENCODING       = -20,
-  PARSER_LUKS_FILE_SIZE      = -21,
-  PARSER_LUKS_MAGIC          = -22,
-  PARSER_LUKS_VERSION        = -23,
-  PARSER_LUKS_CIPHER_TYPE    = -24,
-  PARSER_LUKS_CIPHER_MODE    = -25,
-  PARSER_LUKS_HASH_TYPE      = -26,
-  PARSER_LUKS_KEY_SIZE       = -27,
-  PARSER_LUKS_KEY_DISABLED   = -28,
-  PARSER_LUKS_KEY_STRIPES    = -29,
-  PARSER_LUKS_HASH_CIPHER    = -30,
-  PARSER_HCCAPX_SIGNATURE    = -31,
-  PARSER_HCCAPX_VERSION      = -32,
-  PARSER_HCCAPX_MESSAGE_PAIR = -33,
-  PARSER_UNKNOWN_ERROR       = -255
+  PARSER_OK                   = 0,
+  PARSER_COMMENT              = -1,
+  PARSER_GLOBAL_ZERO          = -2,
+  PARSER_GLOBAL_LENGTH        = -3,
+  PARSER_HASH_LENGTH          = -4,
+  PARSER_HASH_VALUE           = -5,
+  PARSER_SALT_LENGTH          = -6,
+  PARSER_SALT_VALUE           = -7,
+  PARSER_SALT_ITERATION       = -8,
+  PARSER_SEPARATOR_UNMATCHED  = -9,
+  PARSER_SIGNATURE_UNMATCHED  = -10,
+  PARSER_HCCAPX_FILE_SIZE     = -11,
+  PARSER_HCCAPX_EAPOL_LEN     = -12,
+  PARSER_PSAFE2_FILE_SIZE     = -13,
+  PARSER_PSAFE3_FILE_SIZE     = -14,
+  PARSER_TC_FILE_SIZE         = -15,
+  PARSER_VC_FILE_SIZE         = -16,
+  PARSER_SIP_AUTH_DIRECTIVE   = -17,
+  PARSER_HASH_FILE            = -18,
+  PARSER_HASH_ENCODING        = -19,
+  PARSER_SALT_ENCODING        = -20,
+  PARSER_LUKS_FILE_SIZE       = -21,
+  PARSER_LUKS_MAGIC           = -22,
+  PARSER_LUKS_VERSION         = -23,
+  PARSER_LUKS_CIPHER_TYPE     = -24,
+  PARSER_LUKS_CIPHER_MODE     = -25,
+  PARSER_LUKS_HASH_TYPE       = -26,
+  PARSER_LUKS_KEY_SIZE        = -27,
+  PARSER_LUKS_KEY_DISABLED    = -28,
+  PARSER_LUKS_KEY_STRIPES     = -29,
+  PARSER_LUKS_HASH_CIPHER     = -30,
+  PARSER_HCCAPX_SIGNATURE     = -31,
+  PARSER_HCCAPX_VERSION       = -32,
+  PARSER_HCCAPX_MESSAGE_PAIR  = -33,
+  PARSER_TOKEN_ENCODING       = -34,
+  PARSER_TOKEN_LENGTH         = -35,
+  PARSER_INSUFFICIENT_ENTROPY = -36,
+  PARSER_UNKNOWN_ERROR        = -255
 
 } parser_rc_t;
 
@@ -579,99 +591,113 @@ typedef enum user_options_defaults
 
 typedef enum user_options_map
 {
-  IDX_ADVICE_DISABLE           = 0xff00,
-  IDX_ATTACK_MODE              = 'a',
-  IDX_BENCHMARK                = 'b',
-  IDX_BENCHMARK_ALL            = 0xff01,
-  IDX_BITMAP_MAX               = 0xff02,
-  IDX_BITMAP_MIN               = 0xff03,
-  IDX_CPU_AFFINITY             = 0xff04,
-  IDX_CUSTOM_CHARSET_1         = '1',
-  IDX_CUSTOM_CHARSET_2         = '2',
-  IDX_CUSTOM_CHARSET_3         = '3',
-  IDX_CUSTOM_CHARSET_4         = '4',
-  IDX_DEBUG_FILE               = 0xff05,
-  IDX_DEBUG_MODE               = 0xff06,
-  IDX_ENCODING_FROM            = 0xff07,
-  IDX_ENCODING_TO              = 0xff08,
-  IDX_EXAMPLE_HASHES           = 0xff09,
-  IDX_FORCE                    = 0xff0a,
-  IDX_GPU_TEMP_ABORT           = 0xff0b,
-  IDX_GPU_TEMP_DISABLE         = 0xff0c,
-  IDX_HASH_MODE                = 'm',
-  IDX_HCCAPX_MESSAGE_PAIR      = 0xff0d,
-  IDX_HELP                     = 'h',
-  IDX_HEX_CHARSET              = 0xff0e,
-  IDX_HEX_SALT                 = 0xff0f,
-  IDX_HEX_WORDLIST             = 0xff10,
-  IDX_INCREMENT                = 'i',
-  IDX_INCREMENT_MAX            = 0xff11,
-  IDX_INCREMENT_MIN            = 0xff12,
-  IDX_INDUCTION_DIR            = 0xff13,
-  IDX_KEEP_GUESSING            = 0xff14,
-  IDX_KERNEL_ACCEL             = 'n',
-  IDX_KERNEL_LOOPS             = 'u',
-  IDX_KEYSPACE                 = 0xff15,
-  IDX_LEFT                     = 0xff16,
-  IDX_LIMIT                    = 'l',
-  IDX_LOGFILE_DISABLE          = 0xff17,
-  IDX_LOOPBACK                 = 0xff18,
-  IDX_MACHINE_READABLE         = 0xff19,
-  IDX_MARKOV_CLASSIC           = 0xff1a,
-  IDX_MARKOV_DISABLE           = 0xff1b,
-  IDX_MARKOV_HCSTAT            = 0xff1c,
-  IDX_MARKOV_THRESHOLD         = 't',
-  IDX_NONCE_ERROR_CORRECTIONS  = 0xff1d,
-  IDX_NVIDIA_SPIN_DAMP         = 0xff1e,
-  IDX_OPENCL_DEVICES           = 'd',
-  IDX_OPENCL_DEVICE_TYPES      = 'D',
-  IDX_OPENCL_INFO              = 'I',
-  IDX_OPENCL_PLATFORMS         = 0xff1f,
-  IDX_OPENCL_VECTOR_WIDTH      = 0xff20,
-  IDX_OPTIMIZED_KERNEL_ENABLE  = 'O',
-  IDX_OUTFILE_AUTOHEX_DISABLE  = 0xff21,
-  IDX_OUTFILE_CHECK_DIR        = 0xff22,
-  IDX_OUTFILE_CHECK_TIMER      = 0xff23,
-  IDX_OUTFILE_FORMAT           = 0xff24,
-  IDX_OUTFILE                  = 'o',
-  IDX_WORDLIST_AUTOHEX_DISABLE = 0xff25,
-  IDX_POTFILE_DISABLE          = 0xff26,
-  IDX_POTFILE_PATH             = 0xff27,
-  IDX_QUIET                    = 0xff28,
-  IDX_REMOVE                   = 0xff29,
-  IDX_REMOVE_TIMER             = 0xff2a,
-  IDX_RESTORE                  = 0xff2b,
-  IDX_RESTORE_DISABLE          = 0xff2c,
-  IDX_RESTORE_FILE_PATH        = 0xff2d,
-  IDX_RP_FILE                  = 'r',
-  IDX_RP_GEN_FUNC_MAX          = 0xff2e,
-  IDX_RP_GEN_FUNC_MIN          = 0xff2f,
-  IDX_RP_GEN                   = 'g',
-  IDX_RP_GEN_SEED              = 0xff30,
-  IDX_RULE_BUF_L               = 'j',
-  IDX_RULE_BUF_R               = 'k',
-  IDX_RUNTIME                  = 0xff31,
-  IDX_SCRYPT_TMTO              = 0xff32,
-  IDX_SELF_TEST_DISABLE        = 0xff33,
-  IDX_SEGMENT_SIZE             = 'c',
-  IDX_SEPARATOR                = 'p',
-  IDX_SESSION                  = 0xff34,
-  IDX_SHOW                     = 0xff35,
-  IDX_SKIP                     = 's',
-  IDX_STATUS                   = 0xff36,
-  IDX_STATUS_TIMER             = 0xff37,
-  IDX_STDOUT_FLAG              = 0xff38,
-  IDX_SPEED_ONLY               = 0xff39,
-  IDX_PROGRESS_ONLY            = 0xff3a,
-  IDX_TRUECRYPT_KEYFILES       = 0xff3b,
-  IDX_USERNAME                 = 0xff3c,
-  IDX_VERACRYPT_KEYFILES       = 0xff3d,
-  IDX_VERACRYPT_PIM            = 0xff3e,
-  IDX_VERSION_LOWER            = 'v',
-  IDX_VERSION                  = 'V',
-  IDX_WORKLOAD_PROFILE         = 'w'
+  IDX_ADVICE_DISABLE            = 0xff00,
+  IDX_ATTACK_MODE               = 'a',
+  IDX_BENCHMARK                 = 'b',
+  IDX_BENCHMARK_ALL             = 0xff01,
+  IDX_BITMAP_MAX                = 0xff02,
+  IDX_BITMAP_MIN                = 0xff03,
+  IDX_CPU_AFFINITY              = 0xff04,
+  IDX_CUSTOM_CHARSET_1          = '1',
+  IDX_CUSTOM_CHARSET_2          = '2',
+  IDX_CUSTOM_CHARSET_3          = '3',
+  IDX_CUSTOM_CHARSET_4          = '4',
+  IDX_DEBUG_FILE                = 0xff05,
+  IDX_DEBUG_MODE                = 0xff06,
+  IDX_ENCODING_FROM             = 0xff07,
+  IDX_ENCODING_TO               = 0xff08,
+  IDX_EXAMPLE_HASHES            = 0xff09,
+  IDX_FORCE                     = 0xff0a,
+  IDX_GPU_TEMP_ABORT            = 0xff0b,
+  IDX_GPU_TEMP_DISABLE          = 0xff0c,
+  IDX_HASH_MODE                 = 'm',
+  IDX_HCCAPX_MESSAGE_PAIR       = 0xff0d,
+  IDX_HELP                      = 'h',
+  IDX_HEX_CHARSET               = 0xff0e,
+  IDX_HEX_SALT                  = 0xff0f,
+  IDX_HEX_WORDLIST              = 0xff10,
+  IDX_INCREMENT                 = 'i',
+  IDX_INCREMENT_MAX             = 0xff11,
+  IDX_INCREMENT_MIN             = 0xff12,
+  IDX_INDUCTION_DIR             = 0xff13,
+  IDX_KEEP_GUESSING             = 0xff14,
+  IDX_KERNEL_ACCEL              = 'n',
+  IDX_KERNEL_LOOPS              = 'u',
+  IDX_KEYSPACE                  = 0xff15,
+  IDX_LEFT                      = 0xff16,
+  IDX_LIMIT                     = 'l',
+  IDX_LOGFILE_DISABLE           = 0xff17,
+  IDX_LOOPBACK                  = 0xff18,
+  IDX_MACHINE_READABLE          = 0xff19,
+  IDX_MARKOV_CLASSIC            = 0xff1a,
+  IDX_MARKOV_DISABLE            = 0xff1b,
+  IDX_MARKOV_HCSTAT             = 0xff1c,
+  IDX_MARKOV_THRESHOLD          = 't',
+  IDX_NONCE_ERROR_CORRECTIONS   = 0xff1d,
+  IDX_NVIDIA_SPIN_DAMP          = 0xff1e,
+  IDX_OPENCL_DEVICES            = 'd',
+  IDX_OPENCL_DEVICE_TYPES       = 'D',
+  IDX_OPENCL_INFO               = 'I',
+  IDX_OPENCL_PLATFORMS          = 0xff1f,
+  IDX_OPENCL_VECTOR_WIDTH       = 0xff20,
+  IDX_OPTIMIZED_KERNEL_ENABLE   = 'O',
+  IDX_OUTFILE_AUTOHEX_DISABLE   = 0xff21,
+  IDX_OUTFILE_CHECK_DIR         = 0xff22,
+  IDX_OUTFILE_CHECK_TIMER       = 0xff23,
+  IDX_OUTFILE_FORMAT            = 0xff24,
+  IDX_OUTFILE                   = 'o',
+  IDX_WORDLIST_AUTOHEX_DISABLE  = 0xff25,
+  IDX_POTFILE_DISABLE           = 0xff26,
+  IDX_POTFILE_PATH              = 0xff27,
+  IDX_QUIET                     = 0xff28,
+  IDX_REMOVE                    = 0xff29,
+  IDX_REMOVE_TIMER              = 0xff2a,
+  IDX_RESTORE                   = 0xff2b,
+  IDX_RESTORE_DISABLE           = 0xff2c,
+  IDX_RESTORE_FILE_PATH         = 0xff2d,
+  IDX_RP_FILE                   = 'r',
+  IDX_RP_GEN_FUNC_MAX           = 0xff2e,
+  IDX_RP_GEN_FUNC_MIN           = 0xff2f,
+  IDX_RP_GEN                    = 'g',
+  IDX_RP_GEN_SEED               = 0xff30,
+  IDX_RULE_BUF_L                = 'j',
+  IDX_RULE_BUF_R                = 'k',
+  IDX_RUNTIME                   = 0xff31,
+  IDX_SCRYPT_TMTO               = 0xff32,
+  IDX_SELF_TEST_DISABLE         = 0xff33,
+  IDX_SEGMENT_SIZE              = 'c',
+  IDX_SEPARATOR                 = 'p',
+  IDX_SESSION                   = 0xff34,
+  IDX_SHOW                      = 0xff35,
+  IDX_SKIP                      = 's',
+  IDX_STATUS                    = 0xff36,
+  IDX_STATUS_TIMER              = 0xff37,
+  IDX_STDOUT_FLAG               = 0xff38,
+  IDX_SPEED_ONLY                = 0xff39,
+  IDX_PROGRESS_ONLY             = 0xff3a,
+  IDX_TRUECRYPT_KEYFILES        = 0xff3b,
+  IDX_USERNAME                  = 0xff3c,
+  IDX_VERACRYPT_KEYFILES        = 0xff3d,
+  IDX_VERACRYPT_PIM             = 0xff3e,
+  IDX_VERSION_LOWER             = 'v',
+  IDX_VERSION                   = 'V',
+  IDX_WORKLOAD_PROFILE          = 'w'
 
 } user_options_map_t;
+
+typedef enum token_attr
+{
+  TOKEN_ATTR_FIXED_LENGTH       = 1 << 0,
+  TOKEN_ATTR_OPTIONAL_ROUNDS    = 1 << 1,
+  TOKEN_ATTR_VERIFY_SIGNATURE   = 1 << 2,
+  TOKEN_ATTR_VERIFY_LENGTH      = 1 << 3,
+  TOKEN_ATTR_VERIFY_DIGIT       = 1 << 4,
+  TOKEN_ATTR_VERIFY_HEX         = 1 << 5,
+  TOKEN_ATTR_VERIFY_BASE64A     = 1 << 6,
+  TOKEN_ATTR_VERIFY_BASE64B     = 1 << 7,
+  TOKEN_ATTR_VERIFY_BASE64C     = 1 << 8
+
+} token_attr_t;
 
 /**
  * structs
@@ -914,6 +940,8 @@ typedef struct hc_device_param
   bool    skipped;
   bool    skipped_temp;
 
+  st_status_t st_status;
+
   u32     sm_major;
   u32     sm_minor;
   u32     kernel_exec_timeout;
@@ -925,6 +953,7 @@ typedef struct hc_device_param
   u32     device_processors;
   u64     device_maxmem_alloc;
   u64     device_global_mem;
+  u64     device_available_mem;
   u32     device_maxclock_frequency;
   size_t  device_maxworkgroup_size;
   u64     device_local_mem_size;
@@ -1048,6 +1077,7 @@ typedef struct hc_device_param
   u64     outerloop_pos;
   u64     outerloop_left;
   double  outerloop_msec;
+  double  outerloop_multi;
 
   u32     innerloop_pos;
   u32     innerloop_left;
@@ -1571,6 +1601,7 @@ typedef struct user_options
   bool         workload_profile_chgd;
   bool         segment_size_chgd;
   bool         hccapx_message_pair_chgd;
+  bool         nonce_error_corrections_chgd;
 
   bool         advice_disable;
   bool         benchmark;
@@ -2059,5 +2090,30 @@ typedef struct thread_param
   hashcat_ctx_t *hashcat_ctx;
 
 } thread_param_t;
+
+#define MAX_TOKENS     128
+#define MAX_SIGNATURES 16
+
+typedef struct token
+{
+  int token_cnt;
+
+  int signatures_cnt;
+  const char *signatures_buf[MAX_SIGNATURES];
+
+  int sep[MAX_TOKENS];
+
+  u8 *buf[MAX_TOKENS];
+  int len[MAX_TOKENS];
+
+  int len_min[MAX_TOKENS];
+  int len_max[MAX_TOKENS];
+
+  int attr[MAX_TOKENS];
+
+  u8 *opt_buf;
+  int opt_len;
+
+} token_t;
 
 #endif // _TYPES_H

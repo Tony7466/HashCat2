@@ -6,7 +6,7 @@
 SHARED                  := 0
 DEBUG                   := 0
 PRODUCTION              := 1
-PRODUCTION_VERSION      := v4.1.0
+PRODUCTION_VERSION      := v4.2.1
 
 ##
 ## Detect Operating System
@@ -54,6 +54,7 @@ SED_IN_PLACE            := -i
 ifeq ($(UNAME),Darwin)
 CC                      := clang
 # the sed -i option of macOS requires a parameter for the backup file (we just use "")
+SED                     := /usr/bin/sed
 SED_IN_PLACE            := -i ""
 PROD_VERS               := $(shell sw_vers -productVersion | cut -d. -f2)
 endif
@@ -97,6 +98,10 @@ LIBRARY_DEV_FOLDER      ?= $(LIBRARY_DEV_ROOT_FOLDER)/hashcat
 HASHCAT_FRONTEND        := hashcat
 HASHCAT_LIBRARY         := libhashcat.so.$(VERSION_PURE)
 
+ifeq ($(UNAME),Darwin)
+HASHCAT_LIBRARY         := libhashcat.$(VERSION_PURE).dylib
+endif # Darwin
+
 ifeq ($(UNAME),CYGWIN)
 HASHCAT_FRONTEND        := hashcat.exe
 HASHCAT_LIBRARY         := hashcat.dll
@@ -127,7 +132,7 @@ CC_WIN_64               := x86_64-w64-mingw32-gcc
 
 ## To compile win-iconv with mingw clone from here: https://github.com/win-iconv/win-iconv
 ##
-## Then patch the makefile withe the patches from tools/win-iconv-*.diff and run make install
+## Then patch the makefile with the patches from tools/win-iconv-*.diff and run make install
 ##
 
 WIN_ICONV_32            := /opt/win-iconv-32
@@ -138,12 +143,15 @@ WIN_ICONV_64            := /opt/win-iconv-64
 ##
 
 COMPTIME                := $(shell date +%s)
+SYSTEM_LZMA_SDK         := 0
+
+LZMA_SDK_INCLUDE        := $(LIBRARY_DEV_ROOT_FOLDER)/lzma-sdk/C
 
 ##
 ## General compiler and linker options
 ##
 
-CFLAGS                  += -pipe -std=gnu99 -Iinclude/ -Iinclude/lzma_sdk/ -IOpenCL/
+CFLAGS                  += -pipe -std=gnu99 -Iinclude/ -IOpenCL/
 
 ifeq ($(PRODUCTION),0)
 CFLAGS                  += -W
@@ -163,17 +171,6 @@ CFLAGS                  += -Werror-implicit-function-declaration
 CFLAGS                  += -Wformat
 CFLAGS                  += -ftrapv
 CFLAGS                  += -Wwrite-strings
-
-# the following compiler options produce warnings that should be fixed at some time
-
-CFLAGS                  += -Wno-cast-align
-CFLAGS                  += -Wno-cast-qual
-CFLAGS                  += -Wno-conversion
-CFLAGS                  += -Wno-padded
-CFLAGS                  += -Wno-pedantic
-CFLAGS                  += -Wno-sizeof-pointer-memaccess
-#CFLAGS                  += -Wno-reserved-id-macro      //clang specific
-#CFLAGS                  += -Wno-used-but-marked-unused //    ^^
 endif
 
 # default Linux and freebsd thread stack size is 2MB
@@ -183,11 +180,20 @@ endif
 
 #CFLAGS                  += -Wstack-usage=524288
 
+ifeq ($(SYSTEM_LZMA_SDK),0)
+CFLAGS                  += -Ideps/lzma_sdk/
+else
+CFLAGS                  += $(LZMA_SDK_INCLUDE)
+LDFLAGS                 += -llzmasdk
+endif
+
 LFLAGS                  := $(LDFLAGS)
 
 ifeq ($(DEBUG),0)
 CFLAGS                  += -O2
+ifneq ($(UNAME),Darwin)
 LFLAGS                  += -s
+endif
 else
 ifeq ($(DEBUG),1)
 CFLAGS                  += -DDEBUG -Og -ggdb
@@ -211,6 +217,7 @@ LFLAGS_NATIVE           := $(LFLAGS)
 LFLAGS_NATIVE           += -lpthread
 LFLAGS_NATIVE           += -ldl
 LFLAGS_NATIVE           += -lrt
+LFLAGS_NATIVE           += -lm
 endif # Linux
 
 ifeq ($(UNAME),FreeBSD)
@@ -219,6 +226,7 @@ CFLAGS_NATIVE           := $(CFLAGS)
 CFLAGS_NATIVE           += -I$(OPENCL_HEADERS_KHRONOS)/
 LFLAGS_NATIVE           := $(LFLAGS)
 LFLAGS_NATIVE           += -lpthread
+LFLAGS_NATIVE           += -lm
 endif
 endif # FreeBSD
 
@@ -283,9 +291,11 @@ CFLAGS_CROSS_WIN64      += -DWITH_HWMON
 LFLAGS_CROSS_LINUX32    := $(LFLAGS)
 LFLAGS_CROSS_LINUX32    += -lpthread
 LFLAGS_CROSS_LINUX32    += -ldl
+LFLAGS_CROSS_LINUX32    += -lm
 LFLAGS_CROSS_LINUX64    := $(LFLAGS)
 LFLAGS_CROSS_LINUX64    += -lpthread
 LFLAGS_CROSS_LINUX64    += -ldl
+LFLAGS_CROSS_LINUX64    += -lm
 LFLAGS_CROSS_WIN32      := $(LFLAGS)
 LFLAGS_CROSS_WIN32      += -Wl,--dynamicbase -Wl,--nxcompat
 LFLAGS_CROSS_WIN32      += -lpsapi
@@ -293,11 +303,19 @@ LFLAGS_CROSS_WIN64      := $(LFLAGS)
 LFLAGS_CROSS_WIN64      += -Wl,--dynamicbase -Wl,--nxcompat
 LFLAGS_CROSS_WIN64      += -lpsapi
 
+CFLAGS_REMOVE_LZMA        := -Wmissing-declarations -Wmissing-prototypes -Wstrict-prototypes -Wundef
+
+CFLAGS_NATIVE_LZMA        := $(filter-out $(CFLAGS_REMOVE_LZMA),$(CFLAGS_NATIVE))
+CFLAGS_CROSS_LINUX32_LZMA := $(filter-out $(CFLAGS_REMOVE_LZMA),$(CFLAGS_CROSS_LINUX32))
+CFLAGS_CROSS_LINUX64_LZMA := $(filter-out $(CFLAGS_REMOVE_LZMA),$(CFLAGS_CROSS_LINUX64))
+CFLAGS_CROSS_WIN32_LZMA   := $(filter-out $(CFLAGS_REMOVE_LZMA),$(CFLAGS_CROSS_WIN32))
+CFLAGS_CROSS_WIN64_LZMA   := $(filter-out $(CFLAGS_REMOVE_LZMA),$(CFLAGS_CROSS_WIN64))
+
 ##
 ## Objects
 ##
 
-OBJS_ALL                := affinity autotune benchmark bitmap bitops combinator common convert cpt cpu_aes cpu_crc32 cpu_des cpu_md4 cpu_md5 cpu_sha1 cpu_sha256 debugfile dictstat dispatch dynloader event ext_ADL ext_nvapi ext_nvml ext_OpenCL ext_sysfs ext_lzma lzma_sdk/Alloc lzma_sdk/Lzma2Dec lzma_sdk/LzmaDec filehandling folder hashcat hashes hlfmt hwmon induct interface locking logfile loopback memory monitor mpsp opencl outfile_check outfile pidfile potfile restore rp rp_cpu rp_kernel_on_cpu rp_kernel_on_cpu_optimized selftest shared status stdout straight terminal thread timer tuningdb usage user_options wordlist
+OBJS_ALL                := affinity autotune benchmark bitmap bitops combinator common convert cpt cpu_aes cpu_crc32 cpu_des cpu_md4 cpu_md5 cpu_sha1 cpu_sha256 debugfile dictstat dispatch dynloader event ext_ADL ext_nvapi ext_nvml ext_OpenCL ext_sysfs ext_lzma filehandling folder hashcat hashes hlfmt hwmon induct interface locking logfile loopback memory monitor mpsp opencl outfile_check outfile pidfile potfile restore rp rp_cpu rp_kernel_on_cpu rp_kernel_on_cpu_optimized selftest shared status stdout straight terminal thread timer tuningdb usage user_options wordlist
 
 NATIVE_STATIC_OBJS      := $(foreach OBJ,$(OBJS_ALL),obj/$(OBJ).NATIVE.STATIC.o)
 NATIVE_SHARED_OBJS      := $(foreach OBJ,$(OBJS_ALL),obj/$(OBJ).NATIVE.SHARED.o)
@@ -308,6 +326,19 @@ LINUX_64_OBJS           := $(foreach OBJ,$(OBJS_ALL),obj/$(OBJ).LINUX.64.o)
 WIN_32_OBJS             := $(foreach OBJ,$(OBJS_ALL),obj/$(OBJ).WIN.32.o)
 WIN_64_OBJS             := $(foreach OBJ,$(OBJS_ALL),obj/$(OBJ).WIN.64.o)
 
+ifeq ($(SYSTEM_LZMA_SDK),0)
+OBJS_LZMA               := Alloc Lzma2Dec LzmaDec
+
+NATIVE_STATIC_OBJS      += $(foreach OBJ,$(OBJS_LZMA),obj/$(OBJ).NATIVE.STATIC.o)
+NATIVE_SHARED_OBJS      += $(foreach OBJ,$(OBJS_LZMA),obj/$(OBJ).NATIVE.SHARED.o)
+
+LINUX_32_OBJS           += $(foreach OBJ,$(OBJS_LZMA),obj/$(OBJ).LINUX.32.o)
+LINUX_64_OBJS           += $(foreach OBJ,$(OBJS_LZMA),obj/$(OBJ).LINUX.64.o)
+
+WIN_32_OBJS             += $(foreach OBJ,$(OBJS_LZMA),obj/$(OBJ).WIN.32.o)
+WIN_64_OBJS             += $(foreach OBJ,$(OBJS_LZMA),obj/$(OBJ).WIN.64.o)
+endif
+
 ##
 ## Targets: Native Compilation
 ##
@@ -317,7 +348,6 @@ default: $(HASHCAT_FRONTEND)
 clean:
 	$(RM) -f $(HASHCAT_FRONTEND)
 	$(RM) -f $(HASHCAT_LIBRARY)
-	$(RM) -f obj/lzma_sdk/*.o
 	$(RM) -f obj/*.o
 	$(RM) -f *.bin *.exe
 	$(RM) -f *.pid
@@ -444,8 +474,21 @@ obj/%.NATIVE.STATIC.o: src/%.c
 obj/%.NATIVE.SHARED.o: src/%.c
 	$(CC) -c $(CFLAGS_NATIVE) $< -o $@ -fpic
 
+ifeq ($(SYSTEM_LZMA_SDK),0)
+obj/%.NATIVE.STATIC.o: deps/lzma_sdk/%.c
+	$(CC) -c $(CFLAGS_NATIVE_LZMA) $< -o $@
+
+obj/%.NATIVE.SHARED.o: deps/lzma_sdk/%.c
+	$(CC) -c $(CFLAGS_NATIVE_LZMA) $< -o $@ -fpic
+endif
+
+ifeq ($(UNAME),Darwin)
+$(HASHCAT_LIBRARY): $(NATIVE_SHARED_OBJS)
+	$(CC)                     $^ -o $@                    $(LFLAGS_NATIVE) -shared -install_name $(DESTDIR)$(LIBRARY_FOLDER)/$(HASHCAT_LIBRARY) -current_version $(VERSION_PURE) -compatibility_version $(VERSION_PURE)
+else
 $(HASHCAT_LIBRARY): $(NATIVE_SHARED_OBJS)
 	$(CC)                     $^ -o $@                    $(LFLAGS_NATIVE) -shared -Wl,-soname,$(HASHCAT_LIBRARY)
+endif
 
 ifeq ($(SHARED),1)
 $(HASHCAT_FRONTEND): src/main.c $(HASHCAT_LIBRARY)
@@ -470,6 +513,20 @@ obj/%.WIN.32.o:   src/%.c
 
 obj/%.WIN.64.o:   src/%.c
 	$(CC_WIN_64)   $(CFLAGS_CROSS_WIN64)   -c -o $@ $<
+
+ifeq ($(SYSTEM_LZMA_SDK),0)
+obj/%.LINUX.32.o: deps/lzma_sdk/%.c
+	$(CC_LINUX_32) $(CFLAGS_CROSS_LINUX32_LZMA) -c -o $@ $<
+
+obj/%.LINUX.64.o: deps/lzma_sdk/%.c
+	$(CC_LINUX_64) $(CFLAGS_CROSS_LINUX64_LZMA) -c -o $@ $<
+
+obj/%.WIN.32.o:   deps/lzma_sdk/%.c
+	$(CC_WIN_32)   $(CFLAGS_CROSS_WIN32_LZMA)   -c -o $@ $<
+
+obj/%.WIN.64.o:   deps/lzma_sdk/%.c
+	$(CC_WIN_64)   $(CFLAGS_CROSS_WIN64_LZMA)   -c -o $@ $<
+endif
 
 hashcat32.bin: src/main.c $(LINUX_32_OBJS)
 	$(CC_LINUX_32) $(CFLAGS_CROSS_LINUX32)    -o $@ $^ $(LFLAGS_CROSS_LINUX32) -DCOMPTIME=$(COMPTIME) -DVERSION_TAG=\"$(VERSION_TAG)\" -DINSTALL_FOLDER=\"$(INSTALL_FOLDER)\" -DSHARED_FOLDER=\"$(SHARED_FOLDER)\" -DDOCUMENT_FOLDER=\"$(DOCUMENT_FOLDER)\"

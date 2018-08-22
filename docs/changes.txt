@@ -1,3 +1,57 @@
+* changes v4.2.0 -> v4.2.1
+
+##
+## Improvements
+##
+
+- Try to evaluate available OpenCL device memory and use this information instead of total available OpenCL device memory for autotune
+
+##
+## Bugs
+##
+
+- Fixed a buffer overflow in precompute_salt_md5() in case salt was longer than 64 characters
+
+* changes v4.1.0 -> v4.2.0
+
+##
+## Algorithms
+##
+
+- Added hash-mode 16700 = FileVault 2
+- Added hash-mode 16800 = WPA-PMKID-PBKDF2
+- Added hash-mode 16801 = WPA-PMKID-PMK
+- Added hash-mode 16900 = Ansible Vault
+
+##
+## Improvements
+##
+
+- Added JtR-compatible support for hex notation in rules engine
+- Added OpenCL device utilization to the status information in machine-readable output
+- Added missing NV Tesla and Titan GPU details to tuning database
+- General file handling: Abort if a byte order mark (BOM) was detected in a wordlist, hashlist, maskfile or rulefile
+- HCCAPX management: Use advanced hints in message_pair stored by hcxtools about endian bitness of replay counter
+- OpenCL kernels: Abort session if kernel self-test fails
+- OpenCL kernels: Add '-pure' prefix to kernel filenames to avoid problems caused by reusing existing hashcat installation folder
+- OpenCL kernels: Removed the use of 'volatile' in inline assembly instructions where it is not needed
+- OpenCL kernels: Switched array pointer types in function declarations in order to be compatible with OpenCL 2.0
+- Refactored code for --progress-only and --speed-only calculation
+- SIP cracking: Increased the nonce field to allow a salt of 1024 bytes
+- TrueCrypt/VeraCrypt cracking: Do an entropy check on the TC/VC header on start
+
+##
+## Bugs
+##
+
+- Fixed a function declaration attribute in -m 8900 kernel leading to unusable -m 9300 which shares kernel code with -m 8900
+- Fixed a miscalculation in --progress-only mode output for extremely slow kernels like -m 14800
+- Fixed a missing check for errors on OpenCL devices leading to invalid removal of restore file
+- Fixed a missing kernel in -m 5600 in combination with -a 3 and -O if mask is >= 16 characters
+- Fixed detection of AMD_GCN version in case the rocm driver is used
+- Fixed missing code section in -m 2500 and -m 2501 to crack corrupted handshakes with a LE endian bitness base
+- Fixed a missing check for hashmodes using OPTS_TYPE_PT_UPPER causing the self-test to fail when using combinator- and hybrid-mode
+
 * changes v4.0.1 -> v4.1.0
 
 ##

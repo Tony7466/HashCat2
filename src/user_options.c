@@ -396,7 +396,8 @@ int user_options_getopt (hashcat_ctx_t *hashcat_ctx, int argc, char **argv)
       case IDX_LOGFILE_DISABLE:          user_options->logfile_disable           = true;                            break;
       case IDX_HCCAPX_MESSAGE_PAIR:      user_options->hccapx_message_pair       = hc_strtoul (optarg, NULL, 10);
                                          user_options->hccapx_message_pair_chgd  = true;                            break;
-      case IDX_NONCE_ERROR_CORRECTIONS:  user_options->nonce_error_corrections   = hc_strtoul (optarg, NULL, 10);   break;
+      case IDX_NONCE_ERROR_CORRECTIONS:  user_options->nonce_error_corrections   = hc_strtoul (optarg, NULL, 10);
+                                         user_options->nonce_error_corrections_chgd = true;                         break;
       case IDX_TRUECRYPT_KEYFILES:       user_options->truecrypt_keyfiles        = optarg;                          break;
       case IDX_VERACRYPT_KEYFILES:       user_options->veracrypt_keyfiles        = optarg;                          break;
       case IDX_VERACRYPT_PIM:            user_options->veracrypt_pim             = hc_strtoul (optarg, NULL, 10);   break;
@@ -1753,6 +1754,13 @@ int user_options_check_files (hashcat_ctx_t *hashcat_ctx)
 
         return -1;
       }
+
+      if (hc_path_has_bom (user_options_extra->hc_hash) == true)
+      {
+        event_log_error (hashcat_ctx, "%s: Byte Order Mark (BOM) was detected", user_options_extra->hc_hash);
+
+        return -1;
+      }
     }
   }
 
@@ -1796,6 +1804,13 @@ int user_options_check_files (hashcat_ctx_t *hashcat_ctx)
 
         return -1;
       }
+
+      if (hc_path_has_bom (rp_file) == true)
+      {
+        event_log_error (hashcat_ctx, "%s: Byte Order Mark (BOM) was detected", rp_file);
+
+        return -1;
+      }
     }
   }
   else if (user_options->attack_mode == ATTACK_MODE_COMBI)
@@ -1828,6 +1843,13 @@ int user_options_check_files (hashcat_ctx_t *hashcat_ctx)
         return -1;
       }
 
+      if (hc_path_has_bom (dictfile1) == true)
+      {
+        event_log_error (hashcat_ctx, "%s: Byte Order Mark (BOM) was detected", dictfile1);
+
+        return -1;
+      }
+
       if (hc_path_exist (dictfile2) == false)
       {
         event_log_error (hashcat_ctx, "%s: %s", dictfile2, strerror (errno));
@@ -1845,6 +1867,13 @@ int user_options_check_files (hashcat_ctx_t *hashcat_ctx)
       if (hc_path_read (dictfile2) == false)
       {
         event_log_error (hashcat_ctx, "%s: %s", dictfile2, strerror (errno));
+
+        return -1;
+      }
+
+      if (hc_path_has_bom (dictfile2) == true)
+      {
+        event_log_error (hashcat_ctx, "%s: Byte Order Mark (BOM) was detected", dictfile2);
 
         return -1;
       }
@@ -1870,6 +1899,13 @@ int user_options_check_files (hashcat_ctx_t *hashcat_ctx)
         if (hc_path_read (maskfile) == false)
         {
           event_log_error (hashcat_ctx, "%s: %s", maskfile, strerror (errno));
+
+          return -1;
+        }
+
+        if (hc_path_has_bom (maskfile) == true)
+        {
+          event_log_error (hashcat_ctx, "%s: Byte Order Mark (BOM) was detected", maskfile);
 
           return -1;
         }
@@ -1910,6 +1946,13 @@ int user_options_check_files (hashcat_ctx_t *hashcat_ctx)
 
           return -1;
         }
+
+        if (hc_path_has_bom (maskfile) == true)
+        {
+          event_log_error (hashcat_ctx, "%s: Byte Order Mark (BOM) was detected", maskfile);
+
+          return -1;
+        }
       }
     }
   }
@@ -1944,6 +1987,13 @@ int user_options_check_files (hashcat_ctx_t *hashcat_ctx)
         if (hc_path_read (maskfile) == false)
         {
           event_log_error (hashcat_ctx, "%s: %s", maskfile, strerror (errno));
+
+          return -1;
+        }
+
+        if (hc_path_has_bom (maskfile) == true)
+        {
+          event_log_error (hashcat_ctx, "%s: Byte Order Mark (BOM) was detected", maskfile);
 
           return -1;
         }

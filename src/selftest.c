@@ -57,7 +57,7 @@ static int selftest (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param
 
       if (hashconfig->opts_type & OPTS_TYPE_PT_UPPER)
       {
-        uppercase (pw_ptr, pw.pw_len);
+        uppercase ((u8 *) pw_ptr, pw.pw_len);
       }
 
       CL_err = hc_clEnqueueWriteBuffer (hashcat_ctx, device_param->command_queue, device_param->d_pws_buf, CL_TRUE, 0, 1 * sizeof (pw_t), &pw, 0, NULL, NULL);
@@ -79,6 +79,11 @@ static int selftest (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param
 
       pw.pw_len = (u32) pw_len - 1;
 
+      if (hashconfig->opts_type & OPTS_TYPE_PT_UPPER)
+      {
+        uppercase ((u8 *) pw_ptr, pw.pw_len);
+      }
+
       pw_t comb; memset (&comb, 0, sizeof (comb));
 
       char *comb_ptr = (char *) &comb.i;
@@ -86,6 +91,11 @@ static int selftest (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param
       memcpy (comb_ptr, hashconfig->st_pass + pw_len - 1, 1);
 
       comb.pw_len = 1;
+
+      if (hashconfig->opts_type & OPTS_TYPE_PT_UPPER)
+      {
+        uppercase ((u8 *) comb_ptr, comb.pw_len);
+      }
 
       if (hashconfig->opts_type & OPTS_TYPE_PT_ADD01)
       {
@@ -519,9 +529,20 @@ void *thread_selftest (void *p)
 
   const int rc_selftest = selftest (hashcat_ctx, device_param);
 
-  if (rc_selftest == -1)
+  if (user_options->benchmark == true)
   {
-    // we should do something here, tell hashcat main that selftest failed to abort
+    device_param->st_status = ST_STATUS_IGNORED;
+  }
+  else
+  {
+    if (rc_selftest == 0)
+    {
+      device_param->st_status = ST_STATUS_PASSED;
+    }
+    else
+    {
+      device_param->st_status = ST_STATUS_FAILED;
+    }
   }
 
   return NULL;

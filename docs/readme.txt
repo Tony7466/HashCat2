@@ -1,4 +1,4 @@
-hashcat v4.1.0
+hashcat v4.2.1
 ==============
 
 AMD GPUs on Linux require "RadeonOpenCompute (ROCm)" Software Platform (1.6.180 or later)
@@ -101,8 +101,10 @@ NVIDIA GPUs require "NVIDIA Driver" (367.x or later)
 - PBKDF2-HMAC-SHA256
 - PBKDF2-HMAC-SHA512
 - Skype
-- WPA/WPA2
-- WPA/WPA2 PMK
+- WPA-EAPOL-PBKDF2
+- WPA-EAPOL-PMK
+- WPA-PMKID-PBKDF2
+- WPA-PMKID-PMK
 - iSCSI CHAP authentication, MD5(CHAP)
 - IKE-PSK MD5
 - IKE-PSK SHA1
@@ -223,6 +225,7 @@ NVIDIA GPUs require "NVIDIA Driver" (367.x or later)
 - eCryptfs
 - VeraCrypt
 - LUKS
+- FileVault 2
 - MS Office <= 2003
 - MS Office 2007
 - MS Office 2010
@@ -246,6 +249,7 @@ NVIDIA GPUs require "NVIDIA Driver" (367.x or later)
 - Ethereum Wallet, PBKDF2-HMAC-SHA256
 - Ethereum Wallet, SCRYPT
 - Ethereum Pre-Sale Wallet, PBKDF2-HMAC-SHA256
+- Ansible Vault
 - Plaintext
 
 ##

@@ -12,7 +12,7 @@ Last-Update: 2017-01-19
 
 --- a/src/Makefile
 +++ b/src/Makefile
-@@ -204,7 +204,7 @@ endif
+@@ -197,7 +197,7 @@ endif
  ##
  
  ifeq ($(UNAME),Linux)
@@ -21,7 +21,7 @@ Last-Update: 2017-01-19
  CFLAGS_NATIVE           += -I$(OPENCL_HEADERS_KHRONOS)/
  CFLAGS_NATIVE           += -DWITH_HWMON
  LFLAGS_NATIVE           := $(LFLAGS)
-@@ -215,7 +215,7 @@ endif # Linux
+@@ -209,7 +209,7 @@ endif # Linux
  
  ifeq ($(UNAME),FreeBSD)
  ifndef PORTNAME
@@ -30,7 +30,7 @@ Last-Update: 2017-01-19
  CFLAGS_NATIVE           += -I$(OPENCL_HEADERS_KHRONOS)/
  LFLAGS_NATIVE           := $(LFLAGS)
  LFLAGS_NATIVE           += -lpthread
-@@ -224,7 +224,7 @@ endif # FreeBSD
+@@ -219,7 +219,7 @@ endif # FreeBSD
  
  ifeq ($(UNAME),Darwin)
  export MACOSX_DEPLOYMENT_TARGET=10.9
@@ -39,7 +39,7 @@ Last-Update: 2017-01-19
  
  ifeq ($(shell test $(PROD_VERS) -le 11; echo $$?), 0)
  CFLAGS_NATIVE           += -DMISSING_CLOCK_GETTIME
-@@ -237,7 +237,7 @@ LFLAGS_NATIVE           += -liconv
+@@ -232,7 +232,7 @@ LFLAGS_NATIVE           += -liconv
  endif # Darwin
  
  ifeq ($(UNAME),CYGWIN)
@@ -48,7 +48,7 @@ Last-Update: 2017-01-19
  CFLAGS_NATIVE           += -I$(OPENCL_HEADERS_KHRONOS)/
  CFLAGS_NATIVE           += -DWITH_HWMON
  LFLAGS_NATIVE           := $(LFLAGS)
-@@ -247,7 +247,7 @@ LFLAGS_NATIVE           += -liconv
+@@ -242,7 +242,7 @@ LFLAGS_NATIVE           += -liconv
  endif # CYGWIN
  
  ifeq ($(UNAME),MSYS2)

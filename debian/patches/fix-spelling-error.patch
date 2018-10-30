@@ -5,9 +5,9 @@ Last-Update: 2018-04-04
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 --- a/src/user_options.c
 +++ b/src/user_options.c
-@@ -94,7 +94,6 @@ static const struct option long_options[
-   {"self-test-disable",         no_argument,       NULL, IDX_SELF_TEST_DISABLE},
+@@ -102,7 +102,6 @@ static const struct option long_options[
    {"segment-size",              required_argument, NULL, IDX_SEGMENT_SIZE},
+   {"self-test-disable",         no_argument,       NULL, IDX_SELF_TEST_DISABLE},
    {"separator",                 required_argument, NULL, IDX_SEPARATOR},
 -  {"seperator",                 required_argument, NULL, IDX_SEPARATOR},
    {"session",                   required_argument, NULL, IDX_SESSION},

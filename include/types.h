@@ -43,6 +43,11 @@ typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
 
+typedef int8_t  i8;
+typedef int16_t i16;
+typedef int32_t i32;
+typedef int64_t i64;
+
 // timer
 
 #if defined (_WIN)
@@ -57,14 +62,17 @@ typedef struct timespec   hc_timer_t;
 
 #if defined (_POSIX)
 #include <pthread.h>
+#include <semaphore.h>
 #endif
 
 #if defined (_WIN)
-typedef HANDLE            hc_thread_t;
-typedef CRITICAL_SECTION  hc_thread_mutex_t;
+typedef HANDLE              hc_thread_t;
+typedef HANDLE              hc_thread_mutex_t;
+typedef HANDLE              hc_thread_semaphore_t;
 #else
-typedef pthread_t         hc_thread_t;
-typedef pthread_mutex_t   hc_thread_mutex_t;
+typedef pthread_t           hc_thread_t;
+typedef pthread_mutex_t     hc_thread_mutex_t;
+typedef sem_t               hc_thread_semaphore_t;
 #endif
 
 // enums
@@ -112,6 +120,8 @@ typedef enum event_identifier
   EVENT_MONITOR_THROTTLE2         = 0x00000084,
   EVENT_MONITOR_THROTTLE3         = 0x00000085,
   EVENT_MONITOR_PERFORMANCE_HINT  = 0x00000086,
+  EVENT_MONITOR_NOINPUT_HINT      = 0x00000087,
+  EVENT_MONITOR_NOINPUT_ABORT     = 0x00000088,
   EVENT_OPENCL_SESSION_POST       = 0x00000090,
   EVENT_OPENCL_SESSION_PRE        = 0x00000091,
   EVENT_OUTERLOOP_FINISHED        = 0x000000a0,
@@ -395,6 +405,7 @@ typedef enum opts_type
   OPTS_TYPE_AUX4              = (1ULL << 37),
   OPTS_TYPE_BINARY_HASHFILE   = (1ULL << 38),
   OPTS_TYPE_PREFERED_THREAD   = (1ULL << 39), // some algorithms (complicated ones with many branches) benefit from this
+  OPTS_TYPE_PT_ADD06          = (1ULL << 40),
 
 } opts_type_t;
 
@@ -521,10 +532,17 @@ typedef enum user_options_defaults
 {
   ADVICE_DISABLE           = false,
   ATTACK_MODE              = ATTACK_MODE_STRAIGHT,
-  BENCHMARK                = false,
   BENCHMARK_ALL            = false,
+  BENCHMARK                = false,
   BITMAP_MAX               = 24,
   BITMAP_MIN               = 16,
+  #ifdef WITH_BRAIN
+  BRAIN_CLIENT             = false,
+  BRAIN_CLIENT_FEATURES    = 3,
+  BRAIN_PORT               = 6863,
+  BRAIN_SERVER             = false,
+  BRAIN_SESSION            = 0,
+  #endif
   DEBUG_MODE               = 0,
   EXAMPLE_HASHES           = false,
   FORCE                    = false,
@@ -558,13 +576,13 @@ typedef enum user_options_defaults
   OUTFILE_AUTOHEX          = true,
   OUTFILE_CHECK_TIMER      = 5,
   OUTFILE_FORMAT           = 3,
-  WORDLIST_AUTOHEX_DISABLE = false,
   POTFILE_DISABLE          = false,
+  PROGRESS_ONLY            = false,
   QUIET                    = false,
   REMOVE                   = false,
   REMOVE_TIMER             = 60,
-  RESTORE                  = false,
   RESTORE_DISABLE          = false,
+  RESTORE                  = false,
   RESTORE_TIMER            = 60,
   RP_GEN                   = 0,
   RP_GEN_FUNC_MAX          = 4,
@@ -572,19 +590,20 @@ typedef enum user_options_defaults
   RP_GEN_SEED              = 0,
   RUNTIME                  = 0,
   SCRYPT_TMTO              = 0,
-  SELF_TEST_DISABLE        = false,
   SEGMENT_SIZE             = 33554432,
+  SELF_TEST_DISABLE        = false,
   SEPARATOR                = ':',
   SHOW                     = false,
   SKIP                     = 0,
+  SLOW_CANDIDATES          = false,
+  SPEED_ONLY               = false,
   STATUS                   = false,
   STATUS_TIMER             = 10,
   STDOUT_FLAG              = false,
-  SPEED_ONLY               = false,
-  PROGRESS_ONLY            = false,
   USAGE                    = false,
   USERNAME                 = false,
   VERSION                  = false,
+  WORDLIST_AUTOHEX_DISABLE = false,
   WORKLOAD_PROFILE         = 2,
 
 } user_options_defaults_t;
@@ -593,95 +612,106 @@ typedef enum user_options_map
 {
   IDX_ADVICE_DISABLE            = 0xff00,
   IDX_ATTACK_MODE               = 'a',
-  IDX_BENCHMARK                 = 'b',
   IDX_BENCHMARK_ALL             = 0xff01,
+  IDX_BENCHMARK                 = 'b',
   IDX_BITMAP_MAX                = 0xff02,
   IDX_BITMAP_MIN                = 0xff03,
-  IDX_CPU_AFFINITY              = 0xff04,
+  #ifdef WITH_BRAIN
+  IDX_BRAIN_CLIENT              = 'z',
+  IDX_BRAIN_CLIENT_FEATURES     = 0xff04,
+  IDX_BRAIN_HOST                = 0xff05,
+  IDX_BRAIN_PASSWORD            = 0xff06,
+  IDX_BRAIN_PORT                = 0xff07,
+  IDX_BRAIN_SERVER              = 0xff08,
+  IDX_BRAIN_SESSION             = 0xff09,
+  IDX_BRAIN_SESSION_WHITELIST   = 0xff0a,
+  #endif
+  IDX_CPU_AFFINITY              = 0xff0b,
   IDX_CUSTOM_CHARSET_1          = '1',
   IDX_CUSTOM_CHARSET_2          = '2',
   IDX_CUSTOM_CHARSET_3          = '3',
   IDX_CUSTOM_CHARSET_4          = '4',
-  IDX_DEBUG_FILE                = 0xff05,
-  IDX_DEBUG_MODE                = 0xff06,
-  IDX_ENCODING_FROM             = 0xff07,
-  IDX_ENCODING_TO               = 0xff08,
-  IDX_EXAMPLE_HASHES            = 0xff09,
-  IDX_FORCE                     = 0xff0a,
-  IDX_GPU_TEMP_ABORT            = 0xff0b,
-  IDX_GPU_TEMP_DISABLE          = 0xff0c,
+  IDX_DEBUG_FILE                = 0xff0c,
+  IDX_DEBUG_MODE                = 0xff0d,
+  IDX_ENCODING_FROM             = 0xff0e,
+  IDX_ENCODING_TO               = 0xff0f,
+  IDX_EXAMPLE_HASHES            = 0xff10,
+  IDX_FORCE                     = 0xff11,
+  IDX_GPU_TEMP_ABORT            = 0xff12,
+  IDX_GPU_TEMP_DISABLE          = 0xff13,
   IDX_HASH_MODE                 = 'm',
-  IDX_HCCAPX_MESSAGE_PAIR       = 0xff0d,
+  IDX_HCCAPX_MESSAGE_PAIR       = 0xff14,
   IDX_HELP                      = 'h',
-  IDX_HEX_CHARSET               = 0xff0e,
-  IDX_HEX_SALT                  = 0xff0f,
-  IDX_HEX_WORDLIST              = 0xff10,
+  IDX_HEX_CHARSET               = 0xff15,
+  IDX_HEX_SALT                  = 0xff16,
+  IDX_HEX_WORDLIST              = 0xff17,
   IDX_INCREMENT                 = 'i',
-  IDX_INCREMENT_MAX             = 0xff11,
-  IDX_INCREMENT_MIN             = 0xff12,
-  IDX_INDUCTION_DIR             = 0xff13,
-  IDX_KEEP_GUESSING             = 0xff14,
+  IDX_INCREMENT_MAX             = 0xff18,
+  IDX_INCREMENT_MIN             = 0xff19,
+  IDX_INDUCTION_DIR             = 0xff1a,
+  IDX_KEEP_GUESSING             = 0xff1b,
   IDX_KERNEL_ACCEL              = 'n',
   IDX_KERNEL_LOOPS              = 'u',
-  IDX_KEYSPACE                  = 0xff15,
-  IDX_LEFT                      = 0xff16,
+  IDX_KEYSPACE                  = 0xff1c,
+  IDX_LEFT                      = 0xff1d,
   IDX_LIMIT                     = 'l',
-  IDX_LOGFILE_DISABLE           = 0xff17,
-  IDX_LOOPBACK                  = 0xff18,
-  IDX_MACHINE_READABLE          = 0xff19,
-  IDX_MARKOV_CLASSIC            = 0xff1a,
-  IDX_MARKOV_DISABLE            = 0xff1b,
-  IDX_MARKOV_HCSTAT             = 0xff1c,
+  IDX_LOGFILE_DISABLE           = 0xff1e,
+  IDX_LOOPBACK                  = 0xff1f,
+  IDX_MACHINE_READABLE          = 0xff20,
+  IDX_MARKOV_CLASSIC            = 0xff21,
+  IDX_MARKOV_DISABLE            = 0xff22,
+  IDX_MARKOV_HCSTAT2            = 0xff23,
   IDX_MARKOV_THRESHOLD          = 't',
-  IDX_NONCE_ERROR_CORRECTIONS   = 0xff1d,
-  IDX_NVIDIA_SPIN_DAMP          = 0xff1e,
+  IDX_NONCE_ERROR_CORRECTIONS   = 0xff24,
+  IDX_NVIDIA_SPIN_DAMP          = 0xff25,
   IDX_OPENCL_DEVICES            = 'd',
   IDX_OPENCL_DEVICE_TYPES       = 'D',
   IDX_OPENCL_INFO               = 'I',
-  IDX_OPENCL_PLATFORMS          = 0xff1f,
-  IDX_OPENCL_VECTOR_WIDTH       = 0xff20,
+  IDX_OPENCL_PLATFORMS          = 0xff26,
+  IDX_OPENCL_VECTOR_WIDTH       = 0xff27,
   IDX_OPTIMIZED_KERNEL_ENABLE   = 'O',
-  IDX_OUTFILE_AUTOHEX_DISABLE   = 0xff21,
-  IDX_OUTFILE_CHECK_DIR         = 0xff22,
-  IDX_OUTFILE_CHECK_TIMER       = 0xff23,
-  IDX_OUTFILE_FORMAT            = 0xff24,
+  IDX_OUTFILE_AUTOHEX_DISABLE   = 0xff28,
+  IDX_OUTFILE_CHECK_DIR         = 0xff29,
+  IDX_OUTFILE_CHECK_TIMER       = 0xff2a,
+  IDX_OUTFILE_FORMAT            = 0xff2b,
   IDX_OUTFILE                   = 'o',
-  IDX_WORDLIST_AUTOHEX_DISABLE  = 0xff25,
-  IDX_POTFILE_DISABLE           = 0xff26,
-  IDX_POTFILE_PATH              = 0xff27,
-  IDX_QUIET                     = 0xff28,
-  IDX_REMOVE                    = 0xff29,
-  IDX_REMOVE_TIMER              = 0xff2a,
-  IDX_RESTORE                   = 0xff2b,
-  IDX_RESTORE_DISABLE           = 0xff2c,
-  IDX_RESTORE_FILE_PATH         = 0xff2d,
+  IDX_POTFILE_DISABLE           = 0xff2c,
+  IDX_POTFILE_PATH              = 0xff2d,
+  IDX_PROGRESS_ONLY             = 0xff2e,
+  IDX_QUIET                     = 0xff2f,
+  IDX_REMOVE                    = 0xff30,
+  IDX_REMOVE_TIMER              = 0xff31,
+  IDX_RESTORE                   = 0xff32,
+  IDX_RESTORE_DISABLE           = 0xff33,
+  IDX_RESTORE_FILE_PATH         = 0xff34,
   IDX_RP_FILE                   = 'r',
-  IDX_RP_GEN_FUNC_MAX           = 0xff2e,
-  IDX_RP_GEN_FUNC_MIN           = 0xff2f,
+  IDX_RP_GEN_FUNC_MAX           = 0xff35,
+  IDX_RP_GEN_FUNC_MIN           = 0xff36,
   IDX_RP_GEN                    = 'g',
-  IDX_RP_GEN_SEED               = 0xff30,
+  IDX_RP_GEN_SEED               = 0xff37,
   IDX_RULE_BUF_L                = 'j',
   IDX_RULE_BUF_R                = 'k',
-  IDX_RUNTIME                   = 0xff31,
-  IDX_SCRYPT_TMTO               = 0xff32,
-  IDX_SELF_TEST_DISABLE         = 0xff33,
+  IDX_RUNTIME                   = 0xff38,
+  IDX_SCRYPT_TMTO               = 0xff39,
   IDX_SEGMENT_SIZE              = 'c',
+  IDX_SELF_TEST_DISABLE         = 0xff3a,
   IDX_SEPARATOR                 = 'p',
-  IDX_SESSION                   = 0xff34,
-  IDX_SHOW                      = 0xff35,
+  IDX_SESSION                   = 0xff3b,
+  IDX_SHOW                      = 0xff3c,
   IDX_SKIP                      = 's',
-  IDX_STATUS                    = 0xff36,
-  IDX_STATUS_TIMER              = 0xff37,
-  IDX_STDOUT_FLAG               = 0xff38,
-  IDX_SPEED_ONLY                = 0xff39,
-  IDX_PROGRESS_ONLY             = 0xff3a,
-  IDX_TRUECRYPT_KEYFILES        = 0xff3b,
-  IDX_USERNAME                  = 0xff3c,
-  IDX_VERACRYPT_KEYFILES        = 0xff3d,
-  IDX_VERACRYPT_PIM             = 0xff3e,
+  IDX_SLOW_CANDIDATES           = 'S',
+  IDX_SPEED_ONLY                = 0xff3d,
+  IDX_STATUS                    = 0xff3e,
+  IDX_STATUS_TIMER              = 0xff3f,
+  IDX_STDOUT_FLAG               = 0xff40,
+  IDX_TRUECRYPT_KEYFILES        = 0xff41,
+  IDX_USERNAME                  = 0xff42,
+  IDX_VERACRYPT_KEYFILES        = 0xff43,
+  IDX_VERACRYPT_PIM             = 0xff44,
   IDX_VERSION_LOWER             = 'v',
   IDX_VERSION                   = 'V',
-  IDX_WORKLOAD_PROFILE          = 'w'
+  IDX_WORDLIST_AUTOHEX_DISABLE  = 0xff45,
+  IDX_WORKLOAD_PROFILE          = 'w',
 
 } user_options_map_t;
 
@@ -699,6 +729,16 @@ typedef enum token_attr
 
 } token_attr_t;
 
+#ifdef WITH_BRAIN
+typedef enum brain_link_status
+{
+  BRAIN_LINK_STATUS_CONNECTED   = 1 << 0,
+  BRAIN_LINK_STATUS_RECEIVING   = 1 << 1,
+  BRAIN_LINK_STATUS_SENDING     = 1 << 2,
+
+} brain_link_status_t;
+#endif
+
 /**
  * structs
  */
@@ -713,8 +753,6 @@ typedef struct salt
   u32 salt_iter;
   u32 salt_iter2;
   u32 salt_sign[2];
-
-  u32 keccak_mdlen;
 
   u32 digests_cnt;
   u32 digests_done;
@@ -890,6 +928,18 @@ typedef struct pw
 
 } pw_t;
 
+typedef struct pw_pre
+{
+  u32 pw_buf[64];
+  u32 pw_len;
+
+  u32 base_buf[64];
+  u32 base_len;
+
+  u32 rule_idx;
+
+} pw_pre_t;
+
 typedef struct pw_idx
 {
   u32 off;
@@ -919,13 +969,23 @@ typedef struct cpt
 
 typedef struct plain
 {
+  u64  gidvid;
+  u32  il_pos;
   u32  salt_pos;
   u32  digest_pos;
   u32  hash_pos;
-  u64  gidvid;
-  u32  il_pos;
 
 } plain_t;
+
+#define LINK_SPEED_COUNT 10000
+
+typedef struct link_speed
+{
+  hc_timer_t timer[LINK_SPEED_COUNT];
+  ssize_t    bytes[LINK_SPEED_COUNT];
+  int        pos;
+
+} link_speed_t;
 
 #include "ext_OpenCL.h"
 
@@ -1043,6 +1103,8 @@ typedef struct hc_device_param
   size_t  size_pws_amp;
   size_t  size_pws_comp;
   size_t  size_pws_idx;
+  size_t  size_pws_pre;
+  size_t  size_pws_base;
   size_t  size_tmps;
   size_t  size_hooks;
   size_t  size_bfs;
@@ -1060,6 +1122,21 @@ typedef struct hc_device_param
   size_t  size_st_salts;
   size_t  size_st_esalts;
 
+  #ifdef WITH_BRAIN
+  size_t  size_brain_link_in;
+  size_t  size_brain_link_out;
+
+  int           brain_link_client_fd;
+  link_speed_t  brain_link_recv_speed;
+  link_speed_t  brain_link_send_speed;
+  bool          brain_link_recv_active;
+  bool          brain_link_send_active;
+  u64           brain_link_recv_bytes;
+  u64           brain_link_send_bytes;
+  u8           *brain_link_in_buf;
+  u32          *brain_link_out_buf;
+  #endif
+
   char   *scratch_buf;
 
   FILE   *combs_fp;
@@ -1070,6 +1147,12 @@ typedef struct hc_device_param
   pw_idx_t *pws_idx;
   u32      *pws_comp;
   u64       pws_cnt;
+
+  pw_pre_t *pws_pre_buf;  // for slow candidates
+  u64       pws_pre_cnt;
+
+  pw_pre_t *pws_base_buf; // for debug mode
+  u64       pws_base_cnt;
 
   u64     words_off;
   u64     words_done;
@@ -1587,25 +1670,36 @@ typedef struct user_options
   char       **hc_argv;
 
   bool         attack_mode_chgd;
+  #ifdef WITH_BRAIN
+  bool         brain_host_chgd;
+  bool         brain_port_chgd;
+  bool         brain_password_chgd;
+  #endif
   bool         hash_mode_chgd;
+  bool         hccapx_message_pair_chgd;
   bool         increment_max_chgd;
   bool         increment_min_chgd;
   bool         kernel_accel_chgd;
   bool         kernel_loops_chgd;
+  bool         nonce_error_corrections_chgd;
   bool         nvidia_spin_damp_chgd;
   bool         opencl_vector_width_chgd;
   bool         outfile_format_chgd;
   bool         remove_timer_chgd;
   bool         rp_gen_seed_chgd;
   bool         runtime_chgd;
-  bool         workload_profile_chgd;
   bool         segment_size_chgd;
-  bool         hccapx_message_pair_chgd;
-  bool         nonce_error_corrections_chgd;
+  bool         workload_profile_chgd;
+  bool         skip_chgd;
+  bool         limit_chgd;
 
   bool         advice_disable;
   bool         benchmark;
   bool         benchmark_all;
+  #ifdef WITH_BRAIN
+  bool         brain_client;
+  bool         brain_server;
+  #endif
   bool         example_hashes;
   bool         force;
   bool         gpu_temp_disable;
@@ -1624,31 +1718,32 @@ typedef struct user_options
   bool         opencl_info;
   bool         optimized_kernel_enable;
   bool         outfile_autohex;
-  bool         wordlist_autohex_disable;
   bool         potfile_disable;
+  bool         progress_only;
   bool         quiet;
   bool         remove;
   bool         restore;
   bool         restore_disable;
   bool         self_test_disable;
   bool         show;
+  bool         slow_candidates;
+  bool         speed_only;
   bool         status;
   bool         stdout_flag;
-  bool         speed_only;
-  bool         progress_only;
   bool         usage;
   bool         username;
   bool         version;
+  bool         wordlist_autohex_disable;
+  #ifdef WITH_BRAIN
+  char        *brain_host;
+  char        *brain_password;
+  char        *brain_session_whitelist;
+  #endif
   char        *cpu_affinity;
-  const char  *custom_charset_1;
-  const char  *custom_charset_2;
-  const char  *custom_charset_3;
   char        *custom_charset_4;
   char        *debug_file;
-  const char  *encoding_from;
-  const char  *encoding_to;
   char        *induction_dir;
-  char        *markov_hcstat;
+  char        *markov_hcstat2;
   char        *opencl_devices;
   char        *opencl_device_types;
   char        *opencl_platforms;
@@ -1657,15 +1752,26 @@ typedef struct user_options
   char        *potfile_path;
   char        *restore_file_path;
   char       **rp_files;
-  const char  *rule_buf_l;
-  const char  *rule_buf_r;
   char         separator;
-  const char  *session;
   char        *truecrypt_keyfiles;
   char        *veracrypt_keyfiles;
+  const char  *custom_charset_1;
+  const char  *custom_charset_2;
+  const char  *custom_charset_3;
+  const char  *encoding_from;
+  const char  *encoding_to;
+  const char  *rule_buf_l;
+  const char  *rule_buf_r;
+  const char  *session;
   u32          attack_mode;
   u32          bitmap_max;
   u32          bitmap_min;
+  #ifdef WITH_BRAIN
+  u32          brain_client_features;
+  u32          brain_port;
+  u32          brain_session;
+  u32          brain_attack;
+  #endif
   u32          debug_mode;
   u32          gpu_temp_abort;
   u32          hash_mode;
@@ -1854,6 +1960,21 @@ typedef struct device_info
   int     kernel_loops_dev;
   int     kernel_threads_dev;
   int     vector_width_dev;
+  int     salt_pos_dev;
+  int     innerloop_pos_dev;
+  int     innerloop_left_dev;
+  int     iteration_pos_dev;
+  int     iteration_left_dev;
+  #ifdef WITH_BRAIN
+  int     brain_link_client_id_dev;
+  int     brain_link_status_dev;
+  char   *brain_link_recv_bytes_dev;
+  char   *brain_link_send_bytes_dev;
+  char   *brain_link_recv_bytes_sec_dev;
+  char   *brain_link_send_bytes_sec_dev;
+  double  brain_link_time_recv_dev;
+  double  brain_link_time_send_dev;
+  #endif
 
 } device_info_t;
 
@@ -1873,6 +1994,10 @@ typedef struct hashcat_status
   char       *guess_charset;
   int         guess_mask_length;
   char       *session;
+  #ifdef WITH_BRAIN
+  int         brain_session;
+  int         brain_attack;
+  #endif
   const char *status_string;
   int         status_number;
   char       *time_estimated_absolute;
@@ -1986,6 +2111,12 @@ typedef struct status_ctx
   hc_timer_t timer_paused;      // timer on current dict
 
   double  msec_paused;          // timer on current dict
+
+  /**
+   * read timeouts
+   */
+
+  u32  stdin_read_timeout_cnt;
 
 } status_ctx_t;
 

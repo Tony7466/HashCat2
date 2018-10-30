@@ -361,7 +361,7 @@ DECLSPEC u32 hc_bfe_S (const u32 a, const u32 b, const u32 c)
   return amd_bfe (a, b, c);
 }
 
-DECLSPEC u32 hc_bytealign (const u32x a, const u32x b, const u32x c)
+DECLSPEC u32x hc_bytealign (const u32x a, const u32x b, const u32x c)
 {
   return amd_bytealign (a, b, c);
 }
@@ -1084,8 +1084,6 @@ typedef struct salt
   u32 salt_iter2;
   u32 salt_sign[2];
 
-  u32 keccak_mdlen;
-
   u32 digests_cnt;
   u32 digests_done;
 
@@ -1160,7 +1158,6 @@ typedef struct blake2
   u64 f[2];
   u32 buflen;
   u32 outlen;
-  u8  last_node;
 
 } blake2_t;
 
@@ -1292,7 +1289,7 @@ typedef struct krb5tgs
 {
   u32 account_info[512];
   u32 checksum[4];
-  u32 edata2[2560];
+  u32 edata2[5120];
   u32 edata2_len;
 
 } krb5tgs_t;
@@ -1530,6 +1527,8 @@ typedef struct electrum_wallet
 
 typedef struct ansible_vault
 {
+  u32 cipher;
+  u32 version;
   u32 ct_data_buf[4096];
   u32 ct_data_len;
 } ansible_vault_t;
@@ -1918,7 +1917,7 @@ typedef struct dpapimk_tmp_v2
   u64 dgst64[16];
   u64 out64[16];
 
-  u32 userKey[5];
+  u32 userKey[8];
 
 } dpapimk_tmp_v2_t;
 
@@ -2009,13 +2008,13 @@ typedef struct bs_word
 
 } bs_word_t;
 
-typedef struct
+typedef struct plain
 {
-  u32 salt_pos;
-  u32 digest_pos;
-  u32 hash_pos;
-  u64 gidvid;
-  u32 il_pos;
+  u64  gidvid;
+  u32  il_pos;
+  u32  salt_pos;
+  u32  digest_pos;
+  u32  hash_pos;
 
 } plain_t;
 

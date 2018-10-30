@@ -709,3 +709,83 @@ float get_entropy (const u8 *buf, const int len)
 
   return entropy;
 }
+
+int select_read_timeout (int sockfd, const int sec)
+{
+  struct timeval tv;
+
+  tv.tv_sec  = sec;
+  tv.tv_usec = 0;
+
+  fd_set fds;
+
+  FD_ZERO (&fds);
+  FD_SET (sockfd, &fds);
+
+  return select (sockfd + 1, &fds, NULL, NULL, &tv);
+}
+
+int select_write_timeout (int sockfd, const int sec)
+{
+  struct timeval tv;
+
+  tv.tv_sec  = sec;
+  tv.tv_usec = 0;
+
+  fd_set fds;
+
+  FD_ZERO (&fds);
+  FD_SET (sockfd, &fds);
+
+  return select (sockfd + 1, NULL, &fds, NULL, &tv);
+}
+
+#if defined (_WIN)
+
+int select_read_timeout_console (const int sec)
+{
+  const HANDLE hStdIn = GetStdHandle (STD_INPUT_HANDLE);
+
+  const DWORD rc = WaitForSingleObject (hStdIn, sec * 1000);
+
+  if (rc == WAIT_OBJECT_0)
+  {
+    DWORD dwRead;
+
+    INPUT_RECORD inRecords;
+
+    inRecords.EventType = 0;
+
+    PeekConsoleInput (hStdIn, &inRecords, 1, &dwRead);
+
+    if (inRecords.EventType == 0)
+    {
+      // those are good ones
+
+      return 1;
+    }
+    else
+    {
+      // but we don't want that stuff like windows focus etc. in our stream
+
+      ReadConsoleInput (hStdIn, &inRecords, 1, &dwRead);
+    }
+
+    return select_read_timeout_console (sec);
+  }
+  else if (rc == WAIT_TIMEOUT)
+  {
+    return 0;
+  }
+
+  return -1;
+}
+
+#else
+
+int select_read_timeout_console (const int sec)
+{
+  return select_read_timeout (fileno (stdin), sec);
+}
+
+#endif

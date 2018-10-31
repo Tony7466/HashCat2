@@ -5,6 +5,7 @@ Maintainer: Debian Security Tools <team+pkg-security@tracker.debian.org>
 Uploaders: Daniel Echeverry <epsilon77@gmail.com>
 Build-Depends: debhelper (>=10),
                libgmp-dev,
+	       libxxhash-dev,
                opencl-headers
 Standards-Version: 4.2.0
 Homepage: https://hashcat.net/hashcat/

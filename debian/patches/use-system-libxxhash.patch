@@ -1,0 +1,49 @@
+Description: Use the system libxxhash library
+ Don't use the libxxhash provided by upstream (only in github repository,
+ not in the tarball), use the packaged library.
+Author: Sophie Brun <sophie@offensive-security.com>
+Last-Update: 2018-11-06
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+--- a/src/Makefile
++++ b/src/Makefile
+@@ -192,7 +195,7 @@ endif
+ # brain and xxHash
+ ifeq ($(ENABLE_BRAIN),1)
+ CFLAGS                  += -DWITH_BRAIN
+-CFLAGS                  += -Ideps/git/xxHash
++CFLAGS                  += -L/usr/lib/$(DEB_HOST_MULTIARCH)/libxxhash.a -lxxhash
+ endif
+ 
+ ##
+@@ -315,18 +318,18 @@ LINUX_64_OBJS           := $(foreach OBJ
+ WIN_32_OBJS             := $(foreach OBJ,$(OBJS_ALL),obj/$(OBJ).WIN.32.o)
+ WIN_64_OBJS             := $(foreach OBJ,$(OBJS_ALL),obj/$(OBJ).WIN.64.o)
+ 
+-ifeq ($(ENABLE_BRAIN),1)
+-OBJS_XXHASH             := xxhash
+-
+-NATIVE_STATIC_OBJS      += $(foreach OBJ,$(OBJS_XXHASH),obj/$(OBJ).NATIVE.STATIC.o)
+-NATIVE_SHARED_OBJS      += $(foreach OBJ,$(OBJS_XXHASH),obj/$(OBJ).NATIVE.SHARED.o)
+-
+-LINUX_32_OBJS           += $(foreach OBJ,$(OBJS_XXHASH),obj/$(OBJ).LINUX.32.o)
+-LINUX_64_OBJS           += $(foreach OBJ,$(OBJS_XXHASH),obj/$(OBJ).LINUX.64.o)
+-
+-WIN_32_OBJS             += $(foreach OBJ,$(OBJS_XXHASH),obj/$(OBJ).WIN.32.o)
+-WIN_64_OBJS             += $(foreach OBJ,$(OBJS_XXHASH),obj/$(OBJ).WIN.64.o)
+-endif
++#ifeq ($(ENABLE_BRAIN),1)
++#OBJS_XXHASH             := xxhash
++#
++#NATIVE_STATIC_OBJS      += $(foreach OBJ,$(OBJS_XXHASH),obj/$(OBJ).NATIVE.STATIC.o)
++#NATIVE_SHARED_OBJS      += $(foreach OBJ,$(OBJS_XXHASH),obj/$(OBJ).NATIVE.SHARED.o)
++#
++#LINUX_32_OBJS           += $(foreach OBJ,$(OBJS_XXHASH),obj/$(OBJ).LINUX.32.o)
++#LINUX_64_OBJS           += $(foreach OBJ,$(OBJS_XXHASH),obj/$(OBJ).LINUX.64.o)
++#
++#WIN_32_OBJS             += $(foreach OBJ,$(OBJS_XXHASH),obj/$(OBJ).WIN.32.o)
++#WIN_64_OBJS             += $(foreach OBJ,$(OBJS_XXHASH),obj/$(OBJ).WIN.64.o)
++#endif
+ 
+ ifeq ($(SYSTEM_LZMA_SDK),0)
+ OBJS_LZMA               := Alloc Lzma2Dec LzmaDec

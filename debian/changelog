@@ -1,5 +1,6 @@
-hashcat (5.0.0-1) UNRELEASED; urgency=medium
+hashcat (5.0.0-1) unstable; urgency=medium
 
+  [ Sophie Brun ]
   * Team upload.
   * New upstream version 5.0.0
   * Refresh patches
@@ -7,7 +8,10 @@ hashcat (5.0.0-1) UNRELEASED; urgency=medium
   * Bump Standards-Version to 4.2.1 (no change)
   * Add a patch to use the packaged libxxhash
 
- -- Sophie Brun <sophie@freexian.com>  Tue, 06 Nov 2018 14:35:45 +0100
+  [ Raphaël Hertzog ]
+  * Switch to debhelper compat level 11
+
+ -- Raphaël Hertzog <hertzog@debian.org>  Thu, 08 Nov 2018 14:27:50 +0100
 
 hashcat (4.2.1-1) unstable; urgency=medium
 

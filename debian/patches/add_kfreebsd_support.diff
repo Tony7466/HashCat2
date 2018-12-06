@@ -25,7 +25,7 @@ Last-Update: 2016-12-04
  #elif (defined __linux__) || defined (__CYGWIN__)
 --- a/src/Makefile
 +++ b/src/Makefile
-@@ -18,6 +18,9 @@ UNAME                   := $(shell uname
+@@ -21,6 +21,9 @@ UNAME                   := $(shell uname
  # we need to strip the windows version number to be able to build hashcat on cygwin hosts
  UNAME                   := $(patsubst CYGWIN_NT-%,CYGWIN,$(UNAME))
  
@@ -35,7 +35,7 @@ Last-Update: 2016-12-04
  # same for msys
  UNAME                   := $(patsubst MSYS_NT-%,MSYS2,$(UNAME))
  UNAME                   := $(patsubst MINGW32_NT-%,MSYS2,$(UNAME))
-@@ -61,8 +64,8 @@ PROD_VERS               := $(shell sw_ve
+@@ -64,8 +67,8 @@ PROD_VERS               := $(shell sw_ve
  endif
  
  ifeq ($(UNAME),FreeBSD)

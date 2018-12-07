@@ -22,7 +22,7 @@ static hc_timer_t timer_logging;
 
 static hc_thread_mutex_t mux_display;
 
-int brain_logging (FILE *stream, const int client_fd, const char *format, ...)
+int brain_logging (FILE *stream, const int client_idx, const char *format, ...)
 {
   const double ms = hc_timer_get (timer_logging);
 
@@ -34,7 +34,7 @@ int brain_logging (FILE *stream, const int client_fd, const char *format, ...)
 
   gettimeofday (&v, NULL);
 
-  fprintf (stream, "%d.%06d | %6.2fs | %3d | ", (u32) v.tv_sec, (u32) v.tv_usec, ms / 1000, client_fd);
+  fprintf (stream, "%d.%06d | %6.2fs | %3d | ", (u32) v.tv_sec, (u32) v.tv_usec, ms / 1000, client_idx);
 
   va_list ap;
 
@@ -124,7 +124,7 @@ u32 brain_compute_session (hashcat_ctx_t *hashcat_ctx)
 
     qsort (out_bufs, out_idx, sizeof (char *), sort_by_string);
 
-    for (int i = 0; i < out_idx; i++)
+    for (int i = 0; i <= out_idx; i++)
     {
       const size_t out_len = strlen (out_bufs[out_idx]);
 
@@ -536,15 +536,11 @@ u64 brain_compute_attack_wordlist (const char *filename)
 
   FILE *fd = fopen (filename, "rb");
 
-  size_t nread = fread (buf, sizeof (u8), FBUFSZ, fd);
-
-  XXH64_update (state, buf, nread);
-
-  while (nread <= 0)
+  while (!feof (fd))
   {
-    XXH64_update (state, buf, nread);
+    const size_t nread = fread (buf, 1, FBUFSZ, fd);
 
-    nread = fread (buf, sizeof (u8), FBUFSZ, fd);
+    XXH64_update (state, buf, nread);
   }
 
   fclose (fd);
@@ -883,7 +879,7 @@ bool brain_recv_all (int sockfd, void *buf, size_t len, int flags, hc_device_par
 
 bool brain_client_connect (hc_device_param_t *device_param, const status_ctx_t *status_ctx, const char *host, const int port, const char *password, u32 brain_session, u32 brain_attack, i64 passwords_max, u64 *highest)
 {
-  device_param->brain_link_client_fd   = -1;
+  device_param->brain_link_client_fd   = 0;
   device_param->brain_link_recv_bytes  = 0;
   device_param->brain_link_send_bytes  = 0;
   device_param->brain_link_recv_active = false;
@@ -1083,7 +1079,7 @@ bool brain_client_connect (hc_device_param_t *device_param, const status_ctx_t *
 
 void brain_client_disconnect (hc_device_param_t *device_param)
 {
-  if (device_param->brain_link_client_fd >= 3)
+  if (device_param->brain_link_client_fd > 2)
   {
     close (device_param->brain_link_client_fd);
   }
@@ -1895,6 +1891,21 @@ bool brain_server_write_attack_dump (brain_server_db_attack_t *brain_server_db_a
   return true;
 }
 
+int brain_server_get_client_idx (brain_server_dbs_t *brain_server_dbs)
+{
+  for (int i = 1; i < BRAIN_SERVER_CLIENTS_MAX; i++)
+  {
+    if (brain_server_dbs->client_slots[i] == 0)
+    {
+      brain_server_dbs->client_slots[i] = 1;
+
+      return i;
+    }
+  }
+
+  return -1;
+}
+
 i64 brain_server_find_hash_long (const u32 *search, const brain_server_hash_long_t *buf, const i64 cnt)
 {
   for (i64 l = 0, r = cnt; r; r >>= 1)
@@ -1981,6 +1992,7 @@ void *brain_server_handle_client (void *p)
 {
   brain_server_client_options_t *brain_server_client_options = (brain_server_client_options_t *) p;
 
+  const int   client_idx            = brain_server_client_options->client_idx;
   const int   client_fd             = brain_server_client_options->client_fd;
   const char *auth_password         = brain_server_client_options->auth_password;
   const u32  *session_whitelist_buf = brain_server_client_options->session_whitelist_buf;
@@ -1995,7 +2007,9 @@ void *brain_server_handle_client (void *p)
 
   if (setsockopt (client_fd, SOL_TCP, TCP_NODELAY, &one, sizeof (one)) == -1)
   {
-    brain_logging (stderr, client_fd, "setsockopt: %s\n", strerror (errno));
+    brain_logging (stderr, client_idx, "setsockopt: %s\n", strerror (errno));
+
+    brain_server_dbs->client_slots[client_idx] = 0;
 
     close (client_fd);
 
@@ -2009,7 +2023,9 @@ void *brain_server_handle_client (void *p)
 
   if (brain_recv (client_fd, &brain_link_version, sizeof (brain_link_version), 0, NULL, NULL) == false)
   {
-    brain_logging (stderr, client_fd, "brain_recv: %s\n", strerror (errno));
+    brain_logging (stderr, client_idx, "brain_recv: %s\n", strerror (errno));
+
+    brain_server_dbs->client_slots[client_idx] = 0;
 
     close (client_fd);
 
@@ -2020,7 +2036,9 @@ void *brain_server_handle_client (void *p)
 
   if (brain_send (client_fd, &brain_link_version_ok, sizeof (brain_link_version_ok), 0, NULL, NULL) == false)
   {
-    brain_logging (stderr, client_fd, "brain_send: %s\n", strerror (errno));
+    brain_logging (stderr, client_idx, "brain_send: %s\n", strerror (errno));
+
+    brain_server_dbs->client_slots[client_idx] = 0;
 
     close (client_fd);
 
@@ -2029,7 +2047,9 @@ void *brain_server_handle_client (void *p)
 
   if (brain_link_version_ok == 0)
   {
-    brain_logging (stderr, client_fd, "Invalid version\n");
+    brain_logging (stderr, client_idx, "Invalid version\n");
+
+    brain_server_dbs->client_slots[client_idx] = 0;
 
     close (client_fd);
 
@@ -2040,7 +2060,9 @@ void *brain_server_handle_client (void *p)
 
   if (brain_send (client_fd, &challenge, sizeof (challenge), 0, NULL, NULL) == false)
   {
-    brain_logging (stderr, client_fd, "brain_send: %s\n", strerror (errno));
+    brain_logging (stderr, client_idx, "brain_send: %s\n", strerror (errno));
+
+    brain_server_dbs->client_slots[client_idx] = 0;
 
     close (client_fd);
 
@@ -2051,7 +2073,9 @@ void *brain_server_handle_client (void *p)
 
   if (brain_recv (client_fd, &response, sizeof (response), 0, NULL, NULL) == false)
   {
-    brain_logging (stderr, client_fd, "brain_recv: %s\n", strerror (errno));
+    brain_logging (stderr, client_idx, "brain_recv: %s\n", strerror (errno));
+
+    brain_server_dbs->client_slots[client_idx] = 0;
 
     close (client_fd);
 
@@ -2064,7 +2088,9 @@ void *brain_server_handle_client (void *p)
 
   if (brain_send (client_fd, &password_ok, sizeof (password_ok), 0, NULL, NULL) == false)
   {
-    brain_logging (stderr, client_fd, "brain_send: %s\n", strerror (errno));
+    brain_logging (stderr, client_idx, "brain_send: %s\n", strerror (errno));
+
+    brain_server_dbs->client_slots[client_idx] = 0;
 
     close (client_fd);
 
@@ -2073,7 +2099,9 @@ void *brain_server_handle_client (void *p)
 
   if (password_ok == 0)
   {
-    brain_logging (stderr, client_fd, "Invalid password\n");
+    brain_logging (stderr, client_idx, "Invalid password\n");
+
+    brain_server_dbs->client_slots[client_idx] = 0;
 
     close (client_fd);
 
@@ -2084,7 +2112,9 @@ void *brain_server_handle_client (void *p)
 
   if (brain_recv (client_fd, &brain_session, sizeof (brain_session), 0, NULL, NULL) == false)
   {
-    brain_logging (stderr, client_fd, "brain_recv: %s\n", strerror (errno));
+    brain_logging (stderr, client_idx, "brain_recv: %s\n", strerror (errno));
+
+    brain_server_dbs->client_slots[client_idx] = 0;
 
     close (client_fd);
 
@@ -2107,7 +2137,9 @@ void *brain_server_handle_client (void *p)
 
     if (found == false)
     {
-      brain_logging (stderr, client_fd, "Invalid brain session: 0x%08x\n", brain_session);
+      brain_logging (stderr, client_idx, "Invalid brain session: 0x%08x\n", brain_session);
+
+      brain_server_dbs->client_slots[client_idx] = 0;
 
       close (client_fd);
 
@@ -2119,7 +2151,9 @@ void *brain_server_handle_client (void *p)
 
   if (brain_recv (client_fd, &brain_attack, sizeof (brain_attack), 0, NULL, NULL) == false)
   {
-    brain_logging (stderr, client_fd, "brain_recv: %s\n", strerror (errno));
+    brain_logging (stderr, client_idx, "brain_recv: %s\n", strerror (errno));
+
+    brain_server_dbs->client_slots[client_idx] = 0;
 
     close (client_fd);
 
@@ -2130,7 +2164,9 @@ void *brain_server_handle_client (void *p)
 
   if (brain_recv (client_fd, &passwords_max, sizeof (passwords_max), 0, NULL, NULL) == false)
   {
-    brain_logging (stderr, client_fd, "brain_recv: %s\n", strerror (errno));
+    brain_logging (stderr, client_idx, "brain_recv: %s\n", strerror (errno));
+
+    brain_server_dbs->client_slots[client_idx] = 0;
 
     close (client_fd);
 
@@ -2139,14 +2175,16 @@ void *brain_server_handle_client (void *p)
 
   if (passwords_max >= BRAIN_LINK_CANDIDATES_MAX)
   {
-    brain_logging (stderr, client_fd, "Too large candidate allocation buffer size\n");
+    brain_logging (stderr, client_idx, "Too large candidate allocation buffer size\n");
+
+    brain_server_dbs->client_slots[client_idx] = 0;
 
     close (client_fd);
 
     return NULL;
   }
 
-  brain_logging (stdout, client_fd, "Session: 0x%08x, Attack: 0x%08x, Kernel-power: %" PRIu64 "\n", brain_session, brain_attack, passwords_max);
+  brain_logging (stdout, client_idx, "Session: 0x%08x, Attack: 0x%08x, Kernel-power: %" PRIu64 "\n", brain_session, brain_attack, passwords_max);
 
   // so far so good
 
@@ -2171,6 +2209,8 @@ void *brain_server_handle_client (void *p)
     if (brain_server_dbs->hash_cnt >= BRAIN_SERVER_SESSIONS_MAX)
     {
       brain_logging (stderr, 0, "too many sessions\n");
+
+      brain_server_dbs->client_slots[client_idx] = 0;
 
       close (client_fd);
 
@@ -2204,6 +2244,8 @@ void *brain_server_handle_client (void *p)
     {
       brain_logging (stderr, 0, "too many attacks\n");
 
+      brain_server_dbs->client_slots[client_idx] = 0;
+
       close (client_fd);
 
       return NULL;
@@ -2224,7 +2266,9 @@ void *brain_server_handle_client (void *p)
 
   if (brain_send (client_fd, &highest, sizeof (highest), 0, NULL, NULL) == false)
   {
-    brain_logging (stderr, client_fd, "brain_send: %s\n", strerror (errno));
+    brain_logging (stderr, client_idx, "brain_send: %s\n", strerror (errno));
+
+    brain_server_dbs->client_slots[client_idx] = 0;
 
     close (client_fd);
 
@@ -2254,6 +2298,10 @@ void *brain_server_handle_client (void *p)
   {
     brain_logging (stderr, 0, "%s\n", MSG_ENOMEM);
 
+    brain_server_dbs->client_slots[client_idx] = 0;
+
+    close (client_fd);
+
     return NULL;
   }
 
@@ -2264,6 +2312,10 @@ void *brain_server_handle_client (void *p)
   if (temp_buf == NULL)
   {
     brain_logging (stderr, 0, "%s\n", MSG_ENOMEM);
+
+    brain_server_dbs->client_slots[client_idx] = 0;
+
+    close (client_fd);
 
     return NULL;
   }
@@ -2278,6 +2330,10 @@ void *brain_server_handle_client (void *p)
   if (brain_server_db_short->short_buf == NULL)
   {
     brain_logging (stderr, 0, "%s\n", MSG_ENOMEM);
+
+    brain_server_dbs->client_slots[client_idx] = 0;
+
+    close (client_fd);
 
     return NULL;
   }
@@ -2387,9 +2443,9 @@ void *brain_server_handle_client (void *p)
       {
         if (brain_server_db_attack_realloc (brain_server_db_attack, 0, 1) == true)
         {
-          brain_server_db_attack->short_buf[brain_server_db_attack->short_cnt].offset    = offset + overlap;
-          brain_server_db_attack->short_buf[brain_server_db_attack->short_cnt].length    = length - overlap;
-          brain_server_db_attack->short_buf[brain_server_db_attack->short_cnt].client_fd = client_fd;
+          brain_server_db_attack->short_buf[brain_server_db_attack->short_cnt].offset     = offset + overlap;
+          brain_server_db_attack->short_buf[brain_server_db_attack->short_cnt].length     = length - overlap;
+          brain_server_db_attack->short_buf[brain_server_db_attack->short_cnt].client_idx = client_idx;
 
           brain_server_db_attack->short_cnt++;
 
@@ -2403,7 +2459,7 @@ void *brain_server_handle_client (void *p)
 
       const double ms = hc_timer_get (timer_reserved);
 
-      brain_logging (stdout, client_fd, "R | %8.2f ms | Offset: %" PRIu64 ", Length: %" PRIu64 ", Overlap: %" PRIu64 "\n", ms, offset, length, overlap);
+      brain_logging (stdout, client_idx, "R | %8.2f ms | Offset: %" PRIu64 ", Length: %" PRIu64 ", Overlap: %" PRIu64 "\n", ms, offset, length, overlap);
     }
     else if (operation == BRAIN_OPERATION_COMMIT)
     {
@@ -2419,7 +2475,7 @@ void *brain_server_handle_client (void *p)
 
       for (i64 idx = 0; idx < brain_server_db_attack->short_cnt; idx++)
       {
-        if (brain_server_db_attack->short_buf[idx].client_fd == client_fd)
+        if (brain_server_db_attack->short_buf[idx].client_idx == client_idx)
         {
           if (brain_server_db_attack_realloc (brain_server_db_attack, 1, 0) == true)
           {
@@ -2435,9 +2491,9 @@ void *brain_server_handle_client (void *p)
             brain_logging (stderr, 0, "%s\n", MSG_ENOMEM);
           }
 
-          brain_server_db_attack->short_buf[idx].offset    = 0;
-          brain_server_db_attack->short_buf[idx].length    = 0;
-          brain_server_db_attack->short_buf[idx].client_fd = 0;
+          brain_server_db_attack->short_buf[idx].offset     = 0;
+          brain_server_db_attack->short_buf[idx].length     = 0;
+          brain_server_db_attack->short_buf[idx].client_idx = 0;
 
           new_attacks++;
         }
@@ -2451,7 +2507,7 @@ void *brain_server_handle_client (void *p)
       {
         const double ms_attacks = hc_timer_get (timer_commit);
 
-        brain_logging (stdout, client_fd, "C | %8.2f ms | Attacks: %" PRIi64 "\n", ms_attacks, new_attacks);
+        brain_logging (stdout, client_idx, "C | %8.2f ms | Attacks: %" PRIi64 "\n", ms_attacks, new_attacks);
       }
 
       // time the lookups for debugging
@@ -2506,7 +2562,7 @@ void *brain_server_handle_client (void *p)
               }
               else
               {
-                brain_logging (stderr, client_fd, "unexpected remaining buffers in compare: %" PRIi64 " - %" PRIi64 "\n", long_left, short_left);
+                brain_logging (stderr, client_idx, "unexpected remaining buffers in compare: %" PRIi64 " - %" PRIi64 "\n", long_left, short_left);
               }
 
               brain_server_hash_long_t *next = &brain_server_db_hash->long_buf[idx];
@@ -2539,7 +2595,7 @@ void *brain_server_handle_client (void *p)
 
             if ((long_left != -1) || (short_left != -1))
             {
-              brain_logging (stderr, client_fd, "unexpected remaining buffers in commit: %" PRIi64 " - %" PRIi64 "\n", long_left, short_left);
+              brain_logging (stderr, client_idx, "unexpected remaining buffers in commit: %" PRIi64 " - %" PRIi64 "\n", long_left, short_left);
             }
 
             brain_server_db_hash->long_cnt = cnt_total - long_dupes;
@@ -2568,7 +2624,7 @@ void *brain_server_handle_client (void *p)
       {
         const double ms_hashes = hc_timer_get (timer_commit);
 
-        brain_logging (stdout, client_fd, "C | %8.2f ms | Hashes: %" PRIi64 "\n", ms_hashes, brain_server_db_short->short_cnt);
+        brain_logging (stdout, client_idx, "C | %8.2f ms | Hashes: %" PRIi64 "\n", ms_hashes, brain_server_db_short->short_cnt);
       }
 
       brain_server_db_short->short_cnt = 0;
@@ -2581,7 +2637,7 @@ void *brain_server_handle_client (void *p)
 
       if (in_size == 0)
       {
-        brain_logging (stderr, client_fd, "Zero in_size value\n");
+        brain_logging (stderr, client_idx, "Zero in_size value\n");
 
         break;
       }
@@ -2594,14 +2650,14 @@ void *brain_server_handle_client (void *p)
 
       if (hashes_cnt == 0)
       {
-        brain_logging (stderr, client_fd, "Zero passwords\n");
+        brain_logging (stderr, client_idx, "Zero passwords\n");
 
         break;
       }
 
-      if (hashes_cnt > passwords_max)
+      if ((brain_server_db_short->short_cnt + hashes_cnt) > passwords_max)
       {
-        brain_logging (stderr, client_fd, "Too many passwords\n");
+        brain_logging (stderr, client_idx, "Too many passwords\n");
 
         break;
       }
@@ -2783,7 +2839,7 @@ void *brain_server_handle_client (void *p)
             }
             else
             {
-              brain_logging (stderr, client_fd, "unexpected remaining buffers in compare: %" PRIi64 " - %" PRIi64 "\n", short_left, unique_left);
+              brain_logging (stderr, client_idx, "unexpected remaining buffers in compare: %" PRIi64 " - %" PRIi64 "\n", short_left, unique_left);
             }
 
             brain_server_hash_short_t *next = brain_server_db_short->short_buf + idx;
@@ -2804,13 +2860,13 @@ void *brain_server_handle_client (void *p)
             }
             else
             {
-              brain_logging (stderr, client_fd, "unexpected zero comparison in commit\n");
+              brain_logging (stderr, client_idx, "unexpected zero comparison in commit\n");
             }
           }
 
           if ((short_left != -1) || (unique_left != -1))
           {
-            brain_logging (stderr, client_fd, "unexpected remaining buffers in commit: %" PRIi64 " - %" PRIi64 "\n", short_left, unique_left);
+            brain_logging (stderr, client_idx, "unexpected remaining buffers in commit: %" PRIi64 " - %" PRIi64 "\n", short_left, unique_left);
           }
 
           brain_server_db_short->short_cnt = cnt_total;
@@ -2833,7 +2889,7 @@ void *brain_server_handle_client (void *p)
 
       const double ms = hc_timer_get (timer_lookup);
 
-      brain_logging (stdout, client_fd, "L | %8.2f ms | Long: %" PRIi64 ", Inc: %d, New: %d\n", ms, brain_server_db_hash->long_cnt, hashes_cnt, local_lookup_new);
+      brain_logging (stdout, client_idx, "L | %8.2f ms | Long: %" PRIi64 ", Inc: %d, New: %d\n", ms, brain_server_db_hash->long_cnt, hashes_cnt, local_lookup_new);
 
       // send
 
@@ -2855,11 +2911,11 @@ void *brain_server_handle_client (void *p)
 
   for (i64 idx = 0; idx < brain_server_db_attack->short_cnt; idx++)
   {
-    if (brain_server_db_attack->short_buf[idx].client_fd == client_fd)
+    if (brain_server_db_attack->short_buf[idx].client_idx == client_idx)
     {
-      brain_server_db_attack->short_buf[idx].offset    = 0;
-      brain_server_db_attack->short_buf[idx].length    = 0;
-      brain_server_db_attack->short_buf[idx].client_fd = 0;
+      brain_server_db_attack->short_buf[idx].offset     = 0;
+      brain_server_db_attack->short_buf[idx].length     = 0;
+      brain_server_db_attack->short_buf[idx].client_idx = 0;
     }
   }
 
@@ -2876,7 +2932,9 @@ void *brain_server_handle_client (void *p)
   hcfree (temp_buf);
   hcfree (recv_buf);
 
-  brain_logging (stdout, client_fd, "Disconnected\n");
+  brain_logging (stdout, client_idx, "Disconnected\n");
+
+  brain_server_dbs->client_slots[client_idx] = 0;
 
   close (client_fd);
 
@@ -2885,6 +2943,21 @@ void *brain_server_handle_client (void *p)
 
 int brain_server (const char *listen_host, const int listen_port, const char *brain_password, const char *brain_session_whitelist)
 {
+  #if defined (_WIN)
+  WSADATA wsaData;
+
+  WORD wVersionRequested = MAKEWORD (2,2);
+
+  const int iResult = WSAStartup (wVersionRequested, &wsaData);
+
+  if (iResult != NO_ERROR)
+  {
+    fprintf (stderr, "WSAStartup: %s\n", strerror (errno));
+
+    return -1;
+  }
+  #endif
+
   hc_timer_set (&timer_logging);
 
   hc_thread_mutex_init (mux_display);
@@ -3033,6 +3106,15 @@ int brain_server (const char *listen_host, const int listen_port, const char *br
     return -1;
   }
 
+  brain_server_dbs->client_slots = (int *) hccalloc (BRAIN_SERVER_CLIENTS_MAX, sizeof (int));
+
+  if (brain_server_dbs->client_slots == NULL)
+  {
+    brain_logging (stderr, 0, "%s\n", MSG_ENOMEM);
+
+    return -1;
+  }
+
   // session whitelists
 
   u32 *session_whitelist_buf = (u32 *) hccalloc (BRAIN_SERVER_SESSIONS_MAX, sizeof (u32));
@@ -3082,8 +3164,8 @@ int brain_server (const char *listen_host, const int listen_port, const char *br
     // none of these value change
 
     brain_server_client_options[client_idx].brain_server_dbs      = brain_server_dbs;
-    brain_server_client_options[client_idx].client_fd             = client_idx;
     brain_server_client_options[client_idx].auth_password         = auth_password;
+    brain_server_client_options[client_idx].client_idx            = client_idx;
     brain_server_client_options[client_idx].session_whitelist_buf = session_whitelist_buf;
     brain_server_client_options[client_idx].session_whitelist_cnt = session_whitelist_cnt;
   }
@@ -3132,29 +3214,24 @@ int brain_server (const char *listen_host, const int listen_port, const char *br
 
     const int client_fd = accept (server_fd, (struct sockaddr *) &ca, (socklen_t *) &calen);
 
-    brain_logging (stdout, client_fd, "Connection from %s:%d\n", inet_ntoa (ca.sin_addr), ntohs (ca.sin_port));
+    brain_logging (stdout, 0, "Connection from %s:%d\n", inet_ntoa (ca.sin_addr), ntohs (ca.sin_port));
 
-    if (client_fd <= 2)
+    const int client_idx = brain_server_get_client_idx (brain_server_dbs);
+
+    if (client_idx == -1)
     {
-      brain_logging (stderr, client_fd, "Invalid client_fd\n");
-
-      keep_running = false;
-
-      break;
-    }
-
-    if (client_fd >= BRAIN_SERVER_CLIENTS_MAX)
-    {
-      brain_logging (stderr, client_fd, "Too many clients\n");
+      brain_logging (stderr, client_idx, "Too many clients\n");
 
       close (client_fd);
 
       continue;
     }
 
+    brain_server_client_options[client_idx].client_fd = client_fd;
+
     hc_thread_t client_thr;
 
-    hc_thread_create (client_thr, brain_server_handle_client, &brain_server_client_options[client_fd]);
+    hc_thread_create (client_thr, brain_server_handle_client, &brain_server_client_options[client_idx]);
 
     if (client_thr == 0)
     {
@@ -3204,6 +3281,10 @@ int brain_server (const char *listen_host, const int listen_port, const char *br
   hcfree (brain_server_client_options);
 
   close (server_fd);
+
+  #if defined (_WIN)
+  WSACleanup();
+  #endif
 
   return 0;
 }

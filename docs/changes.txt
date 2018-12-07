@@ -1,3 +1,103 @@
+* changes v5.0.0 -> v5.1.0
+
+##
+## Features
+##
+
+- Added support for using --stdout in brain-client mode
+- Added new option --stdin-timeout-abort, to set how long hashcat should wait for stdin input before aborting
+- Added new option --kernel-threads to manually override the automatically-calculated number of threads
+- Added new option --keyboard-layout-mapping to map users keyboard layout, required to crack TC/VC system boot volumes
+
+##
+## Algorithms
+##
+
+- Added pure kernels for hash-mode 11700 (Streebog-256)
+- Added pure kernels for hash-mode 11800 (Streebog-512)
+- Added hash-mode 11750 (HMAC-Streebog-256 (key = $pass), big-endian)
+- Added hash-mode 11760 (HMAC-Streebog-256 (key = $salt), big-endian)
+- Added hash-mode 11850 (HMAC-Streebog-512 (key = $pass), big-endian)
+- Added hash-mode 11860 (HMAC-Streebog-512 (key = $salt), big-endian)
+- Added hash-mode 13771 (VeraCrypt PBKDF2-HMAC-Streebog-512 + XTS 512 bit)
+- Added hash-mode 13772 (VeraCrypt PBKDF2-HMAC-Streebog-512 + XTS 1024 bit)
+- Added hash-mode 13773 (VeraCrypt PBKDF2-HMAC-Streebog-512 + XTS 1536 bit)
+- Added hash-mode 18200 (Kerberos 5 AS-REP etype 23)
+- Added hash-mode 18300 (Apple File System (APFS))
+- Added Kuznyechik cipher and cascades support for VeraCrypt kernels
+- Added Camellia cipher and cascades support for VeraCrypt kernels
+
+##
+## Improvements
+##
+
+- OpenCL Devices: Add support for up to 64 OpenCL devices per system
+- OpenCL Platforms: Add support for up to 64 OpenCL platforms per system
+- OpenCL Runtime: Use our own yielding technique for synchronizing rather than vendor specific
+- Startup: Show OpenCL runtime initialization message (per device)
+- xxHash: Added support for using the version provided by the OS/distribution
+
+##
+## Bugs
+##
+
+- Fixed automated calculation of brain-session when not using all hashes in the hashlist
+- Fixed calculation of brain-attack if a given wordlist has zero size
+- Fixed checking the length of the last token in a hash if it was given the attribute TOKEN_ATTR_FIXED_LENGTH
+- Fixed endianness and invalid separator character in outfile format for hash-mode 16801 (WPA-PMKID-PMK)
+- Fixed ignoring --brain-client-features configuration when brain server has attack-position information from a previous run
+- Fixed invalid hardware monitor detection in benchmark mode
+- Fixed invalid warnings about throttling when --hwmon-disable was used
+- Fixed missing call to WSACleanup() to cleanly shutdown windows sockets system
+- Fixed missing call to WSAStartup() and client indexing in order to start the brain server on Windows
+- Fixed out-of-boundary read in DPAPI masterkey file v2 OpenCL kernel
+- Fixed out-of-bounds write in short-term memory of the brain server
+- Fixed output of --speed-only and --progress-only when fast hashes are used in combination with --slow-candidates
+- Fixed selection of OpenCL devices (-d) if there's more than 32 OpenCL devices installed
+- Fixed status output of progress value when -S and -l are used in combination
+- Fixed thread count maximum for pure kernels in straight attack mode
+
+##
+## Technical
+##
+
+- Brain: Set --brain-client-features default from 3 to 2
+- Dependencies: Added xxHash and OpenCL-Headers to deps/ in order to allow building hashcat from GitHub source release package
+- Dependencies: Removed gitmodules xxHash and OpenCL-Headers
+- Keymaps: Added hashcat keyboard mapping us.hckmap (can be used as template)
+- Keymaps: Added hashcat keyboard mapping de.hckmap
+- Hardware Monitor: Renamed --gpu-temp-abort to --hwmon-temp-abort
+- Hardware Monitor: Renamed --gpu-temp-disable to --hwmon-disable
+- Memory: Limit maximum host memory allocation depending on bitness
+- Memory: Reduced default maximum bitmap size from 24 to 18 and give a notice to use --bitmap-max to restore
+- Parameter: Rename --nvidia-spin-damp to --spin-damp (now accessible for all devices)
+- Pidfile: Treat a corrupted pidfile like a not existing pidfile
+- OpenCL Device: Do a real query on OpenCL local memory type instead of just assuming it
+- OpenCL Runtime: Disable auto-vectorization for Intel OpenCL runtime to workaround hanging JiT since version 18.1.0.013
+- Tests: Added hash-mode 11700 (Streebog-256)
+- Tests: Added hash-mode 11750 (HMAC-Streebog-256 (key = $pass), big-endian)
+- Tests: Added hash-mode 11760 (HMAC-Streebog-256 (key = $salt), big-endian)
+- Tests: Added hash-mode 11800 (Streebog-512)
+- Tests: Added hash-mode 11850 (HMAC-Streebog-512 (key = $pass), big-endian)
+- Tests: Added hash-mode 11860 (HMAC-Streebog-512 (key = $salt), big-endian)
+- Tests: Added hash-mode 13711 (VeraCrypt PBKDF2-HMAC-RIPEMD160 + XTS 512 bit)
+- Tests: Added hash-mode 13712 (VeraCrypt PBKDF2-HMAC-RIPEMD160 + XTS 1024 bit)
+- Tests: Added hash-mode 13713 (VeraCrypt PBKDF2-HMAC-RIPEMD160 + XTS 1536 bit)
+- Tests: Added hash-mode 13721 (VeraCrypt PBKDF2-HMAC-SHA512 + XTS 512 bit)
+- Tests: Added hash-mode 13722 (VeraCrypt PBKDF2-HMAC-SHA512 + XTS 1024 bit)
+- Tests: Added hash-mode 13723 (VeraCrypt PBKDF2-HMAC-SHA512 + XTS 1536 bit)
+- Tests: Added hash-mode 13731 (VeraCrypt PBKDF2-HMAC-Whirlpool + XTS 512 bit)
+- Tests: Added hash-mode 13732 (VeraCrypt PBKDF2-HMAC-Whirlpool + XTS 1024 bit)
+- Tests: Added hash-mode 13733 (VeraCrypt PBKDF2-HMAC-Whirlpool + XTS 1536 bit)
+- Tests: Added hash-mode 13751 (VeraCrypt PBKDF2-HMAC-SHA256 + XTS 512 bit)
+- Tests: Added hash-mode 13752 (VeraCrypt PBKDF2-HMAC-SHA256 + XTS 1024 bit)
+- Tests: Added hash-mode 13753 (VeraCrypt PBKDF2-HMAC-SHA256 + XTS 1536 bit)
+- Tests: Added hash-mode 13771 (VeraCrypt PBKDF2-HMAC-Streebog-512 + XTS 512 bit)
+- Tests: Added hash-mode 13772 (VeraCrypt PBKDF2-HMAC-Streebog-512 + XTS 1024 bit)
+- Tests: Added hash-mode 13773 (VeraCrypt PBKDF2-HMAC-Streebog-512 + XTS 1536 bit)
+- Tests: Added VeraCrypt containers for Kuznyechik cipher and cascades
+- Tests: Added VeraCrypt containers for Camellia cipher and cascades
+
 * changes v4.2.1 -> v5.0.0
 
 ##

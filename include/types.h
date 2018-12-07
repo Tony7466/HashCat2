@@ -92,6 +92,7 @@ typedef enum event_identifier
   EVENT_AUTOTUNE_STARTING         = 0x00000001,
   EVENT_BITMAP_INIT_POST          = 0x00000010,
   EVENT_BITMAP_INIT_PRE           = 0x00000011,
+  EVENT_BITMAP_FINAL_OVERFLOW     = 0x00000012,
   EVENT_CALCULATED_WORDS_BASE     = 0x00000020,
   EVENT_CRACKER_FINISHED          = 0x00000030,
   EVENT_CRACKER_HASH_CRACKED      = 0x00000031,
@@ -124,6 +125,8 @@ typedef enum event_identifier
   EVENT_MONITOR_NOINPUT_ABORT     = 0x00000088,
   EVENT_OPENCL_SESSION_POST       = 0x00000090,
   EVENT_OPENCL_SESSION_PRE        = 0x00000091,
+  EVENT_OPENCL_DEVICE_INIT_POST   = 0x00000092,
+  EVENT_OPENCL_DEVICE_INIT_PRE    = 0x00000093,
   EVENT_OUTERLOOP_FINISHED        = 0x000000a0,
   EVENT_OUTERLOOP_MAINSCREEN      = 0x000000a1,
   EVENT_OUTERLOOP_STARTING        = 0x000000a2,
@@ -406,6 +409,7 @@ typedef enum opts_type
   OPTS_TYPE_BINARY_HASHFILE   = (1ULL << 38),
   OPTS_TYPE_PREFERED_THREAD   = (1ULL << 39), // some algorithms (complicated ones with many branches) benefit from this
   OPTS_TYPE_PT_ADD06          = (1ULL << 40),
+  OPTS_TYPE_KEYBOARD_MAPPING  = (1ULL << 41),
 
 } opts_type_t;
 
@@ -534,11 +538,11 @@ typedef enum user_options_defaults
   ATTACK_MODE              = ATTACK_MODE_STRAIGHT,
   BENCHMARK_ALL            = false,
   BENCHMARK                = false,
-  BITMAP_MAX               = 24,
+  BITMAP_MAX               = 18,
   BITMAP_MIN               = 16,
   #ifdef WITH_BRAIN
   BRAIN_CLIENT             = false,
-  BRAIN_CLIENT_FEATURES    = 3,
+  BRAIN_CLIENT_FEATURES    = 2,
   BRAIN_PORT               = 6863,
   BRAIN_SERVER             = false,
   BRAIN_SESSION            = 0,
@@ -546,8 +550,8 @@ typedef enum user_options_defaults
   DEBUG_MODE               = 0,
   EXAMPLE_HASHES           = false,
   FORCE                    = false,
-  GPU_TEMP_ABORT           = 90,
-  GPU_TEMP_DISABLE         = false,
+  HWMON_DISABLE            = false,
+  HWMON_TEMP_ABORT         = 90,
   HASH_MODE                = 0,
   HCCAPX_MESSAGE_PAIR      = 0,
   HEX_CHARSET              = false,
@@ -559,6 +563,7 @@ typedef enum user_options_defaults
   KEEP_GUESSING            = false,
   KERNEL_ACCEL             = 0,
   KERNEL_LOOPS             = 0,
+  KERNEL_THREADS           = 0,
   KEYSPACE                 = false,
   LEFT                     = false,
   LIMIT                    = 0,
@@ -569,7 +574,6 @@ typedef enum user_options_defaults
   MARKOV_DISABLE           = false,
   MARKOV_THRESHOLD         = 0,
   NONCE_ERROR_CORRECTIONS  = 8,
-  NVIDIA_SPIN_DAMP         = 100,
   OPENCL_INFO              = false,
   OPENCL_VECTOR_WIDTH      = 0,
   OPTIMIZED_KERNEL_ENABLE  = false,
@@ -597,8 +601,10 @@ typedef enum user_options_defaults
   SKIP                     = 0,
   SLOW_CANDIDATES          = false,
   SPEED_ONLY               = false,
+  SPIN_DAMP                = 8,
   STATUS                   = false,
   STATUS_TIMER             = 10,
+  STDIN_TIMEOUT_ABORT      = 120,
   STDOUT_FLAG              = false,
   USAGE                    = false,
   USERNAME                 = false,
@@ -637,8 +643,8 @@ typedef enum user_options_map
   IDX_ENCODING_TO               = 0xff0f,
   IDX_EXAMPLE_HASHES            = 0xff10,
   IDX_FORCE                     = 0xff11,
-  IDX_GPU_TEMP_ABORT            = 0xff12,
-  IDX_GPU_TEMP_DISABLE          = 0xff13,
+  IDX_HWMON_DISABLE             = 0xff12,
+  IDX_HWMON_TEMP_ABORT          = 0xff13,
   IDX_HASH_MODE                 = 'm',
   IDX_HCCAPX_MESSAGE_PAIR       = 0xff14,
   IDX_HELP                      = 'h',
@@ -652,18 +658,19 @@ typedef enum user_options_map
   IDX_KEEP_GUESSING             = 0xff1b,
   IDX_KERNEL_ACCEL              = 'n',
   IDX_KERNEL_LOOPS              = 'u',
-  IDX_KEYSPACE                  = 0xff1c,
-  IDX_LEFT                      = 0xff1d,
+  IDX_KERNEL_THREADS            = 'T',
+  IDX_KEYBOARD_LAYOUT_MAPPING   = 0xff1c,
+  IDX_KEYSPACE                  = 0xff1d,
+  IDX_LEFT                      = 0xff1e,
   IDX_LIMIT                     = 'l',
-  IDX_LOGFILE_DISABLE           = 0xff1e,
-  IDX_LOOPBACK                  = 0xff1f,
-  IDX_MACHINE_READABLE          = 0xff20,
-  IDX_MARKOV_CLASSIC            = 0xff21,
-  IDX_MARKOV_DISABLE            = 0xff22,
-  IDX_MARKOV_HCSTAT2            = 0xff23,
+  IDX_LOGFILE_DISABLE           = 0xff1f,
+  IDX_LOOPBACK                  = 0xff20,
+  IDX_MACHINE_READABLE          = 0xff21,
+  IDX_MARKOV_CLASSIC            = 0xff22,
+  IDX_MARKOV_DISABLE            = 0xff23,
+  IDX_MARKOV_HCSTAT2            = 0xff24,
   IDX_MARKOV_THRESHOLD          = 't',
-  IDX_NONCE_ERROR_CORRECTIONS   = 0xff24,
-  IDX_NVIDIA_SPIN_DAMP          = 0xff25,
+  IDX_NONCE_ERROR_CORRECTIONS   = 0xff25,
   IDX_OPENCL_DEVICES            = 'd',
   IDX_OPENCL_DEVICE_TYPES       = 'D',
   IDX_OPENCL_INFO               = 'I',
@@ -701,16 +708,18 @@ typedef enum user_options_map
   IDX_SKIP                      = 's',
   IDX_SLOW_CANDIDATES           = 'S',
   IDX_SPEED_ONLY                = 0xff3d,
-  IDX_STATUS                    = 0xff3e,
-  IDX_STATUS_TIMER              = 0xff3f,
-  IDX_STDOUT_FLAG               = 0xff40,
-  IDX_TRUECRYPT_KEYFILES        = 0xff41,
-  IDX_USERNAME                  = 0xff42,
-  IDX_VERACRYPT_KEYFILES        = 0xff43,
-  IDX_VERACRYPT_PIM             = 0xff44,
+  IDX_SPIN_DAMP                 = 0xff3e,
+  IDX_STATUS                    = 0xff3f,
+  IDX_STATUS_TIMER              = 0xff40,
+  IDX_STDOUT_FLAG               = 0xff41,
+  IDX_STDIN_TIMEOUT_ABORT       = 0xff42,
+  IDX_TRUECRYPT_KEYFILES        = 0xff43,
+  IDX_USERNAME                  = 0xff44,
+  IDX_VERACRYPT_KEYFILES        = 0xff46,
+  IDX_VERACRYPT_PIM             = 0xff47,
   IDX_VERSION_LOWER             = 'v',
   IDX_VERSION                   = 'V',
-  IDX_WORDLIST_AUTOHEX_DISABLE  = 0xff45,
+  IDX_WORDLIST_AUTOHEX_DISABLE  = 0xff48,
   IDX_WORKLOAD_PROFILE          = 'w',
 
 } user_options_map_t;
@@ -897,10 +906,10 @@ struct hashconfig
 
   // sizes have to be size_t
 
-  size_t  esalt_size;
-  size_t  hook_salt_size;
-  size_t  tmp_size;
-  size_t  hook_size;
+  u64  esalt_size;
+  u64  hook_salt_size;
+  u64  tmp_size;
+  u64  hook_size;
 
   // password length limit
 
@@ -1017,6 +1026,7 @@ typedef struct hc_device_param
   u32     device_maxclock_frequency;
   size_t  device_maxworkgroup_size;
   u64     device_local_mem_size;
+  cl_device_local_mem_type device_local_mem_type;
 
   u32     vector_width;
 
@@ -1083,8 +1093,6 @@ typedef struct hc_device_param
   u64     kernel_local_mem_size_aux3;
   u64     kernel_local_mem_size_aux4;
 
-  u32     kernel_threads;
-
   u32     kernel_accel;
   u32     kernel_accel_prev;
   u32     kernel_accel_min;
@@ -1095,36 +1103,37 @@ typedef struct hc_device_param
   u32     kernel_loops_max;
   u32     kernel_loops_min_sav; // the _sav are required because each -i iteration
   u32     kernel_loops_max_sav; // needs to recalculate the kernel_loops_min/max based on the current amplifier count
+  u32     kernel_threads;
 
   u64     kernel_power;
   u64     hardware_power;
 
-  size_t  size_pws;
-  size_t  size_pws_amp;
-  size_t  size_pws_comp;
-  size_t  size_pws_idx;
-  size_t  size_pws_pre;
-  size_t  size_pws_base;
-  size_t  size_tmps;
-  size_t  size_hooks;
-  size_t  size_bfs;
-  size_t  size_combs;
-  size_t  size_rules;
-  size_t  size_rules_c;
-  size_t  size_root_css;
-  size_t  size_markov_css;
-  size_t  size_digests;
-  size_t  size_salts;
-  size_t  size_shown;
-  size_t  size_results;
-  size_t  size_plains;
-  size_t  size_st_digests;
-  size_t  size_st_salts;
-  size_t  size_st_esalts;
+  u64  size_pws;
+  u64  size_pws_amp;
+  u64  size_pws_comp;
+  u64  size_pws_idx;
+  u64  size_pws_pre;
+  u64  size_pws_base;
+  u64  size_tmps;
+  u64  size_hooks;
+  u64  size_bfs;
+  u64  size_combs;
+  u64  size_rules;
+  u64  size_rules_c;
+  u64  size_root_css;
+  u64  size_markov_css;
+  u64  size_digests;
+  u64  size_salts;
+  u64  size_shown;
+  u64  size_results;
+  u64  size_plains;
+  u64  size_st_digests;
+  u64  size_st_salts;
+  u64  size_st_esalts;
 
   #ifdef WITH_BRAIN
-  size_t  size_brain_link_in;
-  size_t  size_brain_link_out;
+  u64  size_brain_link_in;
+  u64  size_brain_link_out;
 
   int           brain_link_client_fd;
   link_speed_t  brain_link_recv_speed;
@@ -1200,7 +1209,7 @@ typedef struct hc_device_param
 
   bool    is_rocm;
 
-  double  nvidia_spin_damp;
+  double  spin_damp;
 
   cl_platform_id platform;
 
@@ -1337,8 +1346,8 @@ typedef struct opencl_ctx
   u64                 kernel_power_all;
   u64                 kernel_power_final; // we save that so that all divisions are done from the same base
 
-  u32                 opencl_platforms_filter;
-  u32                 devices_filter;
+  u64                 opencl_platforms_filter;
+  u64                 devices_filter;
   cl_device_type      device_types_filter;
 
   double              target_msec;
@@ -1681,8 +1690,9 @@ typedef struct user_options
   bool         increment_min_chgd;
   bool         kernel_accel_chgd;
   bool         kernel_loops_chgd;
+  bool         kernel_threads_chgd;
   bool         nonce_error_corrections_chgd;
-  bool         nvidia_spin_damp_chgd;
+  bool         spin_damp_chgd;
   bool         opencl_vector_width_chgd;
   bool         outfile_format_chgd;
   bool         remove_timer_chgd;
@@ -1702,7 +1712,7 @@ typedef struct user_options
   #endif
   bool         example_hashes;
   bool         force;
-  bool         gpu_temp_disable;
+  bool         hwmon_disable;
   bool         hex_charset;
   bool         hex_salt;
   bool         hex_wordlist;
@@ -1730,6 +1740,7 @@ typedef struct user_options
   bool         speed_only;
   bool         status;
   bool         stdout_flag;
+  bool         stdin_timeout_abort_chgd;
   bool         usage;
   bool         username;
   bool         version;
@@ -1743,6 +1754,7 @@ typedef struct user_options
   char        *custom_charset_4;
   char        *debug_file;
   char        *induction_dir;
+  char        *keyboard_layout_mapping;
   char        *markov_hcstat2;
   char        *opencl_devices;
   char        *opencl_device_types;
@@ -1773,16 +1785,17 @@ typedef struct user_options
   u32          brain_attack;
   #endif
   u32          debug_mode;
-  u32          gpu_temp_abort;
+  u32          hwmon_temp_abort;
   u32          hash_mode;
   u32          hccapx_message_pair;
   u32          increment_max;
   u32          increment_min;
   u32          kernel_accel;
   u32          kernel_loops;
+  u32          kernel_threads;
   u32          markov_threshold;
   u32          nonce_error_corrections;
-  u32          nvidia_spin_damp;
+  u32          spin_damp;
   u32          opencl_vector_width;
   u32          outfile_check_timer;
   u32          outfile_format;
@@ -1797,6 +1810,7 @@ typedef struct user_options
   u32          scrypt_tmto;
   u32          segment_size;
   u32          status_timer;
+  u32          stdin_timeout_abort;
   u32          veracrypt_pim;
   u32          workload_profile;
   u64          limit;

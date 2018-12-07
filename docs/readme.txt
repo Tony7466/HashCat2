@@ -1,4 +1,4 @@
-hashcat v5.0.0
+hashcat v5.1.0
 ==============
 
 AMD GPUs on Linux require "RadeonOpenCompute (ROCm)" Software Platform (1.6.180 or later)
@@ -234,6 +234,7 @@ NVIDIA GPUs require "NVIDIA Driver" (367.x or later)
 - VeraCrypt
 - LUKS
 - FileVault 2
+- Apple File System (APFS)
 - MS Office <= 2003
 - MS Office 2007
 - MS Office 2010
@@ -258,6 +259,7 @@ NVIDIA GPUs require "NVIDIA Driver" (367.x or later)
 - Ethereum Wallet, SCRYPT
 - Ethereum Pre-Sale Wallet, PBKDF2-HMAC-SHA256
 - Ansible Vault
+- Kerberos 5 AS-REP etype 23
 - Plaintext
 
 ##

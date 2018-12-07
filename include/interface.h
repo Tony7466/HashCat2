@@ -11,6 +11,7 @@
 #include <string.h>
 #include <errno.h>
 #include <limits.h>
+#include <inttypes.h>
 
 /**
  * zero hashes shutcut
@@ -284,6 +285,15 @@ typedef struct krb5tgs
 
 } krb5tgs_t;
 
+typedef struct krb5asrep
+{
+  u32 account_info[512];
+  u32 checksum[4];
+  u32 edata2[5120];
+  u32 edata2_len;
+
+} krb5asrep_t;
+
 typedef struct keepass
 {
   u32 version;
@@ -307,12 +317,24 @@ typedef struct keepass
 
 } keepass_t;
 
+typedef struct keyboard_layout_mapping
+{
+  u32 src_char;
+  int src_len;
+  u32 dst_char;
+  int dst_len;
+
+} keyboard_layout_mapping_t;
+
 typedef struct tc
 {
   u32 salt_buf[32];
   u32 data_buf[112];
   u32 keyfile_buf[16];
   u32 signature;
+
+  keyboard_layout_mapping_t keyboard_layout_mapping_buf[256];
+  int                       keyboard_layout_mapping_cnt;
 
 } tc_t;
 
@@ -710,6 +732,19 @@ typedef struct tc64_tmp
 
 } tc64_tmp_t;
 
+typedef struct vc64_sbog_tmp
+{
+  u64  ipad_raw[8];
+  u64  opad_raw[8];
+
+  u64  ipad_hash[8];
+  u64  opad_hash[8];
+
+  u64  dgst[32];
+  u64  out[32];
+
+} vc64_sbog_tmp_t;
+
 typedef struct agilekey_tmp
 {
   u32 ipad[5];
@@ -1084,8 +1119,8 @@ typedef enum hash_type
   HASH_TYPE_PBKDF2_SHA256       = 39,
   HASH_TYPE_BITCOIN_WALLET      = 40,
   HASH_TYPE_CRC32               = 41,
-  HASH_TYPE_GOST_2012SBOG_256   = 42,
-  HASH_TYPE_GOST_2012SBOG_512   = 43,
+  HASH_TYPE_STREEBOG_256        = 42,
+  HASH_TYPE_STREEBOG_512        = 43,
   HASH_TYPE_PBKDF2_MD5          = 44,
   HASH_TYPE_PBKDF2_SHA1         = 45,
   HASH_TYPE_PBKDF2_SHA512       = 46,
@@ -1113,6 +1148,7 @@ typedef enum hash_type
   HASH_TYPE_WPA_PMKID_PBKDF2    = 68,
   HASH_TYPE_WPA_PMKID_PMK       = 69,
   HASH_TYPE_ANSIBLE_VAULT       = 70,
+  HASH_TYPE_KRB5ASREP           = 71,
 
 } hash_type_t;
 
@@ -1205,6 +1241,9 @@ typedef enum kern_type
   KERN_TYPE_VCSHA256_XTS512         = 13751,
   KERN_TYPE_VCSHA256_XTS1024        = 13752,
   KERN_TYPE_VCSHA256_XTS1536        = 13753,
+  KERN_TYPE_VCSBOG512_XTS512        = 13771,
+  KERN_TYPE_VCSBOG512_XTS1024       = 13772,
+  KERN_TYPE_VCSBOG512_XTS1536       = 13773,
   KERN_TYPE_MD5AIX                  = 6300,
   KERN_TYPE_SHA256AIX               = 6400,
   KERN_TYPE_SHA512AIX               = 6500,
@@ -1260,8 +1299,12 @@ typedef enum kern_type
   KERN_TYPE_SIP_AUTH                = 11400,
   KERN_TYPE_CRC32                   = 11500,
   KERN_TYPE_SEVEN_ZIP               = 11600,
-  KERN_TYPE_GOST_2012SBOG_256       = 11700,
-  KERN_TYPE_GOST_2012SBOG_512       = 11800,
+  KERN_TYPE_STREEBOG_256            = 11700,
+  KERN_TYPE_HMAC_STREEBOG_256_PW    = 11750,
+  KERN_TYPE_HMAC_STREEBOG_256_SLT   = 11760,
+  KERN_TYPE_STREEBOG_512            = 11800,
+  KERN_TYPE_HMAC_STREEBOG_512_PW    = 11850,
+  KERN_TYPE_HMAC_STREEBOG_512_SLT   = 11860,
   KERN_TYPE_PBKDF2_MD5              = 11900,
   KERN_TYPE_PBKDF2_SHA1             = 12000,
   KERN_TYPE_ECRYPTFS                = 12200,
@@ -1331,6 +1374,8 @@ typedef enum kern_type
   KERN_TYPE_KECCAK_384              = 17900,
   KERN_TYPE_KECCAK_512              = 18000,
   KERN_TYPE_TOTP_HMACSHA1           = 18100,
+  KERN_TYPE_KRB5ASREP               = 18200,
+  KERN_TYPE_APFS                    = 18300,
   KERN_TYPE_PLAINTEXT               = 99999,
 
 } kern_type_t;
@@ -1490,6 +1535,7 @@ int sha512grub_parse_hash         (u8 *input_buf, u32 input_len, hash_t *hash_bu
 int sha512b64s_parse_hash         (u8 *input_buf, u32 input_len, hash_t *hash_buf, MAYBE_UNUSED hashconfig_t *hashconfig);
 int krb5pa_parse_hash             (u8 *input_buf, u32 input_len, hash_t *hash_buf, MAYBE_UNUSED hashconfig_t *hashconfig);
 int krb5tgs_parse_hash            (u8 *input_buf, u32 input_len, hash_t *hash_buf, MAYBE_UNUSED hashconfig_t *hashconfig);
+int krb5asrep_parse_hash          (u8 *input_buf, u32 input_len, hash_t *hash_buf, MAYBE_UNUSED hashconfig_t *hashconfig);
 int sapb_parse_hash               (u8 *input_buf, u32 input_len, hash_t *hash_buf, MAYBE_UNUSED hashconfig_t *hashconfig);
 int sapg_parse_hash               (u8 *input_buf, u32 input_len, hash_t *hash_buf, MAYBE_UNUSED hashconfig_t *hashconfig);
 int drupal7_parse_hash            (u8 *input_buf, u32 input_len, hash_t *hash_buf, MAYBE_UNUSED hashconfig_t *hashconfig);
@@ -1547,8 +1593,8 @@ int bitcoin_wallet_parse_hash     (u8 *input_buf, u32 input_len, hash_t *hash_bu
 int sip_auth_parse_hash           (u8 *input_buf, u32 input_len, hash_t *hash_buf, MAYBE_UNUSED hashconfig_t *hashconfig);
 int crc32_parse_hash              (u8 *input_buf, u32 input_len, hash_t *hash_buf, MAYBE_UNUSED hashconfig_t *hashconfig);
 int seven_zip_parse_hash          (u8 *input_buf, u32 input_len, hash_t *hash_buf, MAYBE_UNUSED hashconfig_t *hashconfig);
-int gost2012sbog_256_parse_hash   (u8 *input_buf, u32 input_len, hash_t *hash_buf, MAYBE_UNUSED hashconfig_t *hashconfig);
-int gost2012sbog_512_parse_hash   (u8 *input_buf, u32 input_len, hash_t *hash_buf, MAYBE_UNUSED hashconfig_t *hashconfig);
+int streebog_256_parse_hash       (u8 *input_buf, u32 input_len, hash_t *hash_buf, MAYBE_UNUSED hashconfig_t *hashconfig);
+int streebog_512_parse_hash       (u8 *input_buf, u32 input_len, hash_t *hash_buf, MAYBE_UNUSED hashconfig_t *hashconfig);
 int pbkdf2_md5_parse_hash         (u8 *input_buf, u32 input_len, hash_t *hash_buf, MAYBE_UNUSED hashconfig_t *hashconfig);
 int pbkdf2_sha1_parse_hash        (u8 *input_buf, u32 input_len, hash_t *hash_buf, MAYBE_UNUSED hashconfig_t *hashconfig);
 int pbkdf2_sha512_parse_hash      (u8 *input_buf, u32 input_len, hash_t *hash_buf, MAYBE_UNUSED hashconfig_t *hashconfig);
@@ -1597,6 +1643,7 @@ int wpa_pmkid_pbkdf2_parse_hash   (u8 *input_buf, u32 input_len, hash_t *hash_bu
 int wpa_pmkid_pmk_parse_hash      (u8 *input_buf, u32 input_len, hash_t *hash_buf, MAYBE_UNUSED hashconfig_t *hashconfig);
 int ansible_vault_parse_hash      (u8 *input_buf, u32 input_len, hash_t *hash_buf, MAYBE_UNUSED hashconfig_t *hashconfig);
 int totp_parse_hash               (u8 *input_buf, u32 input_len, hash_t *hash_buf, MAYBE_UNUSED hashconfig_t *hashconfig);
+int apfs_parse_hash               (u8 *input_buf, u32 input_len, hash_t *hash_buf, MAYBE_UNUSED hashconfig_t *hashconfig);
 
 /**
  * hook functions

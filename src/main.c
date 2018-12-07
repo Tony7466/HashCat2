@@ -531,9 +531,9 @@ static void main_outerloop_mainscreen (MAYBE_UNUSED hashcat_ctx_t *hashcat_ctx, 
     event_log_info (hashcat_ctx, "Watchdog: Hardware monitoring interface not found on your system.");
   }
 
-  if (hwmon_ctx->enabled == true && user_options->gpu_temp_abort > 0)
+  if (hwmon_ctx->enabled == true && user_options->hwmon_temp_abort > 0)
   {
-    event_log_info (hashcat_ctx, "Watchdog: Temperature abort trigger set to %uc", user_options->gpu_temp_abort);
+    event_log_info (hashcat_ctx, "Watchdog: Temperature abort trigger set to %uc", user_options->hwmon_temp_abort);
   }
   else
   {
@@ -541,7 +541,6 @@ static void main_outerloop_mainscreen (MAYBE_UNUSED hashcat_ctx_t *hashcat_ctx, 
   }
 
   event_log_info (hashcat_ctx, NULL);
-
 }
 
 static void main_opencl_session_pre (MAYBE_UNUSED hashcat_ctx_t *hashcat_ctx, MAYBE_UNUSED const void *buf, MAYBE_UNUSED const size_t len)
@@ -562,6 +561,28 @@ static void main_opencl_session_post (MAYBE_UNUSED hashcat_ctx_t *hashcat_ctx, M
   event_log_info_nn (hashcat_ctx, "Initialized device kernels and memory...");
 }
 
+static void main_opencl_device_init_pre (MAYBE_UNUSED hashcat_ctx_t *hashcat_ctx, MAYBE_UNUSED const void *buf, MAYBE_UNUSED const size_t len)
+{
+  const user_options_t *user_options = hashcat_ctx->user_options;
+
+  if (user_options->quiet == true) return;
+
+  const u32 *device_id = (const u32 *) buf;
+
+  event_log_info_nn (hashcat_ctx, "Initializing OpenCL runtime for device #%u...", *device_id + 1);
+}
+
+static void main_opencl_device_init_post (MAYBE_UNUSED hashcat_ctx_t *hashcat_ctx, MAYBE_UNUSED const void *buf, MAYBE_UNUSED const size_t len)
+{
+  const user_options_t *user_options = hashcat_ctx->user_options;
+
+  if (user_options->quiet == true) return;
+
+  const u32 *device_id = (const u32 *) buf;
+
+  event_log_info_nn (hashcat_ctx, "Initialized OpenCL runtime for device #%u...", *device_id + 1);
+}
+
 static void main_bitmap_init_pre (MAYBE_UNUSED hashcat_ctx_t *hashcat_ctx, MAYBE_UNUSED const void *buf, MAYBE_UNUSED const size_t len)
 {
   const user_options_t *user_options = hashcat_ctx->user_options;
@@ -578,6 +599,20 @@ static void main_bitmap_init_post (MAYBE_UNUSED hashcat_ctx_t *hashcat_ctx, MAYB
   if (user_options->quiet == true) return;
 
   event_log_info_nn (hashcat_ctx, "Generated bitmap tables...");
+}
+
+static void main_bitmap_final_overflow (MAYBE_UNUSED hashcat_ctx_t *hashcat_ctx, MAYBE_UNUSED const void *buf, MAYBE_UNUSED const size_t len)
+{
+  const user_options_t *user_options = hashcat_ctx->user_options;
+
+  if (user_options->quiet == true) return;
+
+  event_log_advice (hashcat_ctx, "Bitmap table overflowed at %d bits.", user_options->bitmap_max);
+  event_log_advice (hashcat_ctx, "This typically happens with too many hashes and reduces your performance.");
+  event_log_advice (hashcat_ctx, "You can increase the bitmap table size with --bitmap-max, but");
+  event_log_advice (hashcat_ctx, "this creates a trade-off between L2-cache and bitmap efficiency.");
+  event_log_advice (hashcat_ctx, "It is therefore not guaranteed to restore full performance.");
+  event_log_advice (hashcat_ctx, NULL);
 }
 
 static void main_set_kernel_power_final (MAYBE_UNUSED hashcat_ctx_t *hashcat_ctx, MAYBE_UNUSED const void *buf, MAYBE_UNUSED const size_t len)
@@ -954,6 +989,7 @@ static void event (const u32 id, hashcat_ctx_t *hashcat_ctx, const void *buf, co
   {
     case EVENT_BITMAP_INIT_POST:          main_bitmap_init_post          (hashcat_ctx, buf, len); break;
     case EVENT_BITMAP_INIT_PRE:           main_bitmap_init_pre           (hashcat_ctx, buf, len); break;
+    case EVENT_BITMAP_FINAL_OVERFLOW:     main_bitmap_final_overflow     (hashcat_ctx, buf, len); break;
     case EVENT_CALCULATED_WORDS_BASE:     main_calculated_words_base     (hashcat_ctx, buf, len); break;
     case EVENT_CRACKER_FINISHED:          main_cracker_finished          (hashcat_ctx, buf, len); break;
     case EVENT_CRACKER_HASH_CRACKED:      main_cracker_hash_cracked      (hashcat_ctx, buf, len); break;
@@ -982,6 +1018,8 @@ static void event (const u32 id, hashcat_ctx_t *hashcat_ctx, const void *buf, co
     case EVENT_MONITOR_NOINPUT_ABORT:     main_monitor_noinput_abort     (hashcat_ctx, buf, len); break;
     case EVENT_OPENCL_SESSION_POST:       main_opencl_session_post       (hashcat_ctx, buf, len); break;
     case EVENT_OPENCL_SESSION_PRE:        main_opencl_session_pre        (hashcat_ctx, buf, len); break;
+    case EVENT_OPENCL_DEVICE_INIT_POST:   main_opencl_device_init_post   (hashcat_ctx, buf, len); break;
+    case EVENT_OPENCL_DEVICE_INIT_PRE:    main_opencl_device_init_pre    (hashcat_ctx, buf, len); break;
     case EVENT_OUTERLOOP_FINISHED:        main_outerloop_finished        (hashcat_ctx, buf, len); break;
     case EVENT_OUTERLOOP_MAINSCREEN:      main_outerloop_mainscreen      (hashcat_ctx, buf, len); break;
     case EVENT_OUTERLOOP_STARTING:        main_outerloop_starting        (hashcat_ctx, buf, len); break;

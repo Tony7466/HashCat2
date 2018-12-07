@@ -3,6 +3,82 @@
  * License.....: MIT
  */
 
+/*
+ * Prototype kernel function that fits all kernel macros
+ *
+ * There are four variables where major differences occur:
+ *
+ *   -  P2: Adress space of kernel_rules_t struct.
+ *          If the kernel uses rules_buf, it will be stored in __constant.
+ *          If it does not, cheaper __global space is used.
+ *
+ *   -  P4: Innerloop word buffer:
+ *          Most kernels use a bf_t structure in __global address space (_BASIC).
+ *          Some use u32x pointer to a vector in __constant address space (_VECTOR).
+ *          A few use a specific bs_word_t struct (_BITSLICE).
+ *
+ *   -  P5: Type of the tmps structure with additional data, or void.
+ *          Used with slow hash types (ATTACK_EXEC_OUTSIDE_KERNEL) only.
+ *
+ *   - P19: Type of the esalt_bufs structure with additional data, or void.
+ */
+
+#define KERN_ATTR(p2,p4,p5,p6,p19)                           \
+  __global       pw_t          * restrict pws,               \
+  p2       const kernel_rule_t * restrict rules_buf,         \
+  __global const pw_t          * restrict combs_buf,         \
+  p4,                                                        \
+  __global p5                  * restrict tmps,              \
+  __global p6                  * restrict hooks,             \
+  __global const u32           * restrict bitmaps_buf_s1_a,  \
+  __global const u32           * restrict bitmaps_buf_s1_b,  \
+  __global const u32           * restrict bitmaps_buf_s1_c,  \
+  __global const u32           * restrict bitmaps_buf_s1_d,  \
+  __global const u32           * restrict bitmaps_buf_s2_a,  \
+  __global const u32           * restrict bitmaps_buf_s2_b,  \
+  __global const u32           * restrict bitmaps_buf_s2_c,  \
+  __global const u32           * restrict bitmaps_buf_s2_d,  \
+  __global       plain_t       * restrict plains_buf,        \
+  __global const digest_t      * restrict digests_buf,       \
+  __global       u32           * restrict hashes_shown,      \
+  __global const salt_t        * restrict salt_bufs,         \
+  __global const p19           * restrict esalt_bufs,        \
+  __global       u32           * restrict d_return_buf,      \
+  __global       uint4         * restrict d_scryptV0_buf,    \
+  __global       uint4         * restrict d_scryptV1_buf,    \
+  __global       uint4         * restrict d_scryptV2_buf,    \
+  __global       uint4         * restrict d_scryptV3_buf,    \
+  const u32 bitmap_mask,    \
+  const u32 bitmap_shift1,  \
+  const u32 bitmap_shift2,  \
+  const u32 salt_pos,       \
+  const u32 loop_pos,       \
+  const u32 loop_cnt,       \
+  const u32 il_cnt,         \
+  const u32 digests_cnt,    \
+  const u32 digests_offset, \
+  const u32 combs_mode,     \
+  const u64 gid_max
+
+/*
+ * Shortcut macros for usage in the actual kernels
+ *
+ * Not all possible combinations are needed. E.g. all kernels that use rules
+ * do not use the tmps pointer, all kernels that use a vector pointer in P4
+ * do not use rules or tmps, etc.
+ */
+
+#define KERN_ATTR_BASIC()         KERN_ATTR (__global,   __global   const bf_t      * restrict bfs_buf,     void, void, void)
+#define KERN_ATTR_BITSLICE()      KERN_ATTR (__global,   __constant const bs_word_t * restrict words_buf_r, void, void, void)
+#define KERN_ATTR_ESALT(e)        KERN_ATTR (__global,   __global   const bf_t      * restrict bfs_buf,     void, void, e)
+#define KERN_ATTR_RULES()         KERN_ATTR (__constant, __global   const bf_t      * restrict bfs_buf,     void, void, void)
+#define KERN_ATTR_RULES_ESALT(e)  KERN_ATTR (__constant, __global   const bf_t      * restrict bfs_buf,     void, void, e)
+#define KERN_ATTR_TMPS(t)         KERN_ATTR (__global,   __global   const bf_t      * restrict bfs_buf,     t,    void, void)
+#define KERN_ATTR_TMPS_ESALT(t,e) KERN_ATTR (__global,   __global   const bf_t      * restrict bfs_buf,     t,    void, e)
+#define KERN_ATTR_TMPS_HOOKS(t,h) KERN_ATTR (__global,   __global   const bf_t      * restrict bfs_buf,     t,    h,    void)
+#define KERN_ATTR_VECTOR()        KERN_ATTR (__global,   __constant const u32x      * restrict words_buf_r, void, void, void)
+#define KERN_ATTR_VECTOR_ESALT(e) KERN_ATTR (__global,   __constant const u32x      * restrict words_buf_r, void, void, e)
+
 /**
  * pure scalar functions
  */
@@ -158,6 +234,150 @@ DECLSPEC int is_valid_hex_32 (const u32 v)
   if (is_valid_hex_8 ((u8) (v >> 24)) == 0) return 0;
 
   return 1;
+}
+
+DECLSPEC int find_keyboard_layout_map (const u32 search, const int search_len, __local keyboard_layout_mapping_t *s_keyboard_layout_mapping_buf, const int keyboard_layout_mapping_cnt)
+{
+  for (int idx = 0; idx < keyboard_layout_mapping_cnt; idx++)
+  {
+    const u32 src_char = s_keyboard_layout_mapping_buf[idx].src_char;
+    const int src_len  = s_keyboard_layout_mapping_buf[idx].src_len;
+
+    if (src_len == search_len)
+    {
+      const u32 mask = 0xffffffff >> ((4 - search_len) * 8);
+
+      if ((src_char & mask) == (search & mask)) return idx;
+    }
+  }
+
+  return -1;
+}
+
+DECLSPEC int execute_keyboard_layout_mapping (u32 w0[4], u32 w1[4], u32 w2[4], u32 w3[4], const int pw_len, __local keyboard_layout_mapping_t *s_keyboard_layout_mapping_buf, const int keyboard_layout_mapping_cnt)
+{
+  u32 out_buf[16] = { 0 };
+
+  u8 *out_ptr = (u8 *) out_buf;
+
+  int out_len = 0;
+
+  // TC/VC passwords are limited to 64
+
+  u32 w[16];
+
+  w[ 0] = w0[0];
+  w[ 1] = w0[1];
+  w[ 2] = w0[2];
+  w[ 3] = w0[3];
+  w[ 4] = w1[0];
+  w[ 5] = w1[1];
+  w[ 6] = w1[2];
+  w[ 7] = w1[3];
+  w[ 8] = w2[0];
+  w[ 9] = w2[1];
+  w[10] = w2[2];
+  w[11] = w2[3];
+  w[12] = w3[0];
+  w[13] = w3[1];
+  w[14] = w3[2];
+  w[15] = w3[3];
+
+  u8 *w_ptr = (u8 *) w;
+
+  int pw_pos = 0;
+
+  while (pw_pos < pw_len)
+  {
+    u32 src0 = 0;
+    u32 src1 = 0;
+    u32 src2 = 0;
+    u32 src3 = 0;
+
+    #define MIN(a,b) (((a) < (b)) ? (a) : (b))
+
+    const int rem = MIN (pw_len - pw_pos, 4);
+
+    #undef MIN
+
+    if (rem > 0) src0 = w_ptr[pw_pos + 0];
+    if (rem > 1) src1 = w_ptr[pw_pos + 1];
+    if (rem > 2) src2 = w_ptr[pw_pos + 2];
+    if (rem > 3) src3 = w_ptr[pw_pos + 3];
+
+    const u32 src = (src0 <<  0)
+                  | (src1 <<  8)
+                  | (src2 << 16)
+                  | (src3 << 24);
+
+    int src_len;
+
+    for (src_len = rem; src_len > 0; src_len--)
+    {
+      const int idx = find_keyboard_layout_map (src, src_len, s_keyboard_layout_mapping_buf, keyboard_layout_mapping_cnt);
+
+      if (idx == -1) continue;
+
+      u32 dst_char = s_keyboard_layout_mapping_buf[idx].dst_char;
+      int dst_len  = s_keyboard_layout_mapping_buf[idx].dst_len;
+
+      switch (dst_len)
+      {
+        case 1:
+          out_ptr[out_len++] = (dst_char >>  0) & 0xff;
+          break;
+        case 2:
+          out_ptr[out_len++] = (dst_char >>  0) & 0xff;
+          out_ptr[out_len++] = (dst_char >>  8) & 0xff;
+          break;
+        case 3:
+          out_ptr[out_len++] = (dst_char >>  0) & 0xff;
+          out_ptr[out_len++] = (dst_char >>  8) & 0xff;
+          out_ptr[out_len++] = (dst_char >> 16) & 0xff;
+          break;
+        case 4:
+          out_ptr[out_len++] = (dst_char >>  0) & 0xff;
+          out_ptr[out_len++] = (dst_char >>  8) & 0xff;
+          out_ptr[out_len++] = (dst_char >> 16) & 0xff;
+          out_ptr[out_len++] = (dst_char >> 24) & 0xff;
+          break;
+      }
+
+      pw_pos += src_len;
+
+      break;
+    }
+
+    // not matched, keep original
+
+    if (src_len == 0)
+    {
+      out_ptr[out_len] = w_ptr[pw_pos];
+
+      out_len++;
+
+      pw_pos++;
+    }
+  }
+
+  w0[0] = out_buf[ 0];
+  w0[1] = out_buf[ 1];
+  w0[2] = out_buf[ 2];
+  w0[3] = out_buf[ 3];
+  w1[0] = out_buf[ 4];
+  w1[1] = out_buf[ 5];
+  w1[2] = out_buf[ 6];
+  w1[3] = out_buf[ 7];
+  w2[0] = out_buf[ 8];
+  w2[1] = out_buf[ 9];
+  w2[2] = out_buf[10];
+  w2[3] = out_buf[11];
+  w3[0] = out_buf[12];
+  w3[1] = out_buf[13];
+  w3[2] = out_buf[14];
+  w3[3] = out_buf[15];
+
+  return out_len;
 }
 
 /**
@@ -30964,6 +31184,20 @@ DECLSPEC void append_0x06_2x4_S (u32 *w0, u32 *w1, const u32 offset)
   append_helper_1x4_S (w1, ((offset16 == 1) ? 0x06060606 : 0), v);
 }
 
+DECLSPEC void append_0x01_4x4_S (u32 *w0, u32 *w1, u32 *w2, u32 *w3, const u32 offset)
+{
+  u32 v[4];
+
+  set_mark_1x4_S (v, offset);
+
+  const u32 offset16 = offset / 16;
+
+  append_helper_1x4_S (w0, ((offset16 == 0) ? 0x01010101 : 0), v);
+  append_helper_1x4_S (w1, ((offset16 == 1) ? 0x01010101 : 0), v);
+  append_helper_1x4_S (w2, ((offset16 == 2) ? 0x01010101 : 0), v);
+  append_helper_1x4_S (w3, ((offset16 == 3) ? 0x01010101 : 0), v);
+}
+
 DECLSPEC void append_0x80_1x4_S (u32 *w0, const u32 offset)
 {
   u32 v[4];
@@ -60134,6 +60368,66 @@ DECLSPEC void append_0x01_2x4_VV (u32x *w0, u32x *w1, const u32x offset)
   #endif
 }
 
+DECLSPEC void append_0x01_4x4_VV (u32x *w0, u32x *w1, u32x *w2, u32x *w3, const u32x offset)
+{
+  #if VECT_SIZE == 1
+
+  append_0x01_4x4_S (w0, w1, w2, w3, offset);
+
+  #else
+
+  u32 t0[4];
+  u32 t1[4];
+  u32 t2[4];
+  u32 t3[4];
+
+  #endif
+
+  #if   VECT_SIZE == 2
+
+  PACKVS44 (t0, t1, t2, t3, w0, w1, w2, w3, 0); append_0x01_4x4_S (t0, t1, t2, t3, offset.s0); PACKSV44 (t0, t1, t2, t3, w0, w1, w2, w3, 0);
+  PACKVS44 (t0, t1, t2, t3, w0, w1, w2, w3, 1); append_0x01_4x4_S (t0, t1, t2, t3, offset.s1); PACKSV44 (t0, t1, t2, t3, w0, w1, w2, w3, 1);
+
+  #elif VECT_SIZE == 4
+
+  PACKVS44 (t0, t1, t2, t3, w0, w1, w2, w3, 0); append_0x01_4x4_S (t0, t1, t2, t3, offset.s0); PACKSV44 (t0, t1, t2, t3, w0, w1, w2, w3, 0);
+  PACKVS44 (t0, t1, t2, t3, w0, w1, w2, w3, 1); append_0x01_4x4_S (t0, t1, t2, t3, offset.s1); PACKSV44 (t0, t1, t2, t3, w0, w1, w2, w3, 1);
+  PACKVS44 (t0, t1, t2, t3, w0, w1, w2, w3, 2); append_0x01_4x4_S (t0, t1, t2, t3, offset.s2); PACKSV44 (t0, t1, t2, t3, w0, w1, w2, w3, 2);
+  PACKVS44 (t0, t1, t2, t3, w0, w1, w2, w3, 3); append_0x01_4x4_S (t0, t1, t2, t3, offset.s3); PACKSV44 (t0, t1, t2, t3, w0, w1, w2, w3, 3);
+
+  #elif VECT_SIZE == 8
+
+  PACKVS44 (t0, t1, t2, t3, w0, w1, w2, w3, 0); append_0x01_4x4_S (t0, t1, t2, t3, offset.s0); PACKSV44 (t0, t1, t2, t3, w0, w1, w2, w3, 0);
+  PACKVS44 (t0, t1, t2, t3, w0, w1, w2, w3, 1); append_0x01_4x4_S (t0, t1, t2, t3, offset.s1); PACKSV44 (t0, t1, t2, t3, w0, w1, w2, w3, 1);
+  PACKVS44 (t0, t1, t2, t3, w0, w1, w2, w3, 2); append_0x01_4x4_S (t0, t1, t2, t3, offset.s2); PACKSV44 (t0, t1, t2, t3, w0, w1, w2, w3, 2);
+  PACKVS44 (t0, t1, t2, t3, w0, w1, w2, w3, 3); append_0x01_4x4_S (t0, t1, t2, t3, offset.s3); PACKSV44 (t0, t1, t2, t3, w0, w1, w2, w3, 3);
+  PACKVS44 (t0, t1, t2, t3, w0, w1, w2, w3, 4); append_0x01_4x4_S (t0, t1, t2, t3, offset.s4); PACKSV44 (t0, t1, t2, t3, w0, w1, w2, w3, 4);
+  PACKVS44 (t0, t1, t2, t3, w0, w1, w2, w3, 5); append_0x01_4x4_S (t0, t1, t2, t3, offset.s5); PACKSV44 (t0, t1, t2, t3, w0, w1, w2, w3, 5);
+  PACKVS44 (t0, t1, t2, t3, w0, w1, w2, w3, 6); append_0x01_4x4_S (t0, t1, t2, t3, offset.s6); PACKSV44 (t0, t1, t2, t3, w0, w1, w2, w3, 6);
+  PACKVS44 (t0, t1, t2, t3, w0, w1, w2, w3, 7); append_0x01_4x4_S (t0, t1, t2, t3, offset.s7); PACKSV44 (t0, t1, t2, t3, w0, w1, w2, w3, 7);
+
+  #elif VECT_SIZE == 16
+
+  PACKVS44 (t0, t1, t2, t3, w0, w1, w2, w3, 0); append_0x01_4x4_S (t0, t1, t2, t3, offset.s0); PACKSV44 (t0, t1, t2, t3, w0, w1, w2, w3, 0);
+  PACKVS44 (t0, t1, t2, t3, w0, w1, w2, w3, 1); append_0x01_4x4_S (t0, t1, t2, t3, offset.s1); PACKSV44 (t0, t1, t2, t3, w0, w1, w2, w3, 1);
+  PACKVS44 (t0, t1, t2, t3, w0, w1, w2, w3, 2); append_0x01_4x4_S (t0, t1, t2, t3, offset.s2); PACKSV44 (t0, t1, t2, t3, w0, w1, w2, w3, 2);
+  PACKVS44 (t0, t1, t2, t3, w0, w1, w2, w3, 3); append_0x01_4x4_S (t0, t1, t2, t3, offset.s3); PACKSV44 (t0, t1, t2, t3, w0, w1, w2, w3, 3);
+  PACKVS44 (t0, t1, t2, t3, w0, w1, w2, w3, 4); append_0x01_4x4_S (t0, t1, t2, t3, offset.s4); PACKSV44 (t0, t1, t2, t3, w0, w1, w2, w3, 4);
+  PACKVS44 (t0, t1, t2, t3, w0, w1, w2, w3, 5); append_0x01_4x4_S (t0, t1, t2, t3, offset.s5); PACKSV44 (t0, t1, t2, t3, w0, w1, w2, w3, 5);
+  PACKVS44 (t0, t1, t2, t3, w0, w1, w2, w3, 6); append_0x01_4x4_S (t0, t1, t2, t3, offset.s6); PACKSV44 (t0, t1, t2, t3, w0, w1, w2, w3, 6);
+  PACKVS44 (t0, t1, t2, t3, w0, w1, w2, w3, 7); append_0x01_4x4_S (t0, t1, t2, t3, offset.s7); PACKSV44 (t0, t1, t2, t3, w0, w1, w2, w3, 7);
+  PACKVS44 (t0, t1, t2, t3, w0, w1, w2, w3, 8); append_0x01_4x4_S (t0, t1, t2, t3, offset.s8); PACKSV44 (t0, t1, t2, t3, w0, w1, w2, w3, 8);
+  PACKVS44 (t0, t1, t2, t3, w0, w1, w2, w3, 9); append_0x01_4x4_S (t0, t1, t2, t3, offset.s9); PACKSV44 (t0, t1, t2, t3, w0, w1, w2, w3, 9);
+  PACKVS44 (t0, t1, t2, t3, w0, w1, w2, w3, a); append_0x01_4x4_S (t0, t1, t2, t3, offset.sa); PACKSV44 (t0, t1, t2, t3, w0, w1, w2, w3, a);
+  PACKVS44 (t0, t1, t2, t3, w0, w1, w2, w3, b); append_0x01_4x4_S (t0, t1, t2, t3, offset.sb); PACKSV44 (t0, t1, t2, t3, w0, w1, w2, w3, b);
+  PACKVS44 (t0, t1, t2, t3, w0, w1, w2, w3, c); append_0x01_4x4_S (t0, t1, t2, t3, offset.sc); PACKSV44 (t0, t1, t2, t3, w0, w1, w2, w3, c);
+  PACKVS44 (t0, t1, t2, t3, w0, w1, w2, w3, d); append_0x01_4x4_S (t0, t1, t2, t3, offset.sd); PACKSV44 (t0, t1, t2, t3, w0, w1, w2, w3, d);
+  PACKVS44 (t0, t1, t2, t3, w0, w1, w2, w3, e); append_0x01_4x4_S (t0, t1, t2, t3, offset.se); PACKSV44 (t0, t1, t2, t3, w0, w1, w2, w3, e);
+  PACKVS44 (t0, t1, t2, t3, w0, w1, w2, w3, f); append_0x01_4x4_S (t0, t1, t2, t3, offset.sf); PACKSV44 (t0, t1, t2, t3, w0, w1, w2, w3, f);
+
+  #endif
+}
+
 DECLSPEC void append_0x06_2x4_VV (u32x *w0, u32x *w1, const u32x offset)
 {
   #if VECT_SIZE == 1
@@ -60330,7 +60624,7 @@ DECLSPEC void gpu_decompress_entry (__global pw_idx_t *pws_idx, __global u32 *pw
   pw->pw_len = len;
 }
 
-__kernel void gpu_decompress (__global pw_idx_t *pws_idx, __global u32 *pws_comp, __global pw_t *pws_buf, const u64 gid_max)
+__kernel void gpu_decompress (__global pw_idx_t * restrict pws_idx, __global u32 * restrict pws_comp, __global pw_t * restrict pws_buf, const u64 gid_max)
 {
   const u64 gid = get_global_id (0);
 
@@ -60343,7 +60637,7 @@ __kernel void gpu_decompress (__global pw_idx_t *pws_idx, __global u32 *pws_comp
   pws_buf[gid] = pw;
 }
 
-__kernel void gpu_memset (__global uint4 *buf, const u32 value, const u64 gid_max)
+__kernel void gpu_memset (__global uint4 * restrict buf, const u32 value, const u64 gid_max)
 {
   const u64 gid = get_global_id (0);
 
@@ -60352,7 +60646,7 @@ __kernel void gpu_memset (__global uint4 *buf, const u32 value, const u64 gid_ma
   buf[gid] = (uint4) (value);
 }
 
-__kernel void gpu_atinit (__global pw_t *buf, const u64 gid_max)
+__kernel void gpu_atinit (__global pw_t * restrict buf, const u64 gid_max)
 {
   const u64 gid = get_global_id (0);
 

@@ -5,111 +5,194 @@
 ## License.....: MIT
 ##
 
-## install help:
 ##
-## cpan install Authen::Passphrase::LANManager Authen::Passphrase::MySQL323 Authen::Passphrase::NTHash Authen::Passphrase::PHPass Crypt::CBC Crypt::DES Crypt::Digest::RIPEMD160 Crypt::Digest::Whirlpool Crypt::ECB Crypt::Eksblowfish::Bcrypt Crypt::Mode::ECB Crypt::MySQL Crypt::OpenSSH::ChachaPoly Crypt::PBKDF2 Crypt::RC4 Crypt::Rijndael Crypt::ScryptKDF Crypt::Skip32 Crypt::Twofish Crypt::UnixCrypt_XS Digest::BLAKE2 Digest::CMAC Digest::CRC Digest::GOST Digest::HMAC Digest::HMAC_MD5 Digest::Keccak Digest::MD4 Digest::MD5 Digest::Perl::MD5 Digest::SHA Digest::SHA3 Digest::SipHash JSON Net::DNS::RR::NSEC3 Net::DNS::SEC Convert::EBCDIC
+## Installation script for all perl and python modules:
+##
+## tools/install_modules.sh
+##
+
+##
+## If you want to add a new hash mode, follow the STEP comments.
 ##
 
 use strict;
 use warnings;
-use Digest::MD4       qw (md4 md4_hex);
-use Digest::MD5       qw (md5 md5_hex);
-use Digest::SHA       qw (sha1 sha256 sha384 sha512 sha1_hex sha224_hex sha256_hex sha384_hex sha512_hex hmac_sha1 hmac_sha256 hmac_sha512);
-use Digest::SHA3      qw (sha3_224_hex sha3_256_hex sha3_384_hex sha3_512_hex);
-use Digest::Keccak    qw (keccak_224_hex keccak_256_hex keccak_384_hex keccak_512_hex);
-use Digest::HMAC      qw (hmac hmac_hex);
-use Digest::BLAKE2    qw (blake2b_hex);
-use Crypt::MySQL      qw (password41);
-use Digest::GOST      qw (gost gost_hex);
-use Digest::HMAC_MD5  qw (hmac_md5);
-use Digest::CRC       qw (crc32);
-use Digest::CMAC;
-use Crypt::PBKDF2;
-use Crypt::DES;
-use Crypt::ECB        qw (encrypt);
+
+use Authen::Passphrase::LANManager;
+use Authen::Passphrase::MySQL323;
+use Authen::Passphrase::NTHash;
+use Authen::Passphrase::PHPass;
+use Convert::EBCDIC            qw (ascii2ebcdic);
 use Crypt::CBC;
-use Crypt::Eksblowfish::Bcrypt qw (bcrypt en_base64);
+use Crypt::DES;
 use Crypt::Digest::RIPEMD160   qw (ripemd160_hex);
 use Crypt::Digest::Whirlpool   qw (whirlpool_hex);
-use Crypt::RC4;
-use Crypt::ScryptKDF qw (scrypt_hash scrypt_raw scrypt_b64);
-use Crypt::Rijndael;
-use Crypt::Twofish;
+use Crypt::ECB                 qw (encrypt);
+use Crypt::Eksblowfish::Bcrypt qw (bcrypt en_base64);
 use Crypt::Mode::ECB;
-use Crypt::UnixCrypt_XS qw (crypt_rounds fold_password base64_to_int24 block_to_base64 int24_to_base64);
-use Crypt::Skip32;
+use Crypt::MySQL               qw (password41);
 use Crypt::OpenSSH::ChachaPoly;
-use JSON;
-use MIME::Base64 qw (encode_base64 decode_base64 encode_base64url decode_base64url);
-use MIME::Base32 qw (encode_base32 decode_base32);
-use Authen::Passphrase::NTHash;
-use Authen::Passphrase::MySQL323;
-use Authen::Passphrase::PHPass;
-use Authen::Passphrase::LANManager;
-use Encode;
-use POSIX qw (strftime ceil);
-use Net::DNS::SEC;
-use Net::DNS::RR::NSEC3;
-use Convert::EBCDIC qw (ascii2ebcdic);
-use Digest::SipHash qw/siphash/;
-use Text::Iconv;
+use Crypt::PBKDF2;
+use Crypt::RC4;
+use Crypt::Rijndael;
+use Crypt::ScryptKDF           qw (scrypt_hash scrypt_raw scrypt_b64);
+use Crypt::Skip32;
+use Crypt::Twofish;
+use Crypt::UnixCrypt_XS        qw (crypt_rounds fold_password base64_to_int24 block_to_base64 int24_to_base64);
+use Digest::MD4                qw (md4 md4_hex);
+use Digest::MD5                qw (md5 md5_hex);
+use Digest::SHA                qw (sha1 sha256 sha384 sha512 sha1_hex sha224_hex sha256_hex sha384_hex sha512_hex hmac_sha1 hmac_sha256 hmac_sha512);
+use Digest::SHA1;
+use Digest::SHA3               qw (sha3_224_hex sha3_256_hex sha3_384_hex sha3_512_hex);
+use Digest::Keccak             qw (keccak_224_hex keccak_256_hex keccak_384_hex keccak_512_hex);
+use Digest::HMAC               qw (hmac hmac_hex);
+use Digest::BLAKE2             qw (blake2b_hex);
+use Digest::GOST               qw (gost gost_hex);
+use Digest::HMAC_MD5           qw (hmac_md5);
+use Digest::CRC                qw (crc32);
+use Digest::CMAC;
+use Digest::SipHash            qw (siphash);
 use Digest::Perl::MD5;
+use Encode;
+use JSON;
+use MIME::Base32               qw (encode_base32 decode_base32);
+use MIME::Base64               qw (encode_base64 decode_base64 encode_base64url decode_base64url);
+use Net::DNS::RR::NSEC3;
+use Net::DNS::SEC;
+use POSIX                      qw (strftime ceil);
+use Text::Iconv;
 
 my $hashcat = "./hashcat";
 
 my $MAX_LEN = 55;
 
-my @modes = (0, 10, 11, 12, 20, 21, 22, 23, 30, 40, 50, 60, 100, 101, 110, 111, 112, 120, 121, 122, 125, 130, 131, 132, 133, 140, 141, 150, 160, 200, 300, 400, 500, 600, 900, 1000, 1100, 1300, 1400, 1410, 1411, 1420, 1430, 1440, 1441, 1450, 1460, 1500, 1600, 1700, 1710, 1711, 1720, 1730, 1740, 1722, 1731, 1750, 1760, 1800, 2100, 2400, 2410, 2500, 2600, 2611, 2612, 2711, 2811, 3000, 3100, 3200, 3710, 3711, 3300, 3500, 3610, 3720, 3800, 3910, 4010, 4110, 4210, 4300, 4400, 4500, 4520, 4521, 4522, 4600, 4700, 4800, 4900, 5100, 5300, 5400, 5500, 5600, 5700, 5800, 6000, 6100, 6300, 6400, 6500, 6600, 6700, 6800, 6900, 7000, 7100, 7200, 7300, 7400, 7500, 7700, 7701, 7800, 7801, 7900, 8000, 8100, 8200, 8300, 8400, 8500, 8600, 8700, 8900, 9100, 9200, 9300, 9400, 9500, 9600, 9700, 9800, 9900, 10000, 10100, 10200, 10300, 10400, 10500, 10600, 10700, 10800, 10900, 11000, 11100, 11200, 11300, 11400, 11500, 11600, 11900, 12000, 12001, 12100, 12200, 12300, 12400, 12600, 12700, 12800, 12900, 13000, 13100, 13200, 13300, 13400, 13500, 13600, 13800, 13900, 14000, 14100, 14400, 14700, 14800, 14900, 15000, 15100, 15200, 15300, 15400, 15500, 15600, 15700, 15900, 16000, 16100, 16200, 16300, 16400, 16500, 16600, 16700, 16800, 16900, 17300, 17400, 17500, 17600, 17700, 17800, 17900, 18000, 18100, 99999);
+## STEP 1: Add your hash mode to this array.
+#
+# This array contains all supported hash modes.
+#
+##
 
-my %is_utf16le      = map { $_ => 1 } qw (30 40 130 131 132 133 140 141 1000 1100 1430 1440 1441 1730 1740 1731 5500 5600 8000 9400 9500 9600 9700 9800 11600 13500 13800);
-my %less_fifteen    = map { $_ => 1 } qw (500 1600 1800 3200 6300 7400 10500 10700);
-my %allow_long_salt = map { $_ => 1 } qw (2500 4520 4521 5500 5600 7100 7200 7300 9400 9500 9600 9700 9800 10400 10500 10600 10700 1100 11000 11200 11300 11400 11600 12600 13500 13800 15000 16900);
+my $MODES =
+[
+      0,    10,    11,    12,    20,    21,    22,    23,    30,    40,    50,
+     60,   100,   101,   110,   111,   112,   120,   121,   122,   125,   130,
+    131,   132,   133,   140,   141,   150,   160,   200,   300,   400,   500,
+    600,   900,  1000,  1100,  1300,  1400,  1410,  1411,  1420,  1430,  1440,
+   1441,  1450,  1460,  1500,  1600,  1700,  1710,  1711,  1720,  1730,  1740,
+   1722,  1731,  1750,  1760,  1800,  2100,  2400,  2410,  2500,  2600,  2611,
+   2612,  2711,  2811,  3000,  3100,  3200,  3710,  3711,  3300,  3500,  3610,
+   3720,  3800,  3910,  4010,  4110,  4210,  4300,  4400,  4500,  4520,  4521,
+   4522,  4600,  4700,  4800,  4900,  5100,  5300,  5400,  5500,  5600,  5700,
+   5800,  6000,  6100,  6300,  6400,  6500,  6600,  6700,  6800,  6900,  7000,
+   7100,  7200,  7300,  7400,  7500,  7700,  7701,  7800,  7801,  7900,  8000,
+   8100,  8200,  8300,  8400,  8500,  8600,  8700,  8900,  9100,  9200,  9300,
+   9400,  9500,  9600,  9700,  9800,  9900, 10000, 10100, 10200, 10300, 10400,
+  10500, 10600, 10700, 10800, 10900, 11000, 11100, 11200, 11300, 11400, 11500,
+  11600, 11700, 11750, 11760, 11800, 11850, 11860, 11900, 12000, 12001, 12100,
+  12200, 12300, 12400, 12600, 12700, 12800, 12900, 13000, 13100, 13200, 13300,
+  13400, 13500, 13600, 13800, 13900, 14000, 14100, 14400, 14700, 14800, 14900,
+  15000, 15100, 15200, 15300, 15400, 15500, 15600, 15700, 15900, 16000, 16100,
+  16200, 16300, 16400, 16500, 16600, 16700, 16800, 16900, 17300, 17400, 17500,
+  17600, 17700, 17800, 17900, 18000, 18100, 18200, 18300, 99999
+];
 
-my @lotus_magic_table =
-(
-  0xbd, 0x56, 0xea, 0xf2, 0xa2, 0xf1, 0xac, 0x2a,
-  0xb0, 0x93, 0xd1, 0x9c, 0x1b, 0x33, 0xfd, 0xd0,
-  0x30, 0x04, 0xb6, 0xdc, 0x7d, 0xdf, 0x32, 0x4b,
-  0xf7, 0xcb, 0x45, 0x9b, 0x31, 0xbb, 0x21, 0x5a,
-  0x41, 0x9f, 0xe1, 0xd9, 0x4a, 0x4d, 0x9e, 0xda,
-  0xa0, 0x68, 0x2c, 0xc3, 0x27, 0x5f, 0x80, 0x36,
-  0x3e, 0xee, 0xfb, 0x95, 0x1a, 0xfe, 0xce, 0xa8,
-  0x34, 0xa9, 0x13, 0xf0, 0xa6, 0x3f, 0xd8, 0x0c,
-  0x78, 0x24, 0xaf, 0x23, 0x52, 0xc1, 0x67, 0x17,
-  0xf5, 0x66, 0x90, 0xe7, 0xe8, 0x07, 0xb8, 0x60,
-  0x48, 0xe6, 0x1e, 0x53, 0xf3, 0x92, 0xa4, 0x72,
-  0x8c, 0x08, 0x15, 0x6e, 0x86, 0x00, 0x84, 0xfa,
-  0xf4, 0x7f, 0x8a, 0x42, 0x19, 0xf6, 0xdb, 0xcd,
-  0x14, 0x8d, 0x50, 0x12, 0xba, 0x3c, 0x06, 0x4e,
-  0xec, 0xb3, 0x35, 0x11, 0xa1, 0x88, 0x8e, 0x2b,
-  0x94, 0x99, 0xb7, 0x71, 0x74, 0xd3, 0xe4, 0xbf,
-  0x3a, 0xde, 0x96, 0x0e, 0xbc, 0x0a, 0xed, 0x77,
-  0xfc, 0x37, 0x6b, 0x03, 0x79, 0x89, 0x62, 0xc6,
-  0xd7, 0xc0, 0xd2, 0x7c, 0x6a, 0x8b, 0x22, 0xa3,
-  0x5b, 0x05, 0x5d, 0x02, 0x75, 0xd5, 0x61, 0xe3,
-  0x18, 0x8f, 0x55, 0x51, 0xad, 0x1f, 0x0b, 0x5e,
-  0x85, 0xe5, 0xc2, 0x57, 0x63, 0xca, 0x3d, 0x6c,
-  0xb4, 0xc5, 0xcc, 0x70, 0xb2, 0x91, 0x59, 0x0d,
-  0x47, 0x20, 0xc8, 0x4f, 0x58, 0xe0, 0x01, 0xe2,
-  0x16, 0x38, 0xc4, 0x6f, 0x3b, 0x0f, 0x65, 0x46,
-  0xbe, 0x7e, 0x2d, 0x7b, 0x82, 0xf9, 0x40, 0xb5,
-  0x1d, 0x73, 0xf8, 0xeb, 0x26, 0xc7, 0x87, 0x97,
-  0x25, 0x54, 0xb1, 0x28, 0xaa, 0x98, 0x9d, 0xa5,
-  0x64, 0x6d, 0x7a, 0xd4, 0x10, 0x81, 0x44, 0xef,
-  0x49, 0xd6, 0xae, 0x2e, 0xdd, 0x76, 0x5c, 0x2f,
-  0xa7, 0x1c, 0xc9, 0x09, 0x69, 0x9a, 0x83, 0xcf,
-  0x29, 0x39, 0xb9, 0xe9, 0x4c, 0xff, 0x43, 0xab
-);
+## STEP 2a: If your hash mode does not need a salt, add it to this array.
+#
+# This array contains all unsalted hash-modes that are handled in the 'default'
+# branches in all three single, passthrough and verify test functions. There
+# still are some unsalted hash-modes which are handled differently and are not
+# listed here; they are caught in separate if conditions accordingly.
+#
+##
 
-my @pdf_padding =
-(
-  0x28, 0xbf, 0x4e, 0x5e, 0x4e, 0x75, 0x8a, 0x41,
-  0x64, 0x00, 0x4e, 0x56, 0xff, 0xfa, 0x01, 0x08,
-  0x2e, 0x2e, 0x00, 0xb6, 0xd0, 0x68, 0x3e, 0x80,
+my $COMMON_UNSALTED_MODES =
+[
+      0,   100,   101,   133,   200,   300,   600,   900,  1000,  1300,  1400,
+   1700,  2600,  3500,  4300,  4400,  4500,  4600,  4700,  5100,  5700,  6000,
+   6100,  6900,  9900, 10800, 11500, 11700, 11800, 16400, 17300, 17400, 17500,
+  17600, 17700, 17800, 17900, 18000, 99999
+];
+
+## STEP 2b: If your hash-mode has a salt without any specific syntax,
+##          add it to this array. Else look for STEP 2c (several spots).
+#
+# Same as above, only for salted hashes without specific salt formats.
+#
+##
+
+my $COMMON_DEFAULT_SALTED_MODES =
+[
+     10,    20,    23,    30,    40,    50,    60,   110,   120,   130,   140,
+    150,   160,  1410,  1420,  1430,  1440,  1450,  1460,  1710,  1720,  1730,
+   1740,  1750,  1760,  3610,  3710,  3720,  3910,  4010,  4110,  4210, 11750,
+  11760, 11850, 11860, 18100
+];
+
+# Arrays for hash modes with maximum password length 15
+
+my $LESS_FIFTEEN = [500, 1600, 1800, 3200, 6300, 7400, 10500, 10700];
+
+# Arrays for hash modes with unusual salts
+
+my $ALLOW_LONG_SALT =
+[
+   2500,  4520,  4521,  5500,  5600,  7100,  7200,  7300,  9400,  9500,  9600,
+   9700,  9800, 10400, 10500, 10600, 10700,  1100, 11000, 11200, 11300, 11400,
+  11600, 12600, 13500, 13800, 15000, 16900
+];
+
+my $IS_UTF16LE =
+[
+     30,    40,   130,   131,   132,   133,   140,   141,  1000,  1100,  1430,
+   1440,  1441,  1730,  1740,  1731,  5500,  5600,  8000,  9400,  9500,  9600,
+   9700,  9800, 11600, 13500, 13800
+];
+
+my $LOTUS_MAGIC_TABLE =
+[
+  0xbd, 0x56, 0xea, 0xf2, 0xa2, 0xf1, 0xac, 0x2a, 0xb0, 0x93, 0xd1, 0x9c,
+  0x1b, 0x33, 0xfd, 0xd0, 0x30, 0x04, 0xb6, 0xdc, 0x7d, 0xdf, 0x32, 0x4b,
+  0xf7, 0xcb, 0x45, 0x9b, 0x31, 0xbb, 0x21, 0x5a, 0x41, 0x9f, 0xe1, 0xd9,
+  0x4a, 0x4d, 0x9e, 0xda, 0xa0, 0x68, 0x2c, 0xc3, 0x27, 0x5f, 0x80, 0x36,
+  0x3e, 0xee, 0xfb, 0x95, 0x1a, 0xfe, 0xce, 0xa8, 0x34, 0xa9, 0x13, 0xf0,
+  0xa6, 0x3f, 0xd8, 0x0c, 0x78, 0x24, 0xaf, 0x23, 0x52, 0xc1, 0x67, 0x17,
+  0xf5, 0x66, 0x90, 0xe7, 0xe8, 0x07, 0xb8, 0x60, 0x48, 0xe6, 0x1e, 0x53,
+  0xf3, 0x92, 0xa4, 0x72, 0x8c, 0x08, 0x15, 0x6e, 0x86, 0x00, 0x84, 0xfa,
+  0xf4, 0x7f, 0x8a, 0x42, 0x19, 0xf6, 0xdb, 0xcd, 0x14, 0x8d, 0x50, 0x12,
+  0xba, 0x3c, 0x06, 0x4e, 0xec, 0xb3, 0x35, 0x11, 0xa1, 0x88, 0x8e, 0x2b,
+  0x94, 0x99, 0xb7, 0x71, 0x74, 0xd3, 0xe4, 0xbf, 0x3a, 0xde, 0x96, 0x0e,
+  0xbc, 0x0a, 0xed, 0x77, 0xfc, 0x37, 0x6b, 0x03, 0x79, 0x89, 0x62, 0xc6,
+  0xd7, 0xc0, 0xd2, 0x7c, 0x6a, 0x8b, 0x22, 0xa3, 0x5b, 0x05, 0x5d, 0x02,
+  0x75, 0xd5, 0x61, 0xe3, 0x18, 0x8f, 0x55, 0x51, 0xad, 0x1f, 0x0b, 0x5e,
+  0x85, 0xe5, 0xc2, 0x57, 0x63, 0xca, 0x3d, 0x6c, 0xb4, 0xc5, 0xcc, 0x70,
+  0xb2, 0x91, 0x59, 0x0d, 0x47, 0x20, 0xc8, 0x4f, 0x58, 0xe0, 0x01, 0xe2,
+  0x16, 0x38, 0xc4, 0x6f, 0x3b, 0x0f, 0x65, 0x46, 0xbe, 0x7e, 0x2d, 0x7b,
+  0x82, 0xf9, 0x40, 0xb5, 0x1d, 0x73, 0xf8, 0xeb, 0x26, 0xc7, 0x87, 0x97,
+  0x25, 0x54, 0xb1, 0x28, 0xaa, 0x98, 0x9d, 0xa5, 0x64, 0x6d, 0x7a, 0xd4,
+  0x10, 0x81, 0x44, 0xef, 0x49, 0xd6, 0xae, 0x2e, 0xdd, 0x76, 0x5c, 0x2f,
+  0xa7, 0x1c, 0xc9, 0x09, 0x69, 0x9a, 0x83, 0xcf, 0x29, 0x39, 0xb9, 0xe9,
+  0x4c, 0xff, 0x43, 0xab
+];
+
+my $PDF_PADDING =
+[
+  0x28, 0xbf, 0x4e, 0x5e, 0x4e, 0x75, 0x8a, 0x41, 0x64, 0x00, 0x4e, 0x56,
+  0xff, 0xfa, 0x01, 0x08, 0x2e, 0x2e, 0x00, 0xb6, 0xd0, 0x68, 0x3e, 0x80,
   0x2f, 0x0c, 0xa9, 0xfe, 0x64, 0x53, 0x69, 0x7a
-);
+];
 
-my $CISCO_BASE64_MAPPING = {'A', '.', 'B', '/', 'C', '0', 'D', '1', 'E', '2', 'F', '3', 'G', '4', 'H', '5', 'I', '6', 'J', '7', 'K', '8', 'L', '9', 'M', 'A', 'N', 'B', 'O', 'C', 'P', 'D', 'Q', 'E', 'R', 'F', 'S', 'G', 'T', 'H', 'U', 'I', 'V', 'J', 'W', 'K', 'X', 'L', 'Y', 'M', 'Z', 'N', 'a', 'O', 'b', 'P', 'c', 'Q', 'd', 'R', 'e', 'S', 'f', 'T', 'g', 'U', 'h', 'V', 'i', 'W', 'j', 'X', 'k', 'Y', 'l', 'Z', 'm', 'a', 'n', 'b', 'o', 'c', 'p', 'd', 'q', 'e', 'r', 'f', 's', 'g', 't', 'h', 'u', 'i', 'v', 'j', 'w', 'k', 'x', 'l', 'y', 'm', 'z', 'n', '0', 'o', '1', 'p', '2', 'q', '3', 'r', '4', 's', '5', 't', '6', 'u', '7', 'v', '8', 'w', '9', 'x', '+', 'y', '/', 'z'};
+my $CISCO_BASE64_MAPPING =
+{
+  'A', '.', 'B', '/', 'C', '0', 'D', '1', 'E', '2', 'F', '3', 'G', '4', 'H',
+  '5', 'I', '6', 'J', '7', 'K', '8', 'L', '9', 'M', 'A', 'N', 'B', 'O', 'C',
+  'P', 'D', 'Q', 'E', 'R', 'F', 'S', 'G', 'T', 'H', 'U', 'I', 'V', 'J', 'W',
+  'K', 'X', 'L', 'Y', 'M', 'Z', 'N', 'a', 'O', 'b', 'P', 'c', 'Q', 'd', 'R',
+  'e', 'S', 'f', 'T', 'g', 'U', 'h', 'V', 'i', 'W', 'j', 'X', 'k', 'Y', 'l',
+  'Z', 'm', 'a', 'n', 'b', 'o', 'c', 'p', 'd', 'q', 'e', 'r', 'f', 's', 'g',
+  't', 'h', 'u', 'i', 'v', 'j', 'w', 'k', 'x', 'l', 'y', 'm', 'z', 'n', '0',
+  'o', '1', 'p', '2', 'q', '3', 'r', '4', 's', '5', 't', '6', 'u', '7', 'v',
+  '8', 'w', '9', 'x', '+', 'y', '/', 'z'
+};
 
 if (scalar @ARGV < 1)
 {
@@ -184,6 +267,15 @@ else
   verify ($mode, $db, $in_file, $out_file);
 }
 
+# Array lookup
+sub is_in_array
+{
+  my $value = shift;
+  my $array = shift;
+
+  return grep { $_ eq $value } @{$array};
+}
+
 sub verify
 {
   my $mode     = shift;
@@ -227,7 +319,9 @@ sub verify
     # remember always do "exists ($db->{$hash_in})" checks as soon as possible and don't forget it
 
     # unsalted
-    if ($mode == 0 || $mode == 100 || $mode == 101 || $mode == 133 || $mode == 200 || $mode == 300 || $mode == 600 || $mode == 900 || $mode == 1000 || $mode == 1300 || $mode == 1400 || $mode == 1700 || $mode == 2400 || $mode == 2600 || $mode == 3000 || $mode == 3500 || $mode == 4300 || $mode == 4400 || $mode == 4500 || $mode == 4600 || $mode == 4700 || $mode == 5100 || $mode == 5700 || $mode == 6000 || $mode == 6100 || $mode == 6900 || $mode == 8600 || $mode == 9900 || $mode == 10800 || $mode == 11500 || $mode == 16000 || $mode == 16400 || $mode == 17300 || $mode == 17400 || $mode == 17500 || $mode == 17600 || $mode == 17700 || $mode == 17800 || $mode == 17900 || $mode == 18000 || $mode == 99999)
+    if (is_in_array ($mode, $COMMON_UNSALTED_MODES)
+     || $mode == 2400 || $mode ==  3000
+     || $mode == 8600 || $mode == 16000)
     {
       my $index = index ($line, ":");
 
@@ -240,7 +334,15 @@ sub verify
       $word = substr ($line, $index + 1);
     }
     # hash:salt
-    elsif ($mode == 10 || $mode == 11 || $mode == 12 || $mode == 20 || $mode == 21 || $mode == 22 || $mode == 23 || $mode == 30 || $mode == 40 || $mode == 50 || $mode == 60 || $mode == 110 || $mode == 112 || $mode == 120 || $mode == 121 || $mode == 130 || $mode == 140 || $mode == 150 || $mode == 160 || $mode == 1100 || $mode == 1410 || $mode == 1420 || $mode == 1430 || $mode == 1440 || $mode == 1450 || $mode == 1460 || $mode == 1710 || $mode == 1720 || $mode == 1730 || $mode == 1740 || $mode == 1750 || $mode == 1760 || $mode == 2410 || $mode == 2611 || $mode == 2711 || $mode == 2811 || $mode == 3100 || $mode == 3610 || $mode == 3710 || $mode == 3720 || $mode == 3800 || $mode == 3910 || $mode == 4010 || $mode == 4110 || $mode == 4210 || $mode == 4520 || $mode == 4521 || $mode == 4522 || $mode == 4900 || $mode == 5800 || $mode == 8400 || $mode == 11000 || $mode == 12600 || $mode == 13500 || $mode == 13800 || $mode == 13900 || $mode == 14000 || $mode == 14100 || $mode == 14400 || $mode == 14900 || $mode == 15000 || $mode == 18100)
+    elsif (is_in_array ($mode, $COMMON_DEFAULT_SALTED_MODES)
+        || $mode ==    11 || $mode ==    12 || $mode ==    21 || $mode ==    22
+        || $mode ==   112 || $mode ==   121 || $mode ==  1100 || $mode ==  2410
+        || $mode ==  2611 || $mode ==  2711 || $mode ==  2811 || $mode ==  3100
+        || $mode ==  3800 || $mode ==  4520 || $mode ==  4521 || $mode ==  4522
+        || $mode ==  4900 || $mode ==  5800 || $mode ==  8400 || $mode == 11000
+        || $mode == 12600 || $mode == 13500 || $mode == 13800 || $mode == 13900
+        || $mode == 14000 || $mode == 14100 || $mode == 14400 || $mode == 14900
+        || $mode == 15000)
     {
       # get hash
       my $index1 = index ($line, ":");
@@ -2998,6 +3100,73 @@ sub verify
 
       next unless (exists ($db->{$hash_in}) and (! defined ($db->{$hash_in})));
     }
+    elsif ($mode == 18200)
+    {
+      ($hash_in, $word) = split ":", $line;
+
+      next unless defined $hash_in;
+      next unless defined $word;
+
+      my @data = split ('\$', $hash_in);
+
+      next unless scalar @data == 8;
+
+      shift @data;
+
+      my $signature            = shift @data;
+      my $algorithm            = shift @data;
+      my $user_principal_name  = shift @data;
+      my $checksum             = shift @data;
+      my $edata2               = shift @data;
+
+      next unless ($signature eq "krb5asrep");
+      next unless (length ($checksum) == 32);
+      next unless (length ($edata2) >= 64);
+
+      $salt = $user_principal_name;
+
+      $param  = $checksum;
+      $param2 = $edata2;
+
+      next unless (exists ($db->{$hash_in}) and (! defined ($db->{$hash_in})));
+    }
+    # FileVault 2
+    elsif ($mode == 18300)
+    {
+      ($hash_in, $word) = split ":", $line;
+
+      next unless defined $hash_in;
+      next unless defined $word;
+
+      my @data = split ('\$', $hash_in);
+
+      next unless scalar @data == 7;
+
+      shift @data;
+
+      my $signature = shift @data;
+
+      next unless ($signature eq 'fvde');
+
+      my $Z_PK = shift @data;
+
+      next unless ($Z_PK eq '2');
+
+      my $salt_length = shift @data;
+
+      next unless ($salt_length eq '16');
+
+      my ($ZCRYPTOSALT, $ZCRYPTOITERATIONCOUNT, $ZCRYPTOWRAPPEDKEY) = @data;
+
+      $salt = $ZCRYPTOSALT;
+      $iter = $ZCRYPTOITERATIONCOUNT;
+
+      $param  = $Z_PK;
+      $param2 = $ZCRYPTOWRAPPEDKEY;
+
+      next unless (exists ($db->{$hash_in}) and (! defined ($db->{$hash_in})));
+    }
+    ## STEP 2c: Add your custom salt branch here
     else
     {
       print "ERROR: hash mode is not supported\n";
@@ -3469,6 +3638,22 @@ sub verify
 
       return unless (substr ($line, 0, $len) eq $hash_out);
     }
+    elsif ($mode == 18200)
+    {
+      $hash_out = gen_hash ($mode, $word, $salt, $iter, $param, $param2);
+
+      $len = length $hash_out;
+
+      return unless (substr ($line, 0, $len) eq $hash_out);
+    }
+    elsif ($mode == 18300)
+    {
+      $hash_out = gen_hash ($mode, $word, $salt, $iter, $param, $param2);
+
+      $len = length $hash_out;
+
+      return unless (substr ($line, 0, $len) eq $hash_out);
+    }
     else
     {
       $hash_out = gen_hash ($mode, $word, $salt, $iter);
@@ -3548,11 +3733,16 @@ sub passthrough
 
     my $tmp_hash;
 
-    if ($mode == 0 || $mode == 100 || $mode == 101 || $mode == 133 || $mode == 200 || $mode == 300 || $mode == 600 || $mode == 900 || $mode == 1000 || $mode == 1300 || $mode == 1400 || $mode == 1700 || $mode == 2400 || $mode == 2600 || $mode == 3500 || $mode == 4300 || $mode == 4400 || $mode == 4500 || $mode == 4600 || $mode == 4700 || $mode == 5100 || $mode == 6000 || $mode == 6100 || $mode == 6900 || $mode == 5700 || $mode == 9900 || $mode == 10800 || $mode == 11500 || $mode == 13300 || $mode == 16400 || $mode == 17300 || $mode == 17400 || $mode == 17500 || $mode == 17600 || $mode == 17700 || $mode == 17800 || $mode == 17900 || $mode == 18000 || $mode == 99999)
+    # unsalted
+    if (is_in_array ($mode, $COMMON_UNSALTED_MODES)
+     || $mode == 2400 || $mode == 13300)
     {
       $tmp_hash = gen_hash ($mode, $word_buf, "");
     }
-    elsif ($mode == 10 || $mode == 20 || $mode == 23 || $mode == 30 || $mode == 40 || $mode == 50 || $mode == 60 || $mode == 110 || $mode == 120 || $mode == 130 || $mode == 140 || $mode == 150 || $mode == 160 || $mode == 1410 || $mode == 1411 || $mode == 1420 || $mode == 1430 || $mode == 1440 || $mode == 1450 || $mode == 1460 || $mode == 1710 || $mode == 1711 || $mode == 1720 || $mode == 1730 || $mode == 1740 || $mode == 1750 || $mode == 1760 || $mode == 3610 || $mode == 3710 || $mode == 3711 || $mode == 3720 || $mode == 3800 || $mode == 3910 || $mode == 4010 || $mode == 4110 || $mode == 4210 || $mode == 4900 || $mode == 8900 || $mode == 10000 || $mode == 10200 || $mode == 10900 || $mode == 11900 || $mode == 12000 || $mode == 12100 || $mode == 18100)
+    elsif (is_in_array ($mode, $COMMON_DEFAULT_SALTED_MODES)
+        || $mode ==  1411 || $mode ==  1711 || $mode ==  3711 || $mode ==  3800
+        || $mode ==  4900 || $mode ==  8900 || $mode == 10000 || $mode == 10200
+        || $mode == 10900 || $mode == 11900 || $mode == 12000 || $mode == 12100)
     {
       my $salt_len = get_random_num (1, 15);
 
@@ -3572,7 +3762,10 @@ sub passthrough
 
       $tmp_hash = gen_hash ($mode, $word_buf, substr ($salt_buf, 0, $salt_len));
     }
-    elsif ($mode == 111 || $mode == 122 || $mode == 131 || $mode == 132 || $mode == 400 || $mode == 500 || $mode == 1600 || $mode == 1722 || $mode == 1731 || $mode == 1800 || $mode == 6300 || $mode == 7900 || $mode == 8100 || $mode == 11100)
+    elsif ($mode ==  111 || $mode ==   122 || $mode ==  131 || $mode ==  132
+        || $mode ==  400 || $mode ==   500 || $mode == 1600 || $mode == 1722
+        || $mode == 1731 || $mode ==  1800 || $mode == 6300 || $mode == 7900
+        || $mode == 8100 || $mode == 11100)
     {
       $tmp_hash = gen_hash ($mode, $word_buf, substr ($salt_buf, 0, 8));
     }
@@ -4054,6 +4247,17 @@ sub passthrough
     {
       $tmp_hash = gen_hash ($mode, $word_buf, substr ($salt_buf, 0, 64));
     }
+    elsif ($mode == 18200)
+    {
+      $salt_buf = get_random_kerberos5_as_rep_salt ();
+
+      $tmp_hash = gen_hash ($mode, $word_buf, $salt_buf);
+    }
+    elsif ($mode == 18300)
+    {
+      $tmp_hash = gen_hash ($mode, $word_buf, substr ($salt_buf, 0, 32));
+    }
+    ## STEP 2c: Add your custom salt branch here
     else
     {
       print "ERROR: Unsupported hash type\n";
@@ -4071,14 +4275,16 @@ sub single
 
   if (defined $mode)
   {
-    @modes = ($mode);
+    @{$MODES} = ($mode);
   }
 
-  for (my $j = 0; $j < scalar @modes; $j++)
+  for (my $j = 0; $j < scalar @{$MODES}; $j++)
   {
-    my $mode = $modes[$j];
+    my $mode = $MODES->[$j];
 
-    if ($mode == 0 || $mode == 100 || $mode == 101 || $mode == 133 || $mode == 200 || $mode == 300 || $mode == 600 || $mode == 900 || $mode == 1000 || $mode == 1300 || $mode == 1400 || $mode == 1700 || $mode == 2600 || $mode == 3500 || $mode == 4300 || $mode == 4400 || $mode == 4500 || $mode == 4600 || $mode == 4700 || $mode == 5100 || $mode == 5300 || $mode == 5400 || $mode == 6000 || $mode == 6100 || $mode == 6600 || $mode == 6900 || $mode == 5700 || $mode == 8200 || $mode == 8300 || $mode == 9900 || $mode == 10800 || $mode == 11500 || $mode == 13300 || $mode == 16400 || $mode == 17300 || $mode == 17400 || $mode == 17500 || $mode == 17600 || $mode == 17700 || $mode == 17800 || $mode == 17900 || $mode == 18000 || $mode == 99999)
+    if (is_in_array ($mode, $COMMON_UNSALTED_MODES)
+     || $mode == 5300 || $mode == 5400 || $mode ==  6600
+     || $mode == 8200 || $mode == 8300 || $mode == 13300)
     {
       for (my $i = 1; $i < 32; $i++)
       {
@@ -4092,7 +4298,10 @@ sub single
         }
       }
     }
-    elsif ($mode == 10 || $mode == 20 || $mode == 23 || $mode == 30 || $mode == 40 || $mode == 50 || $mode == 60 || $mode == 110 || $mode == 120 || $mode == 121 || $mode == 130 || $mode == 140 || $mode == 150 || $mode == 160 || $mode == 1410 || $mode == 1411 || $mode == 1420 || $mode == 1430 || $mode == 1440 || $mode == 1450 || $mode == 1460 || $mode == 1710 || $mode == 1711 || $mode == 1720 || $mode == 1730 || $mode == 1740 || $mode == 1750 || $mode == 1760 || $mode == 3610 || $mode == 3710 || $mode == 3711 || $mode == 3720 || $mode == 3910 || $mode == 4010 || $mode == 4110 || $mode == 4210 || $mode == 8900 || $mode == 10000 || $mode == 10200 || $mode == 10900 || $mode == 11900 || $mode == 12000 || $mode == 12100 || $mode == 16500 || $mode == 18100)
+    elsif (is_in_array ($mode, $COMMON_DEFAULT_SALTED_MODES)
+        || $mode ==   121 || $mode ==  1411 || $mode ==  1711 || $mode ==  3711
+        || $mode ==  8900 || $mode == 10000 || $mode == 10200 || $mode == 10900
+        || $mode == 11900 || $mode == 12000 || $mode == 12100 || $mode == 16500)
     {
       my $salt_len = get_random_num (1, 15);
 
@@ -4136,7 +4345,10 @@ sub single
         }
       }
     }
-    elsif ($mode == 111 || $mode == 122 || $mode == 125 || $mode == 131 || $mode == 132 || $mode == 400 || $mode == 500 || $mode == 1600 || $mode == 1722 || $mode == 1731 || $mode == 6300 || $mode == 7900 || $mode == 8100 || $mode == 11100)
+    elsif ($mode ==  111 || $mode ==   122 || $mode ==  125 || $mode ==  131
+        || $mode ==  132 || $mode ==   400 || $mode ==  500 || $mode == 1600
+        || $mode == 1722 || $mode ==  1731 || $mode == 6300 || $mode == 7900
+        || $mode == 8100 || $mode == 11100)
     {
       for (my $i = 1; $i < 32; $i++)
       {
@@ -4164,7 +4376,10 @@ sub single
         }
       }
     }
-    elsif ($mode == 141 || $mode == 3300 || $mode == 1441 || $mode == 1800 || $mode == 3200 || $mode == 4800 || $mode == 6400 || $mode == 6500 || $mode == 6700 || $mode == 7400 || $mode == 8000 || $mode == 9100 || $mode == 12001 || $mode == 12200 || $mode == 15600)
+    elsif ($mode ==   141 || $mode ==  3300 || $mode ==  1441 || $mode == 1800
+        || $mode ==  3200 || $mode ==  4800 || $mode ==  6400 || $mode == 6500
+        || $mode ==  6700 || $mode ==  7400 || $mode ==  8000 || $mode == 9100
+        || $mode == 12001 || $mode == 12200 || $mode == 15600)
     {
       for (my $i = 1; $i < 32; $i++)
       {
@@ -5186,11 +5401,49 @@ sub single
         }
       }
     }
+    elsif ($mode == 18200)
+    {
+      for (my $i = 1; $i < 27; $i++)
+      {
+        if ($len != 0)
+        {
+          rnd ($mode, $len, 16);
+        }
+        else
+        {
+          rnd ($mode, $i, 16);
+        }
+      }
+    }
+    elsif ($mode == 18300)
+    {
+      for (my $i = 1; $i < 32; $i++)
+      {
+        if ($len != 0)
+        {
+          rnd ($mode, $len, 32);
+        }
+        else
+        {
+          rnd ($mode, $i, 32);
+        }
+      }
+    }
+    ## STEP 2c: Add your custom salt branch here
   }
 }
 
 exit;
 
+## STEP 3: Implement hash generation for your hash mode here.
+#
+# For an example of how to use python, see mode 11700.
+# For an example of how to use PHP, see mode 11900.
+#
+# Don't forget to add the modules you depend on to the
+# installation script.
+#
+##
 sub gen_hash
 {
   my $mode = shift;
@@ -7259,7 +7512,7 @@ sub gen_hash
 
     for (my $i = 0; $i < 32; $i++)
     {
-      $padding .= pack ("C", $pdf_padding[$i]);
+      $padding .= pack ("C", $PDF_PADDING->[$i]);
     }
 
     my $res = pdf_compute_encryption_key ($word_buf, $padding, $id, $u, $o, $P, 1, 2, 0);
@@ -7316,7 +7569,7 @@ sub gen_hash
 
     for (my $i = 0; $i < 32; $i++)
     {
-      $padding .= pack ("C", $pdf_padding[$i]);
+      $padding .= pack ("C", $PDF_PADDING->[$i]);
     }
 
     my $res = pdf_compute_encryption_key ($word_buf, $padding, $id, $u, $o, $P, $V, $R, $enc);
@@ -7844,6 +8097,109 @@ sub gen_hash
     }
 
     $tmp_hash = sprintf ("\$7z\$%i\$%i\$%i\$%s\$%i\$%08s\$%u\$%u\$%u\$%s", $p, $num_cycle_power, $seven_zip_salt_len, $seven_zip_salt_buf, $salt_len, unpack ("H*", $salt_buf), $hash_buf, $data_len, $unpack_size, unpack ("H*", $data_buf));
+  }
+  elsif ($mode == 11700)
+  {
+    # PyGOST outputs digests in little-endian order, while the kernels
+    # expect them in big-endian; hence the digest[::-1] mirroring.
+    # Using sys.stdout.write instead of print to disable \n character.
+    my $python_code = <<"END_CODE";
+
+import binascii
+import sys
+from pygost import gost34112012256
+digest = gost34112012256.new(b"$word_buf").digest()
+sys.stdout.write(binascii.hexlify(digest[::-1]))
+
+END_CODE
+
+    $tmp_hash = `python2 -c '$python_code'`;
+  }
+  elsif ($mode == 11750)
+  {
+    my $python_code = <<"END_CODE";
+
+import binascii
+import hmac
+import sys
+from pygost import gost34112012256
+key    = b"$word_buf"
+msg    = b"$salt_buf"
+digest = hmac.new(key, msg, gost34112012256).digest()
+sys.stdout.write(binascii.hexlify(digest[::-1]))
+
+END_CODE
+
+    $hash_buf = `python2 -c '$python_code'`;
+    $tmp_hash = sprintf ("%s:%s", $hash_buf, $salt_buf);
+  }
+  elsif ($mode == 11760)
+  {
+    my $python_code = <<"END_CODE";
+
+import binascii
+import hmac
+import sys
+from pygost import gost34112012256
+key    = b"$salt_buf"
+msg    = b"$word_buf"
+digest = hmac.new(key, msg, gost34112012256).digest()
+sys.stdout.write(binascii.hexlify(digest[::-1]))
+
+END_CODE
+
+    $hash_buf = `python2 -c '$python_code'`;
+    $tmp_hash = sprintf ("%s:%s", $hash_buf, $salt_buf);
+  }
+  elsif ($mode == 11800)
+  {
+    my $python_code = <<"END_CODE";
+
+import binascii
+import sys
+from pygost import gost34112012512
+digest = gost34112012512.new(b"$word_buf").digest()
+sys.stdout.write(binascii.hexlify(digest[::-1]))
+
+END_CODE
+
+    $tmp_hash = `python2 -c '$python_code'`;
+  }
+  elsif ($mode == 11850)
+  {
+    my $python_code = <<"END_CODE";
+
+import binascii
+import hmac
+import sys
+from pygost import gost34112012512
+key    = b"$word_buf"
+msg    = b"$salt_buf"
+digest = hmac.new(key, msg, gost34112012512).digest()
+sys.stdout.write(binascii.hexlify(digest[::-1]))
+
+END_CODE
+
+    $hash_buf = `python2 -c '$python_code'`;
+    $tmp_hash = sprintf ("%s:%s", $hash_buf, $salt_buf);
+  }
+  elsif ($mode == 11860)
+  {
+    my $python_code = <<"END_CODE";
+
+import binascii
+import hmac
+import sys
+from pygost import gost34112012512
+key    = b"$salt_buf"
+msg    = b"$word_buf"
+digest = hmac.new(key, msg, gost34112012512).digest()
+sys.stdout.write(binascii.hexlify(digest[::-1]))
+
+END_CODE
+
+    $hash_buf = `python2 -c '$python_code'`;
+    $tmp_hash = sprintf ("%s:%s", $hash_buf, $salt_buf);
   }
   elsif ($mode == 11900)
   {
@@ -9989,6 +10345,258 @@ END_CODE
     ## token must be leading zero padded, and salt leading zero stripped
     $tmp_hash = sprintf ("%06d:%d", $token, int ($salt_buf));
   }
+  elsif ($mode == 18200)
+  {
+    my @salt_arr = split (':', $salt_buf);
+
+    my $user_principal_name = $salt_arr[0];
+
+    my $k = md4 (encode ("UTF-16LE", $word_buf));
+
+    my $k1 = hmac_md5 ("\x08\x00\x00\x00", $k);
+
+    my $cleartext_ticket = '7981df3081dca01b3019a003020117a112041071e026814da2' .
+    '3f129f0e67a01b73f79aa11c301a3018a003020100a111180f32303138313033303039353' .
+    '831365aa206020460fdc6caa311180f32303337303931343032343830355aa40703050050' .
+    'c10000a511180f32303138313033303039353831365aa611180f323031383130333030393' .
+    '53831365aa711180f32303138313033303139353831365aa811180f323031383130333131' .
+    '30303433385aa90d1b0b545952454c4c2e434f5250aa20301ea003020101a11730151b066' .
+    'b72627467741b0b545952454c4c2e434f5250';
+    my $checksum = "";
+
+    if (defined $additional_param)
+    {
+      $checksum = pack ("H*", $additional_param);
+    }
+    else
+    {
+      my $nonce = $salt_arr[1];
+
+      $cleartext_ticket = $nonce . $cleartext_ticket;
+
+      $checksum = hmac_md5 (pack ("H*", $cleartext_ticket), $k1);
+    }
+
+    my $k3 = hmac_md5 ($checksum, $k1);
+
+    my $edata2 = "";
+
+    if (defined $additional_param2)
+    {
+      $edata2 = $additional_param2;
+
+      my $cipher_decrypt = Crypt::RC4->new ($k3);
+
+      my $ticket_decrypt = unpack ("H*", $cipher_decrypt->RC4 (pack ("H*", $edata2)));
+
+      my $check_correct  = ((substr ($ticket_decrypt, 16, 4) eq "7981" && substr ($ticket_decrypt, 22, 2) eq "30")) ||
+                           ((substr ($ticket_decrypt, 16, 2) eq "79") && (substr ($ticket_decrypt, 20, 2) eq "30")) ||
+                           ((substr ($ticket_decrypt, 16, 4) eq "7982")  && (substr ($ticket_decrypt, 24, 2) eq "30"));
+
+      if ($check_correct == 1)
+      {
+        $cleartext_ticket = $ticket_decrypt;
+      }
+      else # validation failed
+      {
+        # fake/wrong ticket (otherwise if we just decrypt/encrypt we end up with false positives all the time)
+        $cleartext_ticket = "0" x (length ($cleartext_ticket) + 16);
+      }
+    }
+
+    my $cipher = Crypt::RC4->new ($k3);
+
+    $edata2 = $cipher->RC4 (pack ("H*", $cleartext_ticket));
+
+    $tmp_hash = sprintf ('$krb5asrep$23$%s:%s$%s', $user_principal_name, unpack ("H*", $checksum), unpack ("H*", $edata2));
+  }
+  elsif ($mode == 18300)
+  {
+    my $salt_bin = pack ("H*", $salt_buf);
+
+    my $iterations = 20000;
+
+    if (defined ($iter))
+    {
+      $iterations = $iter;
+    }
+
+    my $Z_PK = 2;
+
+    if (defined $additional_param)
+    {
+      $Z_PK = $additional_param;
+    }
+
+    my $pbkdf2 = Crypt::PBKDF2->new
+    (
+      hasher     => Crypt::PBKDF2->hasher_from_algorithm ('HMACSHA2', 256),
+      iterations => $iterations,
+      output_len => 32,
+    );
+
+    my $KEK = $pbkdf2->PBKDF2 ($salt_bin, $word_buf);
+
+    my $aes = Crypt::Mode::ECB->new ('AES', 0);
+
+    my $blob_bin;
+
+    my $A;
+    my $B;
+    my $P1;
+    my $P2;
+    my $P3;
+    my $P4;
+
+    if (defined $additional_param2)
+    {
+      $blob_bin = pack ("H*", $additional_param2);
+
+      $A  = substr ($blob_bin,  0, 8);
+      $P1 = substr ($blob_bin,  8, 8);
+      $P2 = substr ($blob_bin, 16, 8);
+      $P3 = substr ($blob_bin, 24, 8);
+      $P4 = substr ($blob_bin, 32, 8);
+
+      for (my $j = 5; $j >= 0; $j--)
+      {
+        # N = 4
+
+        $B  = $A;
+        $B ^= pack ("Q>", (4 * $j + 4));
+        $B .= $P4;
+        $B  = $aes->decrypt ($B, $KEK);
+        $A  = substr ($B, 0, 8);
+        $P4 = substr ($B, 8, 8);
+
+        # N = 3
+
+        $B  = $A;
+        $B ^= pack ("Q>", (4 * $j + 3));
+        $B .= $P3;
+        $B  = $aes->decrypt ($B, $KEK);
+        $A  = substr ($B, 0, 8);
+        $P3 = substr ($B, 8, 8);
+
+        # N = 2
+
+        $B  = $A;
+        $B ^= pack ("Q>", (4 * $j + 2));
+        $B .= $P2;
+        $B  = $aes->decrypt ($B, $KEK);
+        $A  = substr ($B, 0, 8);
+        $P2 = substr ($B, 8, 8);
+
+        # N = 1
+
+        $B  = $A;
+        $B ^= pack ("Q>", (4 * $j + 1));
+        $B .= $P1;
+        $B  = $aes->decrypt ($B, $KEK);
+        $A  = substr ($B, 0, 8);
+        $P1 = substr ($B, 8, 8);
+      }
+
+      if ($A eq "\xa6" x 8)
+      {
+        for (my $j = 0; $j <= 5; $j++)
+        {
+          # N = 1
+
+          $B  = $A;
+          $B .= $P1;
+          $B  = $aes->encrypt ($B, $KEK);
+          $A  = substr ($B, 0, 8);
+          $A ^= pack ("Q>", (4 * $j + 1));
+          $P1 = substr ($B, 8, 8);
+
+          # N = 2
+
+          $B  = $A;
+          $B .= $P2;
+          $B  = $aes->encrypt ($B, $KEK);
+          $A  = substr ($B, 0, 8);
+          $A ^= pack ("Q>", (4 * $j + 2));
+          $P2 = substr ($B, 8, 8);
+
+          # N = 3
+
+          $B  = $A;
+          $B .= $P3;
+          $B  = $aes->encrypt ($B, $KEK);
+          $A  = substr ($B, 0, 8);
+          $A ^= pack ("Q>", (4 * $j + 3));
+          $P3 = substr ($B, 8, 8);
+
+          # N = 4
+
+          $B  = $A;
+          $B .= $P4;
+          $B  = $aes->encrypt ($B, $KEK);
+          $A  = substr ($B, 0, 8);
+          $A ^= pack ("Q>", (4 * $j + 4));
+          $P4 = substr ($B, 8, 8);
+        }
+
+        $blob_bin = $A . $P1 . $P2 . $P3 . $P4;
+      }
+      else
+      {
+        $blob_bin = "\xff" x 40;
+      }
+    }
+    else
+    {
+      $A  = "\xa6" x 8;
+      $P1 = "\xff" x 8;
+      $P2 = "\xff" x 8;
+      $P3 = "\xff" x 8;
+      $P4 = "\xff" x 8;
+
+      for (my $j = 0; $j <= 5; $j++)
+      {
+        # N = 1
+
+        $B  = $A;
+        $B .= $P1;
+        $B  = $aes->encrypt ($B, $KEK);
+        $A  = substr ($B, 0, 8);
+        $A ^= pack ("Q>", (4 * $j + 1));
+        $P1 = substr ($B, 8, 8);
+
+        # N = 2
+
+        $B  = $A;
+        $B .= $P2;
+        $B  = $aes->encrypt ($B, $KEK);
+        $A  = substr ($B, 0, 8);
+        $A ^= pack ("Q>", (4 * $j + 2));
+        $P2 = substr ($B, 8, 8);
+
+        # N = 3
+
+        $B  = $A;
+        $B .= $P3;
+        $B  = $aes->encrypt ($B, $KEK);
+        $A  = substr ($B, 0, 8);
+        $A ^= pack ("Q>", (4 * $j + 3));
+        $P3 = substr ($B, 8, 8);
+
+        # N = 4
+
+        $B  = $A;
+        $B .= $P4;
+        $B  = $aes->encrypt ($B, $KEK);
+        $A  = substr ($B, 0, 8);
+        $A ^= pack ("Q>", (4 * $j + 4));
+        $P4 = substr ($B, 8, 8);
+      }
+
+      $blob_bin = $A . $P1 . $P2 . $P3 . $P4;
+    }
+
+    $tmp_hash = sprintf ('$fvde$%d$%d$%s$%d$%s', $Z_PK, length ($salt_bin), unpack ("H*", $salt_bin), $iterations, unpack ("H*", $blob_bin));
+  }
   elsif ($mode == 99999)
   {
     $tmp_hash = sprintf ("%s", $word_buf);
@@ -10020,6 +10628,7 @@ sub dpapi_pbkdf2
     return substr ($t, 0, $keylen);
 }
 
+## STEP 4: Add custom traits here (optional).
 sub rnd
 {
   my $mode = shift;
@@ -10035,24 +10644,24 @@ sub rnd
     $salt_len = min ($salt_len, 4);
   }
 
-  if ($is_utf16le{$mode})
+  if (is_in_array ($mode, $IS_UTF16LE))
   {
-    if (! $allow_long_salt{$mode})
-    {
-      $word_len = min ($word_len, int ($max / 2) - $salt_len);
-    }
-    else
+    if (is_in_array ($mode, $ALLOW_LONG_SALT))
     {
       $word_len = min ($word_len, int ($max / 2));
     }
+    else
+    {
+      $word_len = min ($word_len, int ($max / 2) - $salt_len);
+    }
   }
-  elsif ($less_fifteen{$mode})
+  elsif (is_in_array ($mode, $LESS_FIFTEEN))
   {
     $word_len = min ($word_len, 15);
   }
   else
   {
-    if (! $allow_long_salt{$mode})
+    if (! is_in_array ($mode, $ALLOW_LONG_SALT))
     {
       $word_len = min ($word_len, $max - $salt_len);
     }
@@ -10138,6 +10747,10 @@ sub rnd
   elsif ($mode == 16500)
   {
     $salt_buf = get_random_jwt_salt ();
+  }
+  elsif ($mode == 18200)
+  {
+    $salt_buf = get_random_kerberos5_as_rep_salt ();
   }
   else
   {
@@ -11424,6 +12037,16 @@ sub get_random_kerberos5_tgs_salt
   return $salt_buf;
 }
 
+sub get_random_kerberos5_as_rep_salt
+{
+  my $nonce = randbytes (8);
+
+  my $user_principal_name  = "user\@domain.com";
+  my $salt_buf = $user_principal_name . ":" . unpack ("H*", $nonce);
+
+  return $salt_buf;
+}
+
 sub get_random_axcrypt_salt
 {
   my $mysalt = randbytes (16);
@@ -11944,7 +12567,7 @@ sub lotus_mix
     {
       $p = ($p + 48 - $j) & 0xff;
 
-      my $c = $lotus_magic_table[$p];
+      my $c = $LOTUS_MAGIC_TABLE->[$p];
 
       $p = $in_ref->[$j] ^ $c;
 
@@ -11964,7 +12587,7 @@ sub lotus_transform_password
   {
     $t ^= $in_ref->[$i];
 
-    my $c = $lotus_magic_table[$t];
+    my $c = $LOTUS_MAGIC_TABLE->[$t];
 
     $out_ref->[$i] ^= $c;
 

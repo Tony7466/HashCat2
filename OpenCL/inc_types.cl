@@ -1294,12 +1294,33 @@ typedef struct krb5tgs
 
 } krb5tgs_t;
 
+typedef struct krb5asrep
+{
+  u32 account_info[512];
+  u32 checksum[4];
+  u32 edata2[5120];
+  u32 edata2_len;
+
+} krb5asrep_t;
+
+typedef struct keyboard_layout_mapping
+{
+  u32 src_char;
+  int src_len;
+  u32 dst_char;
+  int dst_len;
+
+} keyboard_layout_mapping_t;
+
 typedef struct tc
 {
   u32 salt_buf[32];
   u32 data_buf[112];
   u32 keyfile_buf[16];
   u32 signature;
+
+  keyboard_layout_mapping_t keyboard_layout_mapping_buf[256];
+  int                       keyboard_layout_mapping_cnt;
 
 } tc_t;
 
@@ -1704,6 +1725,19 @@ typedef struct tc64_tmp
   u64  out[32];
 
 } tc64_tmp_t;
+
+typedef struct vc64_sbog_tmp
+{
+  u64  ipad_raw[8];
+  u64  opad_raw[8];
+
+  u64  ipad_hash[8];
+  u64  opad_hash[8];
+
+  u64  dgst[32];
+  u64  out[32];
+
+} vc64_sbog_tmp_t;
 
 typedef struct pbkdf1_sha1_tmp
 {

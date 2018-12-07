@@ -12,7 +12,7 @@
 #include "inc_common.cl"
 #include "inc_hash_md5.cl"
 
-__kernel void m16100_mxx (__global pw_t *pws, __global const kernel_rule_t *rules_buf, __global const pw_t *combs_buf, __global const bf_t *bfs_buf, __global void *tmps, __global void *hooks, __global const u32 *bitmaps_buf_s1_a, __global const u32 *bitmaps_buf_s1_b, __global const u32 *bitmaps_buf_s1_c, __global const u32 *bitmaps_buf_s1_d, __global const u32 *bitmaps_buf_s2_a, __global const u32 *bitmaps_buf_s2_b, __global const u32 *bitmaps_buf_s2_c, __global const u32 *bitmaps_buf_s2_d, __global plain_t *plains_buf, __global const digest_t *digests_buf, __global u32 *hashes_shown, __global const salt_t *salt_bufs, __global const tacacs_plus_t *esalt_bufs, __global u32 *d_return_buf, __global u32 *d_scryptV0_buf, __global u32 *d_scryptV1_buf, __global u32 *d_scryptV2_buf, __global u32 *d_scryptV3_buf, const u32 bitmap_mask, const u32 bitmap_shift1, const u32 bitmap_shift2, const u32 salt_pos, const u32 loop_pos, const u32 loop_cnt, const u32 il_cnt, const u32 digests_cnt, const u32 digests_offset, const u32 combs_mode, const u64 gid_max)
+__kernel void m16100_mxx (KERN_ATTR_ESALT (tacacs_plus_t))
 {
   /**
    * modifier
@@ -55,7 +55,7 @@ __kernel void m16100_mxx (__global pw_t *pws, __global const kernel_rule_t *rule
 
   md5_update_64 (&ctx0, session0, session1, session2, session3, 4);
 
-  md5_update_global (&ctx0, pws[gid].i, pws[gid].pw_len);
+  md5_update_global (&ctx0, pws[gid].i, pws[gid].pw_len & 255);
 
   u32 ct_buf[2];
 
@@ -74,7 +74,7 @@ __kernel void m16100_mxx (__global pw_t *pws, __global const kernel_rule_t *rule
   {
     md5_ctx_t ctx = ctx0;
 
-    md5_update_global (&ctx, combs_buf[il_pos].i, combs_buf[il_pos].pw_len);
+    md5_update_global (&ctx, combs_buf[il_pos].i, combs_buf[il_pos].pw_len & 255);
 
     u32 sequence0[4];
     u32 sequence1[4];
@@ -170,7 +170,7 @@ __kernel void m16100_mxx (__global pw_t *pws, __global const kernel_rule_t *rule
   }
 }
 
-__kernel void m16100_sxx (__global pw_t *pws, __global const kernel_rule_t *rules_buf, __global const pw_t *combs_buf, __global const bf_t *bfs_buf, __global void *tmps, __global void *hooks, __global const u32 *bitmaps_buf_s1_a, __global const u32 *bitmaps_buf_s1_b, __global const u32 *bitmaps_buf_s1_c, __global const u32 *bitmaps_buf_s1_d, __global const u32 *bitmaps_buf_s2_a, __global const u32 *bitmaps_buf_s2_b, __global const u32 *bitmaps_buf_s2_c, __global const u32 *bitmaps_buf_s2_d, __global plain_t *plains_buf, __global const digest_t *digests_buf, __global u32 *hashes_shown, __global const salt_t *salt_bufs, __global const tacacs_plus_t *esalt_bufs, __global u32 *d_return_buf, __global u32 *d_scryptV0_buf, __global u32 *d_scryptV1_buf, __global u32 *d_scryptV2_buf, __global u32 *d_scryptV3_buf, const u32 bitmap_mask, const u32 bitmap_shift1, const u32 bitmap_shift2, const u32 salt_pos, const u32 loop_pos, const u32 loop_cnt, const u32 il_cnt, const u32 digests_cnt, const u32 digests_offset, const u32 combs_mode, const u64 gid_max)
+__kernel void m16100_sxx (KERN_ATTR_ESALT (tacacs_plus_t))
 {
   /**
    * modifier
@@ -213,7 +213,7 @@ __kernel void m16100_sxx (__global pw_t *pws, __global const kernel_rule_t *rule
 
   md5_update_64 (&ctx0, session0, session1, session2, session3, 4);
 
-  md5_update_global (&ctx0, pws[gid].i, pws[gid].pw_len);
+  md5_update_global (&ctx0, pws[gid].i, pws[gid].pw_len & 255);
 
   u32 ct_buf[2];
 
@@ -232,7 +232,7 @@ __kernel void m16100_sxx (__global pw_t *pws, __global const kernel_rule_t *rule
   {
     md5_ctx_t ctx = ctx0;
 
-    md5_update_global (&ctx, combs_buf[il_pos].i, combs_buf[il_pos].pw_len);
+    md5_update_global (&ctx, combs_buf[il_pos].i, combs_buf[il_pos].pw_len & 255);
 
     u32 sequence0[4];
     u32 sequence1[4];

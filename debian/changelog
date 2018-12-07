@@ -1,3 +1,13 @@
+hashcat (5.1.0+ds1-1) UNRELEASED; urgency=medium
+
+  * Team upload.
+  * New upstream version 5.1.0
+  * Exclude from tarball deps/OpenCL* and deps/xxhash
+  * Refresh patches and remove use-system-libxxhash.patch
+  * d/rules: Use system libraries
+
+ -- Sophie Brun <sophie@offensive-security.com>  Fri, 07 Dec 2018 10:44:05 +0100
+
 hashcat (5.0.0-1) unstable; urgency=medium
 
   [ Sophie Brun ]

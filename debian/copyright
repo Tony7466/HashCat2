@@ -11,7 +11,7 @@ License: Expat
 Files: debian/*
 Copyright: 2016 Daniel Echeverry <epsilon77@gmail.com>
            2016 Sophie Brun <sophie@freexian.com>
-           2017 Samuel Henrique <samueloph@gmail.com>
+           2017 Samuel Henrique <samueloph@debian.org>
 License: Expat
 
 Files: OpenCL/m01500_a3-pure.cl OpenCL/m03000_a3-pure.cl

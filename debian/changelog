@@ -179,7 +179,7 @@ hashcat (3.00-1) unstable; urgency=medium
     + Remove override_dh_installman because isn't necessary
     + Add override_dh_fixperms to fix some lintian warning
   * Add README.Debian File
-    
+
  -- Daniel Echeverry <epsilon77@gmail.com>  Thu, 30 Jun 2016 11:07:00 -0500
 
 hashcat (2.00-2) unstable; urgency=medium

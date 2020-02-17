@@ -3,7 +3,7 @@ Section: net
 Priority: optional
 Maintainer: Debian Security Tools <team+pkg-security@tracker.debian.org>
 Uploaders: Daniel Echeverry <epsilon77@gmail.com>
-Build-Depends: debhelper (>= 11),
+Build-Depends: debhelper-compat (= 12),
                libgmp-dev,
                libxxhash-dev,
                opencl-headers

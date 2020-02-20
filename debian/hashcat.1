@@ -4,7 +4,7 @@
 .\" First parameter, NAME, should be all caps
 .\" Second parameter, SECTION, should be 1-8, maybe w/ subsection
 .\" other parameters are allowed: see man(7), man(1)
-.TH Hashcat 1 "March 28 2016"
+.TH Hashcat 1 "February 20 2020"
 .\" Please adjust this date whenever revising the manpage.
 .\"
 .\" Some roff macros, for reference:
@@ -50,6 +50,24 @@ Attack-mode, see references below
 .B \-\-quiet 
 Suppress output
 .TP
+.B \-\-force
+Ignore warnings
+.TP
+.B \-\-stdin\-timeout\-abort
+Abort if there is no input from stdin for X seconds
+.TP
+.B \-\-machine\-readable
+Display the status view in a machine-readable format
+.TP
+.B \-\-keep\-guessing
+Keep guessing the hash after it has been cracked
+.TP
+.B \-\-self\-test\-disable
+Disable self\-test functionality on startup
+.TP
+.B \-\-loopback
+Add new plains to induct directory
+.TP
 .B \-b, \-\-benchmark
 Run benchmark
 .TP
@@ -59,6 +77,9 @@ Assume salt is given in hex
 .B \-\-hex\-charset
 Assume charset is given in hex
 .TP
+.B \-\-hex\-wordlist
+Assume words in wordlist are given in hex
+.TP
 .B \-\-runtime=NUM
 Abort session after NUM seconds of runtime
 .TP
@@ -67,9 +88,6 @@ Enable automatic update of the status-screen
 .TP
 .B \-\-status\-timer=NUM
 Seconds between status-screen update
-.TP
-.B \-\-status\-automat 
-Display the status view in a machine readable format
 .TP
 .B \-o, \-\-outfile=FILE
 Define outfile for recovered hash
@@ -107,20 +125,8 @@ Defines the debug mode (hybrid only by using rules), see references below
 .B \-\-debug\-file=FILE
 Output file for debugging rules (see \-\-debug\-mode)
 .TP
-.B \-e, \-\-salt-file=FILE
-Salts-file for unsalted hashlists
-.TP
 .B \-c, \-\-segment\-size=NUM
 Size in MB to cache from the wordfile
-.TP
-.B \-n, \-\-threads=NUM
-Number of threads
-.TP
-.B \-s, \-\-words\-skip=NUM
-Skip number of words (for resume)
-.TP
-.B \-l, \-\-words\-limit=NUM
-Limit number of words (for distributed)
 .TP
 .B \-r, \-\-rules\-file=FILE
 Rules-file use: \-r 1.rule
@@ -138,17 +144,16 @@ Force NUM functions per random rule max
 Force RNG seed to NUM
 .TP
 .B \-1, \-\-custom\-charset1=CS 
-User-defined charsets example \-\-custom\-charset1=?dabcdef : sets charset ?1 to 0123456789abcdef \-2 mycharset.hcchr : sets charset ?2 to chars contained in file
+User-defined charsets example \-\-custom\-charset1=?dabcdef : sets charset ?1 to 0123456789abcdef \-1 mycharset.hcchr : sets charset ?1 to chars contained in file
 .TP
 .B \-2, \-\-custom\-charset2=CS 
-User-defined charsets example \-\-custom\-charset1=?dabcdef : sets charset ?1 to 0123456789abcdef \-2 mycharset.hcchr : sets charset ?2 to chars con$
+User-defined charsets example \-\-custom\-charset2=?dabcdef : sets charset ?2 to 0123456789abcdef \-2 mycharset.hcchr : sets charset ?2 to chars con$
 .TP
-.B \-\-toogle\-min=NUM 
-Number of alphas in dictionary minimum
+.B \-3, \-\-custom\-charset3=CS
+User-defined charsets example \-\-custom\-charset3=?dabcdef : sets charset ?3 to 0123456789abcdef \-3 mycharset.hcchr : sets charset ?3 to chars con$
 .TP
-.B \-\-toogle\-max=NUM 
-Number of alphas in dictionary maximum
-.SH mass\-attack options
+.B \-4, \-\-custom\-charset4=CS
+User-defined charsets example \-\-custom\-charset4=?dabcdef : sets charset ?4 to 0123456789abcdef \-4 mycharset.hcchr : sets charset ?4 to chars con$
 .TP 
 .B \-\-increment
 Enable increment mode
@@ -158,45 +163,181 @@ Start incrementing at NUM
 .TP 
 .B \-\-increment\-max=NUM
 Stop incrementing at NUM
+.TP
+.B \-\-markov\-hcstat2
+Specify hcstat2 file to use
+.TP
+.B \-\-markov\-disable
+Disables markov\-chains, emulates classic brute\-force
+.TP
+.B \-\-markov\-classic
+Enables classic markov\-chains, no per\-position
+.TP
+.B \-t, \-\-markov\-threshold
+Threshold X when to stop accepting new markov\-chains
+.TP
+.B \-\-session=STR
+Define specific session name
+.TP
+.B \-\-restore
+Restore session from --session
+.TP
+.B \-\-restore\-disable
+Do not write restore file
+.TP
+.B \-\-restore\-file\-path=FILE
+Specific path to restore file
+.TP
+.B \-\-outfile\-check\-timer=NUM
+Sets seconds between outfile checks to X
+.TP
+.B \-\-wordlist\-autohex\-disable
+Disable the conversion of $HEX[] from the wordlist
+.TP
+.B \-\-remove\-timer=NUM
+Update input hash file each X seconds
+.TP
+.B \-\-potfile\-path=FILE
+Specific path to potfile
+.TP
+.B \-\-encoding\-from=CODE
+Force internal wordlist encoding from X
+.TP
+.B \-\-encoding\-to=CODE
+Force internal wordlist encoding to X
+.TP
+.B \-\-induction\-dir=DIR
+Specify the induction directory to use for loopback
+.TP
+.B \-\-outfile\-check\-dir=DIR
+Specify the outfile directory to monitor for plains
+.TP
+.B \-\-logfile\-disable
+Disable the logfile
+.TP
+.B \-\-hccapx\-message\-pair=NUM
+Load only message pairs from hccapx matching X
+.TP
+.B \-\-nonce\-error\-corrections=NUM
+The BF size range to replace AP's nonce last bytes
+.TP
+.B \-\-keyboard\-layout\-mapping=FILE
+Keyboard layout mapping table for special hash\-modes
+.TP
+.B \-\-truecrypt\-keyfiles=FILE
+Keyfiles to use, separated with commas
+.TP
+.B \-\-veracrypt\-keyfiles=FILE
+Keyfiles to use, separated with commas
+.TP
+.B \-\-veracrypt\-pim=NUM
+VeraCrypt personal iterations multiplier
+.TP
+.B \-\-benchmark\-all
+Run benchmark of all hash\-modes
+.TP
+.B \-\-speed\-only
+Return expected speed of the attack, then quit
+.TP
+.B \-\-progress\-only
+Return ideal progress step size and time to process
+.TP
+.B \-\-bitmap\-min=NUM
+Sets minimum bits allowed for bitmaps to X
+.TP
+.B \-\-bitmap\-max=NUM
+Sets maximum bits allowed for bitmaps to X
+.TP
+.B \-\-cpu\-affinity=STR
+Locks to CPU devices, separated with commas
+.TP
+.B \-\-example\-hashes
+Show an example hash for each hash-mode
+.TP
+.B \-I, \-\-opencl\-info
+Show info about detected OpenCL platforms/devices
+.TP
+.B \-\-opencl\-platforms=STR
+OpenCL platforms to use, separated with commas
+.TP
+.B \-d, \-\-opencl\-devices=STR
+OpenCL devices to use, separated with commas
+.TP
+.B \-D, \-\-opencl\-device\-types=STR
+OpenCL device\-types to use, separated with commas
+.TP
+.B \-\-opencl\-vector\-width=NUM
+Manually override OpenCL vector\-width to X
+.TP
+.B \-O, \-\-optimized\-kernel\-enable
+Enable optimized kernels (limits password length)
+.TP
+.B \-w, \-\-workload\-profile=NUM
+Enable a specific workload profile, see pool below
+.TP
+.B \-n, \-\-kernel\-accel=NUM
+Manual workload tuning, set outerloop step size to X
+.TP
+.B \-u, \-\-kernel\-loops=NUM
+Manual workload tuning, set innerloop step size to X
+.TP
+.B \-T, \-\-kernel\-threads=NUM
+Manual workload tuning, set thread count to X
+.TP
+.B \-\-spin\-damp=NUM
+Use CPU for device synchronization, in percent
+.TP
+.B \-\-hwmon\-disable
+Disable temperature and fanspeed reads and triggers
+.TP
+.B \-\-hwmon\-temp\-abort=NUM
+Abort if temperature reaches X degrees Celsius
+.TP
+.B \-\-scrypt\-tmto=NUM
+Manually override TMTO value for scrypt to X
+.TP
+.B \-s, \-\-skip=NUM
+Skip X words from the start
+.TP
+.B \-l, \-\-limit=NUM
+Limit X words from the start + skipped words
+.TP
+.B \-\-keyspace
+Show keyspace base:mod values and quit
+.TP
+.B \-j, \-\-rule\-left RULE
+Single rule applied to each word from left wordlist
+.TP
+.B \-k, \-\-rule\-right RULE
+Single rule applied to each word from right wordlist
+.TP
+.B \-S, \-\-slow\-candidates
+Enable slower (but advanced) candidate generators
+.TP
+.B \-\-brain\-server
+Enable brain server
+.TP
+.B \-z, \-\-brain\-client
+Enable brain client, activates -S
+.TP
+.B \-\-brain\-client\-features=NUM
+Define brain client features, see below
+.TP
+.B \-\-brain\-host=STR
+Brain server host (IP or domain)
+.TP
+.B \-\-brain\-port=PORT
+Brain server port
+.TP
+.B \-\-brain\-password=STR
+Brain server authentication password
+.TP
+.B \-\-brain\-session=HEX
+Overrides automatically calculated brain session
+.TP
+.B \-\-brain\-session\-whitelist=HEX
+Allow given sessions only, separated with commas
 .SH Permutation attack\-mode options
-.TP 
-.B \-\-perm\-min=NUM
-Filter words shorter than NUM
-.TP 
-.B \-\-perm\-max=NUM
-Filter words larger than NUM
-.SH Table\-Lookup attack\-mode options
-.TP 
-.B \-t, \-\-table\-file=FILE
-Table file
-.TP 
-.B \-\-table\-min=NUM
-Number of chars in dictionary minimum
-.TP 
-.B \-\-table\-max=NUM
-Number of chars in dictionary maximum
-.SH Prince attack\-mode options
-.TP
-.B \-\-pw\-min=NUM
-Print candidate if length is greater than NUM
-.TP
-.B \-\-pw\-max=NUM
-Print candidate if length is smaller than NUM
-.TP
-.B \-\-element\-cnt\-min=NUM
-Minimum number of elements per chain
-.TP
-.B \-\-element\-cnt\-max=NUM
-Maximum number of elements per chain
-.TP
-.B \-\-wl\-dist\-len
-Calculate output length distribution from wordlist
-.TP
-.B \-\-wl\-max=NUM
-Load only NUM words from input wordlist or use 0 to disable
-.TP
-.B \-\-case\-permute=NUM
-For each word in the wordlist that begins with a letter generate a word with the opposite case of the first letter
 .PP
 .PP
 .SH Outfile formats
@@ -217,19 +358,19 @@ For each word in the wordlist that begins with a letter generate a word with the
 .br
  8 = crackpos
 .br
- 9 = hash[:salt]:crackpos
+ 9 = hash[:salt]:crack_pos
 .br
- 10 = plain:crackpos
+ 10 = plain:crack_pos
 .br
- 11 = hash[:salt]:plain:crackpos
+ 11 = hash[:salt]:plain:crack_pos
 .br
- 12 = hex_plain:crackpos
+ 12 = hex_plain:crack_pos
 .br
- 13 = hash[:salt]:hex_plain:crackpos
+ 13 = hash[:salt]:hex_plain:crack_pos
 .br
- 14 = plain:hex_plain:crackpos
+ 14 = plain:hex_plain:crack_pos
 .br
- 15 = hash[:salt]:plain:hex_plain:crackpos
+ 15 = hash[:salt]:plain:hex_plain:crack_pos
 .SH Debug mode output formats (for hybrid mode only, by using rules)
 .PP
  1 = save finding rule
@@ -247,6 +388,10 @@ For each word in the wordlist that begins with a letter generate a word with the
 .br
 ?d = 0123456789
 .br
+?h = 0123456789abcdef
+.br
+?H = 0123456789ABCDEF
+.br
 ?s =  !"#$%&'()*+,\-./:;<=>?@[\]^_`{|}~
 .br
 ?a = ?l?u?d?s
@@ -258,15 +403,11 @@ For each word in the wordlist that begins with a letter generate a word with the
 .br
 1 = Combination
 .br
-2 = Toggle\-Case
-.br
 3 = Brute\-force
 .br
-4 = Permutation
+6 = Hybrid Wordlist + Mask
 .br
-5 = Table\-Lookup
-.br
-8 = Prince
+7 = Hybrid Mask + Wordlist
 .SH Hash types
 .PP
 0 = MD5

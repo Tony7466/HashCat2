@@ -1,3 +1,26 @@
+hashcat (5.1.0+ds1-2) UNRELEASED; urgency=medium
+
+  * Team upload.
+
+  [ Samuel Henrique ]
+  * Add salsa-ci.yml
+  * Fix my name in changelog
+  * Configure git-buildpackage
+
+  [ Debian Janitor ]
+  * Trim trailing whitespace.
+  * Bump debhelper from old 11 to 12.
+  * Set debhelper-compat version in Build-Depends.
+  * Set upstream metadata fields: Bug-Database, Bug-Submit.
+
+  [ Sophie Brun ]
+  * Add arm64 and armhf in supported arch (see
+    https://bugs.kali.org/view.php?id=6010)
+  * Update manpage (Closes: #922811)
+  * Bump Standards-Version to 4.5.0
+
+ -- Sophie Brun <sophie@offensive-security.com>  Thu, 20 Feb 2020 15:10:37 +0100
+
 hashcat (5.1.0+ds1-1) unstable; urgency=medium
 
   * Team upload.

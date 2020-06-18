@@ -5,6 +5,7 @@ Maintainer: Debian Security Tools <team+pkg-security@tracker.debian.org>
 Uploaders: Daniel Echeverry <epsilon77@gmail.com>
 Build-Depends: debhelper-compat (= 12),
                libgmp-dev,
+	       libminizip-dev,
                libxxhash-dev,
 	       zlib1g-dev,
                opencl-headers

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 ##
 ## Author......: See docs/credits.txt
@@ -14,6 +14,7 @@ cpan install Authen::Passphrase::LANManager \
              Authen::Passphrase::MySQL323   \
              Authen::Passphrase::NTHash     \
              Authen::Passphrase::PHPass     \
+             Compress::Zlib                 \
              Convert::EBCDIC                \
              Crypt::CBC                     \
              Crypt::DES                     \
@@ -21,9 +22,13 @@ cpan install Authen::Passphrase::LANManager \
              Crypt::Digest::Whirlpool       \
              Crypt::ECB                     \
              Crypt::Eksblowfish::Bcrypt     \
+             Crypt::GCrypt                  \
+             Crypt::Mode::CBC               \
              Crypt::Mode::ECB               \
              Crypt::MySQL                   \
              Crypt::OpenSSH::ChachaPoly     \
+             Crypt::OpenSSL::EC             \
+             Crypt::OpenSSL::Bignum::CTX    \
              Crypt::PBKDF2                  \
              Crypt::RC4                     \
              Crypt::Rijndael                \
@@ -31,6 +36,7 @@ cpan install Authen::Passphrase::LANManager \
              Crypt::Skip32                  \
              Crypt::Twofish                 \
              Crypt::UnixCrypt_XS            \
+             Data::Types                    \
              Digest::BLAKE2                 \
              Digest::CMAC                   \
              Digest::CRC                    \
@@ -45,19 +51,32 @@ cpan install Authen::Passphrase::LANManager \
              Digest::SHA1                   \
              Digest::SHA3                   \
              Digest::SipHash                \
+             Encode                         \
              JSON                           \
              MIME::Base32                   \
              MIME::Base64                   \
              Net::DNS::RR::NSEC3            \
              Net::DNS::SEC                  \
+             POSIX                          \
              Text::Iconv                    \
              ;
 
 ERRORS=$((ERRORS+$?))
 
-pip2 install pygost
+pip2 install pygost pycryptoplus
+
+pip2 uninstall -y pycryptodome
 
 ERRORS=$((ERRORS+$?))
+
+php --version > /dev/null 2> /dev/null
+
+if [ "$?" -ne 0 ]
+then
+  echo '[ ERROR ] php must be installed for some unit tests'
+
+  ERRORS=$((ERRORS+1))
+fi
 
 echo
 if [ $ERRORS -eq 0 ]; then

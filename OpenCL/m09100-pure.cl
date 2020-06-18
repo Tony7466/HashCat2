@@ -5,19 +5,65 @@
 
 #define NEW_SIMD_CODE
 
-#include "inc_vendor.cl"
-#include "inc_hash_constants.h"
-#include "inc_hash_functions.cl"
-#include "inc_types.cl"
+#ifdef KERNEL_STATIC
+#include "inc_vendor.h"
+#include "inc_types.h"
+#include "inc_platform.cl"
 #include "inc_common.cl"
 #include "inc_simd.cl"
 #include "inc_hash_sha1.cl"
+#endif
 
 #define COMPARE_S "inc_comp_single.cl"
 #define COMPARE_M "inc_comp_multi.cl"
 
-// breaks if used with u8a on AMDGPU-PRO
-__constant u8a lotus64_table[64] =
+typedef struct lotus8_tmp
+{
+  u32 ipad[5];
+  u32 opad[5];
+
+  u32 dgst[5];
+  u32 out[5];
+
+} lotus8_tmp_t;
+
+CONSTANT_VK u32a bin2asc[256] =
+{
+  0x00003030, 0x00003130, 0x00003230, 0x00003330, 0x00003430, 0x00003530, 0x00003630, 0x00003730,
+  0x00003830, 0x00003930, 0x00004130, 0x00004230, 0x00004330, 0x00004430, 0x00004530, 0x00004630,
+  0x00003031, 0x00003131, 0x00003231, 0x00003331, 0x00003431, 0x00003531, 0x00003631, 0x00003731,
+  0x00003831, 0x00003931, 0x00004131, 0x00004231, 0x00004331, 0x00004431, 0x00004531, 0x00004631,
+  0x00003032, 0x00003132, 0x00003232, 0x00003332, 0x00003432, 0x00003532, 0x00003632, 0x00003732,
+  0x00003832, 0x00003932, 0x00004132, 0x00004232, 0x00004332, 0x00004432, 0x00004532, 0x00004632,
+  0x00003033, 0x00003133, 0x00003233, 0x00003333, 0x00003433, 0x00003533, 0x00003633, 0x00003733,
+  0x00003833, 0x00003933, 0x00004133, 0x00004233, 0x00004333, 0x00004433, 0x00004533, 0x00004633,
+  0x00003034, 0x00003134, 0x00003234, 0x00003334, 0x00003434, 0x00003534, 0x00003634, 0x00003734,
+  0x00003834, 0x00003934, 0x00004134, 0x00004234, 0x00004334, 0x00004434, 0x00004534, 0x00004634,
+  0x00003035, 0x00003135, 0x00003235, 0x00003335, 0x00003435, 0x00003535, 0x00003635, 0x00003735,
+  0x00003835, 0x00003935, 0x00004135, 0x00004235, 0x00004335, 0x00004435, 0x00004535, 0x00004635,
+  0x00003036, 0x00003136, 0x00003236, 0x00003336, 0x00003436, 0x00003536, 0x00003636, 0x00003736,
+  0x00003836, 0x00003936, 0x00004136, 0x00004236, 0x00004336, 0x00004436, 0x00004536, 0x00004636,
+  0x00003037, 0x00003137, 0x00003237, 0x00003337, 0x00003437, 0x00003537, 0x00003637, 0x00003737,
+  0x00003837, 0x00003937, 0x00004137, 0x00004237, 0x00004337, 0x00004437, 0x00004537, 0x00004637,
+  0x00003038, 0x00003138, 0x00003238, 0x00003338, 0x00003438, 0x00003538, 0x00003638, 0x00003738,
+  0x00003838, 0x00003938, 0x00004138, 0x00004238, 0x00004338, 0x00004438, 0x00004538, 0x00004638,
+  0x00003039, 0x00003139, 0x00003239, 0x00003339, 0x00003439, 0x00003539, 0x00003639, 0x00003739,
+  0x00003839, 0x00003939, 0x00004139, 0x00004239, 0x00004339, 0x00004439, 0x00004539, 0x00004639,
+  0x00003041, 0x00003141, 0x00003241, 0x00003341, 0x00003441, 0x00003541, 0x00003641, 0x00003741,
+  0x00003841, 0x00003941, 0x00004141, 0x00004241, 0x00004341, 0x00004441, 0x00004541, 0x00004641,
+  0x00003042, 0x00003142, 0x00003242, 0x00003342, 0x00003442, 0x00003542, 0x00003642, 0x00003742,
+  0x00003842, 0x00003942, 0x00004142, 0x00004242, 0x00004342, 0x00004442, 0x00004542, 0x00004642,
+  0x00003043, 0x00003143, 0x00003243, 0x00003343, 0x00003443, 0x00003543, 0x00003643, 0x00003743,
+  0x00003843, 0x00003943, 0x00004143, 0x00004243, 0x00004343, 0x00004443, 0x00004543, 0x00004643,
+  0x00003044, 0x00003144, 0x00003244, 0x00003344, 0x00003444, 0x00003544, 0x00003644, 0x00003744,
+  0x00003844, 0x00003944, 0x00004144, 0x00004244, 0x00004344, 0x00004444, 0x00004544, 0x00004644,
+  0x00003045, 0x00003145, 0x00003245, 0x00003345, 0x00003445, 0x00003545, 0x00003645, 0x00003745,
+  0x00003845, 0x00003945, 0x00004145, 0x00004245, 0x00004345, 0x00004445, 0x00004545, 0x00004645,
+  0x00003046, 0x00003146, 0x00003246, 0x00003346, 0x00003446, 0x00003546, 0x00003646, 0x00003746,
+  0x00003846, 0x00003946, 0x00004146, 0x00004246, 0x00004346, 0x00004446, 0x00004546, 0x00004646,
+};
+
+CONSTANT_VK u32a lotus64_table[64] =
 {
   '0', '1', '2', '3', '4', '5', '6', '7',
   '8', '9', 'A', 'B', 'C', 'D', 'E', 'F',
@@ -29,8 +75,7 @@ __constant u8a lotus64_table[64] =
   'u', 'v', 'w', 'x', 'y', 'z', '+', '/',
 };
 
-// break if used with u8 on NVidia driver 378.x
-__constant u8a lotus_magic_table[256] =
+CONSTANT_VK u32a lotus_magic_table[256] =
 {
   0xbd, 0x56, 0xea, 0xf2, 0xa2, 0xf1, 0xac, 0x2a,
   0xb0, 0x93, 0xd1, 0x9c, 0x1b, 0x33, 0xfd, 0xd0,
@@ -70,7 +115,7 @@ __constant u8a lotus_magic_table[256] =
 
 #define BOX1(S,i) (S)[(i)]
 
-DECLSPEC void lotus_mix (u32 *in, const __local u8 *s_lotus_magic_table)
+DECLSPEC void lotus_mix (u32 *in, SHM_TYPE const u32 *s_lotus_magic_table)
 {
   u8 p = 0;
 
@@ -93,7 +138,7 @@ DECLSPEC void lotus_mix (u32 *in, const __local u8 *s_lotus_magic_table)
   }
 }
 
-DECLSPEC void lotus_transform_password (const u32 *in, u32 *out, const __local u8 *s_lotus_magic_table)
+DECLSPEC void lotus_transform_password (const u32 *in, u32 *out, SHM_TYPE const u32 *s_lotus_magic_table)
 {
   u8 t = (u8) (out[3] >> 24);
 
@@ -190,7 +235,7 @@ DECLSPEC void pad (u32 *w, const u32 len)
   }
 }
 
-DECLSPEC void mdtransform_norecalc (u32 *state, const u32 *block, const __local u8 *s_lotus_magic_table)
+DECLSPEC void mdtransform_norecalc (u32 *state, const u32 *block, SHM_TYPE const u32 *s_lotus_magic_table)
 {
   u32 x[12];
 
@@ -215,14 +260,14 @@ DECLSPEC void mdtransform_norecalc (u32 *state, const u32 *block, const __local 
   state[3] = x[3];
 }
 
-DECLSPEC void mdtransform (u32 *state, u32 *checksum, const u32 *block, const __local u8 *s_lotus_magic_table)
+DECLSPEC void mdtransform (u32 *state, u32 *checksum, const u32 *block, SHM_TYPE const u32 *s_lotus_magic_table)
 {
   mdtransform_norecalc (state, block, s_lotus_magic_table);
 
   lotus_transform_password (block, checksum, s_lotus_magic_table);
 }
 
-DECLSPEC void domino_big_md (const u32 *saved_key, const u32 size, u32 *state, const __local u8 *s_lotus_magic_table)
+DECLSPEC void domino_big_md (const u32 *saved_key, const u32 size, u32 *state, SHM_TYPE const u32 *s_lotus_magic_table)
 {
   u32 checksum[4];
 
@@ -287,13 +332,6 @@ DECLSPEC void base64_encode (u8 *base64_hash, const u32 len, const u8 *base64_pl
 
 DECLSPEC void lotus6_base64_encode (u8 *base64_hash, const u32 salt0, const u32 salt1, const u32 a, const u32 b, const u32 c)
 {
-  const uchar4 salt0c = as_uchar4 (salt0);
-  const uchar4 salt1c = as_uchar4 (salt1);
-
-  const uchar4 ac = as_uchar4 (a);
-  const uchar4 bc = as_uchar4 (b);
-  const uchar4 cc = as_uchar4 (c);
-
   u8 tmp[24]; // size 22 (=pw_len) is needed but base64 needs size divisible by 4
 
   /*
@@ -302,23 +340,23 @@ DECLSPEC void lotus6_base64_encode (u8 *base64_hash, const u32 salt0, const u32 
 
   u8 base64_plain[16];
 
-  base64_plain[ 0] = salt0c.s0;
-  base64_plain[ 1] = salt0c.s1;
-  base64_plain[ 2] = salt0c.s2;
-  base64_plain[ 3] = salt0c.s3;
+  base64_plain[ 0] = unpack_v8a_from_v32_S (salt0);
+  base64_plain[ 1] = unpack_v8b_from_v32_S (salt0);
+  base64_plain[ 2] = unpack_v8c_from_v32_S (salt0);
+  base64_plain[ 3] = unpack_v8d_from_v32_S (salt0);
   base64_plain[ 3] -= -4; // dont ask!
-  base64_plain[ 4] = salt1c.s0;
-  base64_plain[ 5] = ac.s0;
-  base64_plain[ 6] = ac.s1;
-  base64_plain[ 7] = ac.s2;
-  base64_plain[ 8] = ac.s3;
-  base64_plain[ 9] = bc.s0;
-  base64_plain[10] = bc.s1;
-  base64_plain[11] = bc.s2;
-  base64_plain[12] = bc.s3;
-  base64_plain[13] = cc.s0;
-  base64_plain[14] = cc.s1;
-  base64_plain[15] = cc.s2;
+  base64_plain[ 4] = unpack_v8a_from_v32_S (salt1);
+  base64_plain[ 5] = unpack_v8a_from_v32_S (a);
+  base64_plain[ 6] = unpack_v8b_from_v32_S (a);
+  base64_plain[ 7] = unpack_v8c_from_v32_S (a);
+  base64_plain[ 8] = unpack_v8d_from_v32_S (a);
+  base64_plain[ 9] = unpack_v8a_from_v32_S (b);
+  base64_plain[10] = unpack_v8b_from_v32_S (b);
+  base64_plain[11] = unpack_v8c_from_v32_S (b);
+  base64_plain[12] = unpack_v8d_from_v32_S (b);
+  base64_plain[13] = unpack_v8a_from_v32_S (c);
+  base64_plain[14] = unpack_v8b_from_v32_S (c);
+  base64_plain[15] = unpack_v8c_from_v32_S (c);
 
   /*
    * base64 encode the $salt.$digest string
@@ -386,7 +424,7 @@ DECLSPEC void hmac_sha1_run_V (u32x *w0, u32x *w1, u32x *w2, u32x *w3, u32x *ipa
   sha1_transform_vector (w0, w1, w2, w3, digest);
 }
 
-__kernel void m09100_init (KERN_ATTR_TMPS (lotus8_tmp_t))
+KERNEL_FQ void m09100_init (KERN_ATTR_TMPS (lotus8_tmp_t))
 {
   /**
    * base
@@ -400,25 +438,31 @@ __kernel void m09100_init (KERN_ATTR_TMPS (lotus8_tmp_t))
    * sbox
    */
 
-  __local u8 s_lotus_magic_table[256];
+  #ifdef REAL_SHM
 
-  for (MAYBE_VOLATILE u32 i = lid; i < 256; i += lsz)
+  LOCAL_VK u32 s_lotus_magic_table[256];
+
+  for (u32 i = lid; i < 256; i += lsz)
   {
     s_lotus_magic_table[i] = lotus_magic_table[i];
   }
 
-  __local u32 l_bin2asc[256];
+  LOCAL_VK u32 l_bin2asc[256];
 
-  for (MAYBE_VOLATILE u32 i = lid; i < 256; i += lsz)
+  for (u32 i = lid; i < 256; i += lsz)
   {
-    const u32 i0 = (i >> 0) & 15;
-    const u32 i1 = (i >> 4) & 15;
-
-    l_bin2asc[i] = ((i0 < 10) ? '0' + i0 : 'A' - 10 + i0) << 8
-                 | ((i1 < 10) ? '0' + i1 : 'A' - 10 + i1) << 0;
+    l_bin2asc[i] = bin2asc[i];
   }
 
-  barrier (CLK_LOCAL_MEM_FENCE);
+  SYNC_THREADS ();
+
+  #else
+
+  CONSTANT_AS u32a *s_lotus_magic_table = lotus_magic_table;
+
+  CONSTANT_AS u32a *l_bin2asc = bin2asc;
+
+  #endif
 
   if (gid >= gid_max) return;
 
@@ -652,7 +696,7 @@ __kernel void m09100_init (KERN_ATTR_TMPS (lotus8_tmp_t))
   }
 }
 
-__kernel void m09100_loop (KERN_ATTR_TMPS (lotus8_tmp_t))
+KERNEL_FQ void m09100_loop (KERN_ATTR_TMPS (lotus8_tmp_t))
 {
   const u64 gid = get_global_id (0);
 
@@ -737,7 +781,7 @@ __kernel void m09100_loop (KERN_ATTR_TMPS (lotus8_tmp_t))
   }
 }
 
-__kernel void m09100_comp (KERN_ATTR_TMPS (lotus8_tmp_t))
+KERNEL_FQ void m09100_comp (KERN_ATTR_TMPS (lotus8_tmp_t))
 {
   /**
    * base
@@ -760,5 +804,7 @@ __kernel void m09100_comp (KERN_ATTR_TMPS (lotus8_tmp_t))
 
   #define il_pos 0
 
+  #ifdef KERNEL_STATIC
   #include COMPARE_M
+  #endif
 }

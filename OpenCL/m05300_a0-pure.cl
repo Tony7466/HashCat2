@@ -5,17 +5,28 @@
 
 //#define NEW_SIMD_CODE
 
-#include "inc_vendor.cl"
-#include "inc_hash_constants.h"
-#include "inc_hash_functions.cl"
-#include "inc_types.cl"
+#ifdef KERNEL_STATIC
+#include "inc_vendor.h"
+#include "inc_types.h"
+#include "inc_platform.cl"
 #include "inc_common.cl"
 #include "inc_rp.h"
 #include "inc_rp.cl"
 #include "inc_scalar.cl"
 #include "inc_hash_md5.cl"
+#endif
 
-__kernel void m05300_mxx (KERN_ATTR_RULES_ESALT (ikepsk_t))
+typedef struct ikepsk
+{
+  u32 nr_buf[16];
+  u32 nr_len;
+
+  u32 msg_buf[128];
+  u32 msg_len[6];
+
+} ikepsk_t;
+
+KERNEL_FQ void m05300_mxx (KERN_ATTR_RULES_ESALT (ikepsk_t))
 {
   /**
    * modifier
@@ -76,7 +87,7 @@ __kernel void m05300_mxx (KERN_ATTR_RULES_ESALT (ikepsk_t))
 
     md5_hmac_init_64 (&ctx, w0, w1, w2, w3);
 
-    md5_hmac_update_global (&ctx, esalt_bufs[digests_offset].msg_buf, esalt_bufs[digests_offset].msg_len);
+    md5_hmac_update_global (&ctx, esalt_bufs[digests_offset].msg_buf, esalt_bufs[digests_offset].msg_len[5]);
 
     md5_hmac_final (&ctx);
 
@@ -89,7 +100,7 @@ __kernel void m05300_mxx (KERN_ATTR_RULES_ESALT (ikepsk_t))
   }
 }
 
-__kernel void m05300_sxx (KERN_ATTR_RULES_ESALT (ikepsk_t))
+KERNEL_FQ void m05300_sxx (KERN_ATTR_RULES_ESALT (ikepsk_t))
 {
   /**
    * modifier
@@ -162,7 +173,7 @@ __kernel void m05300_sxx (KERN_ATTR_RULES_ESALT (ikepsk_t))
 
     md5_hmac_init_64 (&ctx, w0, w1, w2, w3);
 
-    md5_hmac_update_global (&ctx, esalt_bufs[digests_offset].msg_buf, esalt_bufs[digests_offset].msg_len);
+    md5_hmac_update_global (&ctx, esalt_bufs[digests_offset].msg_buf, esalt_bufs[digests_offset].msg_len[5]);
 
     md5_hmac_final (&ctx);
 

@@ -5,15 +5,22 @@
 
 //#define NEW_SIMD_CODE
 
-#include "inc_vendor.cl"
-#include "inc_hash_constants.h"
-#include "inc_hash_functions.cl"
-#include "inc_types.cl"
+#ifdef KERNEL_STATIC
+#include "inc_vendor.h"
+#include "inc_types.h"
+#include "inc_platform.cl"
 #include "inc_common.cl"
 #include "inc_scalar.cl"
 #include "inc_hash_sha256.cl"
+#endif
 
-__kernel void m13800_mxx (KERN_ATTR_ESALT (win8phone_t))
+typedef struct win8phone
+{
+  u32 salt_buf[32];
+
+} win8phone_t;
+
+KERNEL_FQ void m13800_mxx (KERN_ATTR_ESALT (win8phone_t))
 {
   /**
    * modifier
@@ -32,7 +39,7 @@ __kernel void m13800_mxx (KERN_ATTR_ESALT (win8phone_t))
 
   sha256_init (&ctx0);
 
-  sha256_update_global_utf16le_swap (&ctx0, pws[gid].i, pws[gid].pw_len & 255);
+  sha256_update_global_utf16le_swap (&ctx0, pws[gid].i, pws[gid].pw_len);
 
   /**
    * loop
@@ -42,7 +49,7 @@ __kernel void m13800_mxx (KERN_ATTR_ESALT (win8phone_t))
   {
     sha256_ctx_t ctx = ctx0;
 
-    sha256_update_global_utf16le_swap (&ctx, combs_buf[il_pos].i, combs_buf[il_pos].pw_len & 255);
+    sha256_update_global_utf16le_swap (&ctx, combs_buf[il_pos].i, combs_buf[il_pos].pw_len);
 
     sha256_update_global (&ctx, esalt_bufs[digests_offset].salt_buf, 128);
 
@@ -57,7 +64,7 @@ __kernel void m13800_mxx (KERN_ATTR_ESALT (win8phone_t))
   }
 }
 
-__kernel void m13800_sxx (KERN_ATTR_ESALT (win8phone_t))
+KERNEL_FQ void m13800_sxx (KERN_ATTR_ESALT (win8phone_t))
 {
   /**
    * modifier
@@ -88,7 +95,7 @@ __kernel void m13800_sxx (KERN_ATTR_ESALT (win8phone_t))
 
   sha256_init (&ctx0);
 
-  sha256_update_global_utf16le_swap (&ctx0, pws[gid].i, pws[gid].pw_len & 255);
+  sha256_update_global_utf16le_swap (&ctx0, pws[gid].i, pws[gid].pw_len);
 
   /**
    * loop
@@ -98,7 +105,7 @@ __kernel void m13800_sxx (KERN_ATTR_ESALT (win8phone_t))
   {
     sha256_ctx_t ctx = ctx0;
 
-    sha256_update_global_utf16le_swap (&ctx, combs_buf[il_pos].i, combs_buf[il_pos].pw_len & 255);
+    sha256_update_global_utf16le_swap (&ctx, combs_buf[il_pos].i, combs_buf[il_pos].pw_len);
 
     sha256_update_global (&ctx, esalt_bufs[digests_offset].salt_buf, 128);
 

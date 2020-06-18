@@ -5,22 +5,23 @@
 
 #define NEW_SIMD_CODE
 
-#include "inc_vendor.cl"
-#include "inc_hash_constants.h"
-#include "inc_hash_functions.cl"
-#include "inc_types.cl"
+#ifdef KERNEL_STATIC
+#include "inc_vendor.h"
+#include "inc_types.h"
+#include "inc_platform.cl"
 #include "inc_common.cl"
 #include "inc_rp_optimized.h"
 #include "inc_rp_optimized.cl"
 #include "inc_simd.cl"
 #include "inc_hash_whirlpool.cl"
+#endif
 
-DECLSPEC void whirlpool_transform_transport_vector (const u32x *w, u32x *digest, __local u32 (*s_Ch)[256], __local u32 (*s_Cl)[256])
+DECLSPEC void whirlpool_transform_transport_vector (const u32x *w, u32x *digest, SHM_TYPE u64 *s_MT0, SHM_TYPE u64 *s_MT1, SHM_TYPE u64 *s_MT2, SHM_TYPE u64 *s_MT3, SHM_TYPE u64 *s_MT4, SHM_TYPE u64 *s_MT5, SHM_TYPE u64 *s_MT6, SHM_TYPE u64 *s_MT7)
 {
-  whirlpool_transform_vector (w + 0, w + 4, w + 8, w + 12, digest, s_Ch, s_Cl);
+  whirlpool_transform_vector (w + 0, w + 4, w + 8, w + 12, digest, s_MT0, s_MT1, s_MT2, s_MT3, s_MT4, s_MT5, s_MT6, s_MT7);
 }
 
-__kernel void m06100_m04 (KERN_ATTR_RULES_ESALT (netntlm_t))
+KERNEL_FQ void m06100_m04 (KERN_ATTR_RULES ())
 {
   /**
    * modifier
@@ -31,34 +32,46 @@ __kernel void m06100_m04 (KERN_ATTR_RULES_ESALT (netntlm_t))
   const u64 lsz = get_local_size (0);
 
   /**
-   * shared
+   * Whirlpool shared
    */
 
-  __local u32 s_Ch[8][256];
-  __local u32 s_Cl[8][256];
+  #ifdef REAL_SHM
 
-  for (MAYBE_VOLATILE u32 i = lid; i < 256; i += lsz)
+  LOCAL_VK u64 s_MT0[256];
+  LOCAL_VK u64 s_MT1[256];
+  LOCAL_VK u64 s_MT2[256];
+  LOCAL_VK u64 s_MT3[256];
+  LOCAL_VK u64 s_MT4[256];
+  LOCAL_VK u64 s_MT5[256];
+  LOCAL_VK u64 s_MT6[256];
+  LOCAL_VK u64 s_MT7[256];
+
+  for (u32 i = lid; i < 256; i += lsz)
   {
-    s_Ch[0][i] = Ch[0][i];
-    s_Ch[1][i] = Ch[1][i];
-    s_Ch[2][i] = Ch[2][i];
-    s_Ch[3][i] = Ch[3][i];
-    s_Ch[4][i] = Ch[4][i];
-    s_Ch[5][i] = Ch[5][i];
-    s_Ch[6][i] = Ch[6][i];
-    s_Ch[7][i] = Ch[7][i];
-
-    s_Cl[0][i] = Cl[0][i];
-    s_Cl[1][i] = Cl[1][i];
-    s_Cl[2][i] = Cl[2][i];
-    s_Cl[3][i] = Cl[3][i];
-    s_Cl[4][i] = Cl[4][i];
-    s_Cl[5][i] = Cl[5][i];
-    s_Cl[6][i] = Cl[6][i];
-    s_Cl[7][i] = Cl[7][i];
+    s_MT0[i] = MT0[i];
+    s_MT1[i] = MT1[i];
+    s_MT2[i] = MT2[i];
+    s_MT3[i] = MT3[i];
+    s_MT4[i] = MT4[i];
+    s_MT5[i] = MT5[i];
+    s_MT6[i] = MT6[i];
+    s_MT7[i] = MT7[i];
   }
 
-  barrier (CLK_LOCAL_MEM_FENCE);
+  SYNC_THREADS ();
+
+  #else
+
+  CONSTANT_AS u64a *s_MT0 = MT0;
+  CONSTANT_AS u64a *s_MT1 = MT1;
+  CONSTANT_AS u64a *s_MT2 = MT2;
+  CONSTANT_AS u64a *s_MT3 = MT3;
+  CONSTANT_AS u64a *s_MT4 = MT4;
+  CONSTANT_AS u64a *s_MT5 = MT5;
+  CONSTANT_AS u64a *s_MT6 = MT6;
+  CONSTANT_AS u64a *s_MT7 = MT7;
+
+  #endif
 
   if (gid >= gid_max) return;
 
@@ -91,20 +104,20 @@ __kernel void m06100_m04 (KERN_ATTR_RULES_ESALT (netntlm_t))
     u32x w2[4] = { 0 };
     u32x w3[4] = { 0 };
 
-    const u32x out_len = apply_rules_vect (pw_buf0, pw_buf1, pw_len, rules_buf, il_pos, w0, w1);
+    const u32x out_len = apply_rules_vect_optimized (pw_buf0, pw_buf1, pw_len, rules_buf, il_pos, w0, w1);
 
     append_0x80_2x4_VV (w0, w1, out_len);
 
     u32x w[16];
 
-    w[ 0] = swap32 (w0[0]);
-    w[ 1] = swap32 (w0[1]);
-    w[ 2] = swap32 (w0[2]);
-    w[ 3] = swap32 (w0[3]);
-    w[ 4] = swap32 (w1[0]);
-    w[ 5] = swap32 (w1[1]);
-    w[ 6] = swap32 (w1[2]);
-    w[ 7] = swap32 (w1[3]);
+    w[ 0] = hc_swap32 (w0[0]);
+    w[ 1] = hc_swap32 (w0[1]);
+    w[ 2] = hc_swap32 (w0[2]);
+    w[ 3] = hc_swap32 (w0[3]);
+    w[ 4] = hc_swap32 (w1[0]);
+    w[ 5] = hc_swap32 (w1[1]);
+    w[ 6] = hc_swap32 (w1[2]);
+    w[ 7] = hc_swap32 (w1[3]);
     w[ 8] = 0;
     w[ 9] = 0;
     w[10] = 0;
@@ -137,21 +150,21 @@ __kernel void m06100_m04 (KERN_ATTR_RULES_ESALT (netntlm_t))
     dgst[14] = 0;
     dgst[15] = 0;
 
-    whirlpool_transform_transport_vector (w, dgst, s_Ch, s_Cl);
+    whirlpool_transform_transport_vector (w, dgst, s_MT0, s_MT1, s_MT2, s_MT3, s_MT4, s_MT5, s_MT6, s_MT7);
 
     COMPARE_M_SIMD (dgst[0], dgst[1], dgst[2], dgst[3]);
   }
 }
 
-__kernel void m06100_m08 (KERN_ATTR_RULES ())
+KERNEL_FQ void m06100_m08 (KERN_ATTR_RULES ())
 {
 }
 
-__kernel void m06100_m16 (KERN_ATTR_RULES ())
+KERNEL_FQ void m06100_m16 (KERN_ATTR_RULES ())
 {
 }
 
-__kernel void m06100_s04 (KERN_ATTR_RULES_ESALT (netntlm_t))
+KERNEL_FQ void m06100_s04 (KERN_ATTR_RULES ())
 {
   /**
    * modifier
@@ -162,34 +175,46 @@ __kernel void m06100_s04 (KERN_ATTR_RULES_ESALT (netntlm_t))
   const u64 lsz = get_local_size (0);
 
   /**
-   * shared
+   * Whirlpool shared
    */
 
-  __local u32 s_Ch[8][256];
-  __local u32 s_Cl[8][256];
+  #ifdef REAL_SHM
 
-  for (MAYBE_VOLATILE u32 i = lid; i < 256; i += lsz)
+  LOCAL_VK u64 s_MT0[256];
+  LOCAL_VK u64 s_MT1[256];
+  LOCAL_VK u64 s_MT2[256];
+  LOCAL_VK u64 s_MT3[256];
+  LOCAL_VK u64 s_MT4[256];
+  LOCAL_VK u64 s_MT5[256];
+  LOCAL_VK u64 s_MT6[256];
+  LOCAL_VK u64 s_MT7[256];
+
+  for (u32 i = lid; i < 256; i += lsz)
   {
-    s_Ch[0][i] = Ch[0][i];
-    s_Ch[1][i] = Ch[1][i];
-    s_Ch[2][i] = Ch[2][i];
-    s_Ch[3][i] = Ch[3][i];
-    s_Ch[4][i] = Ch[4][i];
-    s_Ch[5][i] = Ch[5][i];
-    s_Ch[6][i] = Ch[6][i];
-    s_Ch[7][i] = Ch[7][i];
-
-    s_Cl[0][i] = Cl[0][i];
-    s_Cl[1][i] = Cl[1][i];
-    s_Cl[2][i] = Cl[2][i];
-    s_Cl[3][i] = Cl[3][i];
-    s_Cl[4][i] = Cl[4][i];
-    s_Cl[5][i] = Cl[5][i];
-    s_Cl[6][i] = Cl[6][i];
-    s_Cl[7][i] = Cl[7][i];
+    s_MT0[i] = MT0[i];
+    s_MT1[i] = MT1[i];
+    s_MT2[i] = MT2[i];
+    s_MT3[i] = MT3[i];
+    s_MT4[i] = MT4[i];
+    s_MT5[i] = MT5[i];
+    s_MT6[i] = MT6[i];
+    s_MT7[i] = MT7[i];
   }
 
-  barrier (CLK_LOCAL_MEM_FENCE);
+  SYNC_THREADS ();
+
+  #else
+
+  CONSTANT_AS u64a *s_MT0 = MT0;
+  CONSTANT_AS u64a *s_MT1 = MT1;
+  CONSTANT_AS u64a *s_MT2 = MT2;
+  CONSTANT_AS u64a *s_MT3 = MT3;
+  CONSTANT_AS u64a *s_MT4 = MT4;
+  CONSTANT_AS u64a *s_MT5 = MT5;
+  CONSTANT_AS u64a *s_MT6 = MT6;
+  CONSTANT_AS u64a *s_MT7 = MT7;
+
+  #endif
 
   if (gid >= gid_max) return;
 
@@ -234,20 +259,20 @@ __kernel void m06100_s04 (KERN_ATTR_RULES_ESALT (netntlm_t))
     u32x w2[4] = { 0 };
     u32x w3[4] = { 0 };
 
-    const u32x out_len = apply_rules_vect (pw_buf0, pw_buf1, pw_len, rules_buf, il_pos, w0, w1);
+    const u32x out_len = apply_rules_vect_optimized (pw_buf0, pw_buf1, pw_len, rules_buf, il_pos, w0, w1);
 
     append_0x80_2x4_VV (w0, w1, out_len);
 
     u32x w[16];
 
-    w[ 0] = swap32 (w0[0]);
-    w[ 1] = swap32 (w0[1]);
-    w[ 2] = swap32 (w0[2]);
-    w[ 3] = swap32 (w0[3]);
-    w[ 4] = swap32 (w1[0]);
-    w[ 5] = swap32 (w1[1]);
-    w[ 6] = swap32 (w1[2]);
-    w[ 7] = swap32 (w1[3]);
+    w[ 0] = hc_swap32 (w0[0]);
+    w[ 1] = hc_swap32 (w0[1]);
+    w[ 2] = hc_swap32 (w0[2]);
+    w[ 3] = hc_swap32 (w0[3]);
+    w[ 4] = hc_swap32 (w1[0]);
+    w[ 5] = hc_swap32 (w1[1]);
+    w[ 6] = hc_swap32 (w1[2]);
+    w[ 7] = hc_swap32 (w1[3]);
     w[ 8] = 0;
     w[ 9] = 0;
     w[10] = 0;
@@ -280,16 +305,16 @@ __kernel void m06100_s04 (KERN_ATTR_RULES_ESALT (netntlm_t))
     dgst[14] = 0;
     dgst[15] = 0;
 
-    whirlpool_transform_transport_vector (w, dgst, s_Ch, s_Cl);
+    whirlpool_transform_transport_vector (w, dgst, s_MT0, s_MT1, s_MT2, s_MT3, s_MT4, s_MT5, s_MT6, s_MT7);
 
     COMPARE_S_SIMD (dgst[0], dgst[1], dgst[2], dgst[3]);
   }
 }
 
-__kernel void m06100_s08 (KERN_ATTR_RULES ())
+KERNEL_FQ void m06100_s08 (KERN_ATTR_RULES ())
 {
 }
 
-__kernel void m06100_s16 (KERN_ATTR_RULES ())
+KERNEL_FQ void m06100_s16 (KERN_ATTR_RULES ())
 {
 }

@@ -14,14 +14,6 @@
 #include "event.h"
 #endif
 
-int sort_by_stringptr (const void *p1, const void *p2)
-{
-  const char* const *s1 = (const char* const *) p1;
-  const char* const *s2 = (const char* const *) p2;
-
-  return strcmp (*s1, *s2);
-}
-
 static int get_exec_path (char *exec_path, const size_t exec_path_sz)
 {
   #if defined (__linux__) || defined (__CYGWIN__)
@@ -100,12 +92,12 @@ static void get_install_dir (char *install_dir, const char *exec_path)
 #if defined (_POSIX)
 static void get_profile_dir (char *profile_dir, const char *home_dir)
 {
-  snprintf (profile_dir, HCBUFSIZ_TINY - 1, "%s/%s", home_dir, DOT_HASHCAT);
+  snprintf (profile_dir, HCBUFSIZ_TINY, "%s/%s", home_dir, DOT_HASHCAT);
 }
 
 static void get_session_dir (char *session_dir, const char *profile_dir)
 {
-  snprintf (session_dir, HCBUFSIZ_TINY - 1, "%s/%s", profile_dir, SESSIONS_FOLDER);
+  snprintf (session_dir, HCBUFSIZ_TINY, "%s/%s", profile_dir, SESSIONS_FOLDER);
 }
 #endif
 
@@ -266,6 +258,7 @@ int folder_config_init (hashcat_ctx_t *hashcat_ctx, MAYBE_UNUSED const char *ins
    * A workaround is to chdir() to the OpenCL folder,
    * then compile the kernels,
    * then chdir() back to where we came from so we need to save it first
+   * - temporary disabled due to https://github.com/hashcat/hashcat/issues/2379
    */
 
   char *cwd = (char *) hcmalloc (HCBUFSIZ_TINY);
@@ -329,7 +322,7 @@ int folder_config_init (hashcat_ctx_t *hashcat_ctx, MAYBE_UNUSED const char *ins
 
   if (resolved_exec_path == NULL)
   {
-    event_log_error (hashcat_ctx, "%s: %s", resolved_exec_path, strerror (errno));
+    event_log_error (hashcat_ctx, "%s: %s", exec_path, strerror (errno));
 
     hcfree (cwd);
 
@@ -340,7 +333,7 @@ int folder_config_init (hashcat_ctx_t *hashcat_ctx, MAYBE_UNUSED const char *ins
     return -1;
   }
 
-  char *install_dir = hcmalloc (HCBUFSIZ_TINY);
+  char *install_dir = (char *) hcmalloc (HCBUFSIZ_TINY);
 
   get_install_dir (install_dir, resolved_exec_path);
 
@@ -359,8 +352,8 @@ int folder_config_init (hashcat_ctx_t *hashcat_ctx, MAYBE_UNUSED const char *ins
 
     const char *home_dir = pwp->pw_dir;
 
-    profile_dir = hcmalloc (HCBUFSIZ_TINY);
-    session_dir = hcmalloc (HCBUFSIZ_TINY);
+    profile_dir = (char *) hcmalloc (HCBUFSIZ_TINY);
+    session_dir = (char *) hcmalloc (HCBUFSIZ_TINY);
 
     get_profile_dir (profile_dir, home_dir);
     get_session_dir (session_dir, profile_dir);
@@ -458,7 +451,8 @@ int folder_config_init (hashcat_ctx_t *hashcat_ctx, MAYBE_UNUSED const char *ins
   hcfree (cpath);
 
   //if (getenv ("TMP") == NULL)
-  if (1)
+  /* temporary disabled due to https://github.com/hashcat/hashcat/issues/2379
+  if (true)
   {
     char *tmp;
 
@@ -466,6 +460,7 @@ int folder_config_init (hashcat_ctx_t *hashcat_ctx, MAYBE_UNUSED const char *ins
 
     putenv (tmp);
   }
+  */
 
   #if defined (_WIN)
 

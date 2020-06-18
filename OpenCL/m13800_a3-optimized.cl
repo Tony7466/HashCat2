@@ -5,13 +5,20 @@
 
 #define NEW_SIMD_CODE
 
-#include "inc_vendor.cl"
-#include "inc_hash_constants.h"
-#include "inc_hash_functions.cl"
-#include "inc_types.cl"
+#ifdef KERNEL_STATIC
+#include "inc_vendor.h"
+#include "inc_types.h"
+#include "inc_platform.cl"
 #include "inc_common.cl"
 #include "inc_simd.cl"
 #include "inc_hash_sha256.cl"
+#endif
+
+typedef struct win8phone
+{
+  u32 salt_buf[32];
+
+} win8phone_t;
 
 DECLSPEC void sha256_transform_transport_vector (const u32x *w, u32x *digest)
 {
@@ -42,23 +49,23 @@ DECLSPEC void memcat64c_be (u32x *block, const u32 offset, u32x *carry)
   u32x tmp16;
 
   #if defined IS_AMD || defined IS_GENERIC
-  tmp00 = hc_bytealign (        0, carry[ 0], offset);
-  tmp01 = hc_bytealign (carry[ 0], carry[ 1], offset);
-  tmp02 = hc_bytealign (carry[ 1], carry[ 2], offset);
-  tmp03 = hc_bytealign (carry[ 2], carry[ 3], offset);
-  tmp04 = hc_bytealign (carry[ 3], carry[ 4], offset);
-  tmp05 = hc_bytealign (carry[ 4], carry[ 5], offset);
-  tmp06 = hc_bytealign (carry[ 5], carry[ 6], offset);
-  tmp07 = hc_bytealign (carry[ 6], carry[ 7], offset);
-  tmp08 = hc_bytealign (carry[ 7], carry[ 8], offset);
-  tmp09 = hc_bytealign (carry[ 8], carry[ 9], offset);
-  tmp10 = hc_bytealign (carry[ 9], carry[10], offset);
-  tmp11 = hc_bytealign (carry[10], carry[11], offset);
-  tmp12 = hc_bytealign (carry[11], carry[12], offset);
-  tmp13 = hc_bytealign (carry[12], carry[13], offset);
-  tmp14 = hc_bytealign (carry[13], carry[14], offset);
-  tmp15 = hc_bytealign (carry[14], carry[15], offset);
-  tmp16 = hc_bytealign (carry[15],         0, offset);
+  tmp00 = hc_bytealign_be (        0, carry[ 0], offset);
+  tmp01 = hc_bytealign_be (carry[ 0], carry[ 1], offset);
+  tmp02 = hc_bytealign_be (carry[ 1], carry[ 2], offset);
+  tmp03 = hc_bytealign_be (carry[ 2], carry[ 3], offset);
+  tmp04 = hc_bytealign_be (carry[ 3], carry[ 4], offset);
+  tmp05 = hc_bytealign_be (carry[ 4], carry[ 5], offset);
+  tmp06 = hc_bytealign_be (carry[ 5], carry[ 6], offset);
+  tmp07 = hc_bytealign_be (carry[ 6], carry[ 7], offset);
+  tmp08 = hc_bytealign_be (carry[ 7], carry[ 8], offset);
+  tmp09 = hc_bytealign_be (carry[ 8], carry[ 9], offset);
+  tmp10 = hc_bytealign_be (carry[ 9], carry[10], offset);
+  tmp11 = hc_bytealign_be (carry[10], carry[11], offset);
+  tmp12 = hc_bytealign_be (carry[11], carry[12], offset);
+  tmp13 = hc_bytealign_be (carry[12], carry[13], offset);
+  tmp14 = hc_bytealign_be (carry[13], carry[14], offset);
+  tmp15 = hc_bytealign_be (carry[14], carry[15], offset);
+  tmp16 = hc_bytealign_be (carry[15],         0, offset);
   #endif
 
   #ifdef IS_NV
@@ -393,7 +400,7 @@ DECLSPEC void memcat64c_be (u32x *block, const u32 offset, u32x *carry)
   }
 }
 
-DECLSPEC void m13800m (__local u32 *s_esalt, u32 *w, const u32 pw_len, KERN_ATTR_VECTOR_ESALT (win8phone_t))
+DECLSPEC void m13800m (LOCAL_AS u32 *s_esalt, u32 *w, const u32 pw_len, KERN_ATTR_VECTOR_ESALT (win8phone_t))
 {
   /**
    * modifier
@@ -541,7 +548,7 @@ DECLSPEC void m13800m (__local u32 *s_esalt, u32 *w, const u32 pw_len, KERN_ATTR
   }
 }
 
-DECLSPEC void m13800s (__local u32 *s_esalt, u32 *w, const u32 pw_len, KERN_ATTR_VECTOR_ESALT (win8phone_t))
+DECLSPEC void m13800s (LOCAL_AS u32 *s_esalt, u32 *w, const u32 pw_len, KERN_ATTR_VECTOR_ESALT (win8phone_t))
 {
   /**
    * modifier
@@ -701,7 +708,7 @@ DECLSPEC void m13800s (__local u32 *s_esalt, u32 *w, const u32 pw_len, KERN_ATTR
   }
 }
 
-__kernel void m13800_m04 (KERN_ATTR_VECTOR_ESALT (win8phone_t))
+KERNEL_FQ void m13800_m04 (KERN_ATTR_VECTOR_ESALT (win8phone_t))
 {
   /**
    * modifier
@@ -740,14 +747,14 @@ __kernel void m13800_m04 (KERN_ATTR_VECTOR_ESALT (win8phone_t))
    * shared
    */
 
-  __local u32 s_esalt[32];
+  LOCAL_VK u32 s_esalt[32];
 
-  for (MAYBE_VOLATILE u32 i = lid; i < 32; i += lsz)
+  for (u32 i = lid; i < 32; i += lsz)
   {
     s_esalt[i] = esalt_bufs[digests_offset].salt_buf[i];
   }
 
-  barrier (CLK_LOCAL_MEM_FENCE);
+  SYNC_THREADS ();
 
   if (gid >= gid_max) return;
 
@@ -755,10 +762,10 @@ __kernel void m13800_m04 (KERN_ATTR_VECTOR_ESALT (win8phone_t))
    * main
    */
 
-  m13800m (s_esalt, w, pw_len, pws, rules_buf, combs_buf, words_buf_r, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_scryptV0_buf, d_scryptV1_buf, d_scryptV2_buf, d_scryptV3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
+  m13800m (s_esalt, w, pw_len, pws, rules_buf, combs_buf, words_buf_r, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_extra0_buf, d_extra1_buf, d_extra2_buf, d_extra3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
 }
 
-__kernel void m13800_m08 (KERN_ATTR_VECTOR_ESALT (win8phone_t))
+KERNEL_FQ void m13800_m08 (KERN_ATTR_VECTOR_ESALT (win8phone_t))
 {
   /**
    * modifier
@@ -797,14 +804,14 @@ __kernel void m13800_m08 (KERN_ATTR_VECTOR_ESALT (win8phone_t))
    * shared
    */
 
-  __local u32 s_esalt[32];
+  LOCAL_VK u32 s_esalt[32];
 
-  for (MAYBE_VOLATILE u32 i = lid; i < 32; i += lsz)
+  for (u32 i = lid; i < 32; i += lsz)
   {
     s_esalt[i] = esalt_bufs[digests_offset].salt_buf[i];
   }
 
-  barrier (CLK_LOCAL_MEM_FENCE);
+  SYNC_THREADS ();
 
   if (gid >= gid_max) return;
 
@@ -812,10 +819,10 @@ __kernel void m13800_m08 (KERN_ATTR_VECTOR_ESALT (win8phone_t))
    * main
    */
 
-  m13800m (s_esalt, w, pw_len, pws, rules_buf, combs_buf, words_buf_r, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_scryptV0_buf, d_scryptV1_buf, d_scryptV2_buf, d_scryptV3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
+  m13800m (s_esalt, w, pw_len, pws, rules_buf, combs_buf, words_buf_r, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_extra0_buf, d_extra1_buf, d_extra2_buf, d_extra3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
 }
 
-__kernel void m13800_m16 (KERN_ATTR_VECTOR_ESALT (win8phone_t))
+KERNEL_FQ void m13800_m16 (KERN_ATTR_VECTOR_ESALT (win8phone_t))
 {
   /**
    * modifier
@@ -854,14 +861,14 @@ __kernel void m13800_m16 (KERN_ATTR_VECTOR_ESALT (win8phone_t))
    * shared
    */
 
-  __local u32 s_esalt[32];
+  LOCAL_VK u32 s_esalt[32];
 
-  for (MAYBE_VOLATILE u32 i = lid; i < 32; i += lsz)
+  for (u32 i = lid; i < 32; i += lsz)
   {
     s_esalt[i] = esalt_bufs[digests_offset].salt_buf[i];
   }
 
-  barrier (CLK_LOCAL_MEM_FENCE);
+  SYNC_THREADS ();
 
   if (gid >= gid_max) return;
 
@@ -869,10 +876,10 @@ __kernel void m13800_m16 (KERN_ATTR_VECTOR_ESALT (win8phone_t))
    * main
    */
 
-  m13800m (s_esalt, w, pw_len, pws, rules_buf, combs_buf, words_buf_r, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_scryptV0_buf, d_scryptV1_buf, d_scryptV2_buf, d_scryptV3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
+  m13800m (s_esalt, w, pw_len, pws, rules_buf, combs_buf, words_buf_r, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_extra0_buf, d_extra1_buf, d_extra2_buf, d_extra3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
 }
 
-__kernel void m13800_s04 (KERN_ATTR_VECTOR_ESALT (win8phone_t))
+KERNEL_FQ void m13800_s04 (KERN_ATTR_VECTOR_ESALT (win8phone_t))
 {
   /**
    * modifier
@@ -911,14 +918,14 @@ __kernel void m13800_s04 (KERN_ATTR_VECTOR_ESALT (win8phone_t))
    * shared
    */
 
-  __local u32 s_esalt[32];
+  LOCAL_VK u32 s_esalt[32];
 
-  for (MAYBE_VOLATILE u32 i = lid; i < 32; i += lsz)
+  for (u32 i = lid; i < 32; i += lsz)
   {
     s_esalt[i] = esalt_bufs[digests_offset].salt_buf[i];
   }
 
-  barrier (CLK_LOCAL_MEM_FENCE);
+  SYNC_THREADS ();
 
   if (gid >= gid_max) return;
 
@@ -926,10 +933,10 @@ __kernel void m13800_s04 (KERN_ATTR_VECTOR_ESALT (win8phone_t))
    * main
    */
 
-  m13800s (s_esalt, w, pw_len, pws, rules_buf, combs_buf, words_buf_r, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_scryptV0_buf, d_scryptV1_buf, d_scryptV2_buf, d_scryptV3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
+  m13800s (s_esalt, w, pw_len, pws, rules_buf, combs_buf, words_buf_r, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_extra0_buf, d_extra1_buf, d_extra2_buf, d_extra3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
 }
 
-__kernel void m13800_s08 (KERN_ATTR_VECTOR_ESALT (win8phone_t))
+KERNEL_FQ void m13800_s08 (KERN_ATTR_VECTOR_ESALT (win8phone_t))
 {
   /**
    * modifier
@@ -968,14 +975,14 @@ __kernel void m13800_s08 (KERN_ATTR_VECTOR_ESALT (win8phone_t))
    * shared
    */
 
-  __local u32 s_esalt[32];
+  LOCAL_VK u32 s_esalt[32];
 
-  for (MAYBE_VOLATILE u32 i = lid; i < 32; i += lsz)
+  for (u32 i = lid; i < 32; i += lsz)
   {
     s_esalt[i] = esalt_bufs[digests_offset].salt_buf[i];
   }
 
-  barrier (CLK_LOCAL_MEM_FENCE);
+  SYNC_THREADS ();
 
   if (gid >= gid_max) return;
 
@@ -983,10 +990,10 @@ __kernel void m13800_s08 (KERN_ATTR_VECTOR_ESALT (win8phone_t))
    * main
    */
 
-  m13800s (s_esalt, w, pw_len, pws, rules_buf, combs_buf, words_buf_r, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_scryptV0_buf, d_scryptV1_buf, d_scryptV2_buf, d_scryptV3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
+  m13800s (s_esalt, w, pw_len, pws, rules_buf, combs_buf, words_buf_r, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_extra0_buf, d_extra1_buf, d_extra2_buf, d_extra3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
 }
 
-__kernel void m13800_s16 (KERN_ATTR_VECTOR_ESALT (win8phone_t))
+KERNEL_FQ void m13800_s16 (KERN_ATTR_VECTOR_ESALT (win8phone_t))
 {
   /**
    * modifier
@@ -1025,14 +1032,14 @@ __kernel void m13800_s16 (KERN_ATTR_VECTOR_ESALT (win8phone_t))
    * shared
    */
 
-  __local u32 s_esalt[32];
+  LOCAL_VK u32 s_esalt[32];
 
-  for (MAYBE_VOLATILE u32 i = lid; i < 32; i += lsz)
+  for (u32 i = lid; i < 32; i += lsz)
   {
     s_esalt[i] = esalt_bufs[digests_offset].salt_buf[i];
   }
 
-  barrier (CLK_LOCAL_MEM_FENCE);
+  SYNC_THREADS ();
 
   if (gid >= gid_max) return;
 
@@ -1040,5 +1047,5 @@ __kernel void m13800_s16 (KERN_ATTR_VECTOR_ESALT (win8phone_t))
    * main
    */
 
-  m13800s (s_esalt, w, pw_len, pws, rules_buf, combs_buf, words_buf_r, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_scryptV0_buf, d_scryptV1_buf, d_scryptV2_buf, d_scryptV3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
+  m13800s (s_esalt, w, pw_len, pws, rules_buf, combs_buf, words_buf_r, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_extra0_buf, d_extra1_buf, d_extra2_buf, d_extra3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
 }

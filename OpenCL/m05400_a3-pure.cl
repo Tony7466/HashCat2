@@ -5,15 +5,26 @@
 
 //#define NEW_SIMD_CODE
 
-#include "inc_vendor.cl"
-#include "inc_hash_constants.h"
-#include "inc_hash_functions.cl"
-#include "inc_types.cl"
+#ifdef KERNEL_STATIC
+#include "inc_vendor.h"
+#include "inc_types.h"
+#include "inc_platform.cl"
 #include "inc_common.cl"
 #include "inc_scalar.cl"
 #include "inc_hash_sha1.cl"
+#endif
 
-__kernel void m05400_mxx (KERN_ATTR_VECTOR_ESALT (ikepsk_t))
+typedef struct ikepsk
+{
+  u32 nr_buf[16];
+  u32 nr_len;
+
+  u32 msg_buf[128];
+  u32 msg_len[6];
+
+} ikepsk_t;
+
+KERNEL_FQ void m05400_mxx (KERN_ATTR_VECTOR_ESALT (ikepsk_t))
 {
   /**
    * modifier
@@ -28,11 +39,11 @@ __kernel void m05400_mxx (KERN_ATTR_VECTOR_ESALT (ikepsk_t))
    * base
    */
 
-  const u32 pw_len = pws[gid].pw_len & 255;
+  const u32 pw_len = pws[gid].pw_len;
 
   u32x w[64] = { 0 };
 
-  for (int i = 0, idx = 0; i < pw_len; i += 4, idx += 1)
+  for (u32 i = 0, idx = 0; i < pw_len; i += 4, idx += 1)
   {
     w[idx] = pws[gid].i[idx];
   }
@@ -85,7 +96,7 @@ __kernel void m05400_mxx (KERN_ATTR_VECTOR_ESALT (ikepsk_t))
 
     sha1_hmac_init_64 (&ctx, w0, w1, w2, w3);
 
-    sha1_hmac_update_global_swap (&ctx, esalt_bufs[digests_offset].msg_buf, esalt_bufs[digests_offset].msg_len);
+    sha1_hmac_update_global_swap (&ctx, esalt_bufs[digests_offset].msg_buf, esalt_bufs[digests_offset].msg_len[5]);
 
     sha1_hmac_final (&ctx);
 
@@ -98,7 +109,7 @@ __kernel void m05400_mxx (KERN_ATTR_VECTOR_ESALT (ikepsk_t))
   }
 }
 
-__kernel void m05400_sxx (KERN_ATTR_VECTOR_ESALT (ikepsk_t))
+KERNEL_FQ void m05400_sxx (KERN_ATTR_VECTOR_ESALT (ikepsk_t))
 {
   /**
    * modifier
@@ -125,11 +136,11 @@ __kernel void m05400_sxx (KERN_ATTR_VECTOR_ESALT (ikepsk_t))
    * base
    */
 
-  const u32 pw_len = pws[gid].pw_len & 255;
+  const u32 pw_len = pws[gid].pw_len;
 
   u32x w[64] = { 0 };
 
-  for (int i = 0, idx = 0; i < pw_len; i += 4, idx += 1)
+  for (u32 i = 0, idx = 0; i < pw_len; i += 4, idx += 1)
   {
     w[idx] = pws[gid].i[idx];
   }
@@ -182,7 +193,7 @@ __kernel void m05400_sxx (KERN_ATTR_VECTOR_ESALT (ikepsk_t))
 
     sha1_hmac_init_64 (&ctx, w0, w1, w2, w3);
 
-    sha1_hmac_update_global_swap (&ctx, esalt_bufs[digests_offset].msg_buf, esalt_bufs[digests_offset].msg_len);
+    sha1_hmac_update_global_swap (&ctx, esalt_bufs[digests_offset].msg_buf, esalt_bufs[digests_offset].msg_len[5]);
 
     sha1_hmac_final (&ctx);
 

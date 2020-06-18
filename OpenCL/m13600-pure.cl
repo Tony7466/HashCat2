@@ -5,16 +5,43 @@
 
 #define NEW_SIMD_CODE
 
-#include "inc_vendor.cl"
-#include "inc_hash_constants.h"
-#include "inc_hash_functions.cl"
-#include "inc_types.cl"
+#ifdef KERNEL_STATIC
+#include "inc_vendor.h"
+#include "inc_types.h"
+#include "inc_platform.cl"
 #include "inc_common.cl"
 #include "inc_simd.cl"
 #include "inc_hash_sha1.cl"
+#endif
 
 #define COMPARE_S "inc_comp_single.cl"
 #define COMPARE_M "inc_comp_multi.cl"
+
+typedef struct pbkdf2_sha1_tmp
+{
+  u32  ipad[5];
+  u32  opad[5];
+
+  u32  dgst[32];
+  u32  out[32];
+
+} pbkdf2_sha1_tmp_t;
+
+typedef struct zip2
+{
+  u32 type;
+  u32 mode;
+  u32 magic;
+  u32 salt_len;
+  u32 salt_buf[4];
+  u32 verify_bytes;
+  u32 compress_length;
+  u32 data_len;
+  u32 data_buf[2048];
+  u32 auth_len;
+  u32 auth_buf[4];
+
+} zip2_t;
 
 DECLSPEC void hmac_sha1_run_V (u32x *w0, u32x *w1, u32x *w2, u32x *w3, u32x *ipad, u32x *opad, u32x *digest)
 {
@@ -52,7 +79,7 @@ DECLSPEC void hmac_sha1_run_V (u32x *w0, u32x *w1, u32x *w2, u32x *w3, u32x *ipa
   sha1_transform_vector (w0, w1, w2, w3, digest);
 }
 
-__kernel void m13600_init (KERN_ATTR_TMPS_ESALT (pbkdf2_sha1_tmp_t, zip2_t))
+KERNEL_FQ void m13600_init (KERN_ATTR_TMPS_ESALT (pbkdf2_sha1_tmp_t, zip2_t))
 {
   /**
    * base
@@ -64,7 +91,7 @@ __kernel void m13600_init (KERN_ATTR_TMPS_ESALT (pbkdf2_sha1_tmp_t, zip2_t))
 
   sha1_hmac_ctx_t sha1_hmac_ctx;
 
-  sha1_hmac_init_global_swap (&sha1_hmac_ctx, pws[gid].i, pws[gid].pw_len & 255);
+  sha1_hmac_init_global_swap (&sha1_hmac_ctx, pws[gid].i, pws[gid].pw_len);
 
   tmps[gid].ipad[0] = sha1_hmac_ctx.ipad.h[0];
   tmps[gid].ipad[1] = sha1_hmac_ctx.ipad.h[1];
@@ -83,10 +110,10 @@ __kernel void m13600_init (KERN_ATTR_TMPS_ESALT (pbkdf2_sha1_tmp_t, zip2_t))
   u32 w2[4];
   u32 w3[4];
 
-  w0[0] = swap32_S (esalt_bufs[digests_offset].salt_buf[0]);
-  w0[1] = swap32_S (esalt_bufs[digests_offset].salt_buf[1]);
-  w0[2] = swap32_S (esalt_bufs[digests_offset].salt_buf[2]);
-  w0[3] = swap32_S (esalt_bufs[digests_offset].salt_buf[3]);
+  w0[0] = hc_swap32_S (esalt_bufs[digests_offset].salt_buf[0]);
+  w0[1] = hc_swap32_S (esalt_bufs[digests_offset].salt_buf[1]);
+  w0[2] = hc_swap32_S (esalt_bufs[digests_offset].salt_buf[2]);
+  w0[3] = hc_swap32_S (esalt_bufs[digests_offset].salt_buf[3]);
   w1[0] = 0;
   w1[1] = 0;
   w1[2] = 0;
@@ -104,27 +131,23 @@ __kernel void m13600_init (KERN_ATTR_TMPS_ESALT (pbkdf2_sha1_tmp_t, zip2_t))
 
   const u32 mode = esalt_bufs[digests_offset].mode;
 
-  u32 iter_start;
-  u32 iter_stop;
-  u32 count_start;
+  int iter_start;
+  int iter_stop;
 
   switch (mode)
   {
     case 1: iter_start  = 0;
             iter_stop   = 2;
-            count_start = 1;
             break;
     case 2: iter_start  = 1;
             iter_stop   = 3;
-            count_start = 2;
             break;
     case 3: iter_start  = 1;
             iter_stop   = 4;
-            count_start = 2;
             break;
   }
 
-  for (u32 i = iter_start, j = count_start; i < iter_stop; i++, j++)
+  for (int i = iter_stop - 1, j = iter_stop; i >= iter_start; i--, j--)
   {
     sha1_hmac_ctx_t sha1_hmac_ctx2 = sha1_hmac_ctx;
 
@@ -165,7 +188,7 @@ __kernel void m13600_init (KERN_ATTR_TMPS_ESALT (pbkdf2_sha1_tmp_t, zip2_t))
   }
 }
 
-__kernel void m13600_loop (KERN_ATTR_TMPS_ESALT (pbkdf2_sha1_tmp_t, zip2_t))
+KERNEL_FQ void m13600_loop (KERN_ATTR_TMPS_ESALT (pbkdf2_sha1_tmp_t, zip2_t))
 {
   const u64 gid = get_global_id (0);
 
@@ -186,29 +209,27 @@ __kernel void m13600_loop (KERN_ATTR_TMPS_ESALT (pbkdf2_sha1_tmp_t, zip2_t))
   opad[3] = packv (tmps, opad, gid, 3);
   opad[4] = packv (tmps, opad, gid, 4);
 
+  const u32 verify_bytes = esalt_bufs[digests_offset].verify_bytes;
+
   const u32 mode = esalt_bufs[digests_offset].mode;
 
-  u32 iter_start;
-  u32 iter_stop;
-  u32 count_start;
+  int iter_start;
+  int iter_stop;
 
   switch (mode)
   {
     case 1: iter_start  = 0;
             iter_stop   = 2;
-            count_start = 1;
             break;
     case 2: iter_start  = 1;
             iter_stop   = 3;
-            count_start = 2;
             break;
     case 3: iter_start  = 1;
             iter_stop   = 4;
-            count_start = 2;
             break;
   }
 
-  for (u32 i = iter_start, j = count_start; i < iter_stop; i++, j++)
+  for (int i = iter_stop - 1; i >= iter_start; i--)
   {
     const u32 i5 = i * 5;
 
@@ -260,6 +281,13 @@ __kernel void m13600_loop (KERN_ATTR_TMPS_ESALT (pbkdf2_sha1_tmp_t, zip2_t))
       out[4] ^= dgst[4];
     }
 
+    if (i == iter_stop - 1) // 2 byte optimization check
+    {
+      if (mode == 1) if (MATCHES_NONE_VS ((out[3] >> 16), verify_bytes)) break;
+      if (mode == 2) if (MATCHES_NONE_VS ((out[2] >> 16), verify_bytes)) break;
+      if (mode == 3) if (MATCHES_NONE_VS ((out[1] >> 16), verify_bytes)) break;
+    }
+
     unpackv (tmps, dgst, gid, i5 + 0, dgst[0]);
     unpackv (tmps, dgst, gid, i5 + 1, dgst[1]);
     unpackv (tmps, dgst, gid, i5 + 2, dgst[2]);
@@ -274,7 +302,7 @@ __kernel void m13600_loop (KERN_ATTR_TMPS_ESALT (pbkdf2_sha1_tmp_t, zip2_t))
   }
 }
 
-__kernel void m13600_comp (KERN_ATTR_TMPS_ESALT (pbkdf2_sha1_tmp_t, zip2_t))
+KERNEL_FQ void m13600_comp (KERN_ATTR_TMPS_ESALT (pbkdf2_sha1_tmp_t, zip2_t))
 {
   /**
    * base
@@ -306,7 +334,7 @@ __kernel void m13600_comp (KERN_ATTR_TMPS_ESALT (pbkdf2_sha1_tmp_t, zip2_t))
 
   u32 key[8] = { 0 };
 
-  for (int i = iter_start, j = 0; i < iter_stop; i++, j++)
+  for (u32 i = iter_start, j = 0; i < iter_stop; i++, j++)
   {
     key[j] = tmps[gid].out[i];
   }
@@ -341,12 +369,14 @@ __kernel void m13600_comp (KERN_ATTR_TMPS_ESALT (pbkdf2_sha1_tmp_t, zip2_t))
 
   sha1_hmac_final (&ctx);
 
-  const u32 r0 = swap32_S (ctx.opad.h[0] & 0xffffffff);
-  const u32 r1 = swap32_S (ctx.opad.h[1] & 0xffffffff);
-  const u32 r2 = swap32_S (ctx.opad.h[2] & 0xffff0000);
-  const u32 r3 = swap32_S (ctx.opad.h[3] & 0x00000000);
+  const u32 r0 = hc_swap32_S (ctx.opad.h[0] & 0xffffffff);
+  const u32 r1 = hc_swap32_S (ctx.opad.h[1] & 0xffffffff);
+  const u32 r2 = hc_swap32_S (ctx.opad.h[2] & 0xffff0000);
+  const u32 r3 = hc_swap32_S (ctx.opad.h[3] & 0x00000000);
 
   #define il_pos 0
 
+  #ifdef KERNEL_STATIC
   #include COMPARE_M
+  #endif
 }

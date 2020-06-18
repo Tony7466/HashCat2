@@ -5,17 +5,18 @@
 
 #include "common.h"
 #include "types.h"
-#include "bitops.h"
 #include "convert.h"
 #include "memory.h"
 #include "event.h"
-#include "interface.h"
+#include "hashes.h"
 #include "filehandling.h"
 #include "loopback.h"
 #include "outfile.h"
-#include "potfile.h"
 #include "locking.h"
 #include "shared.h"
+#include "potfile.h"
+
+static const char MASKED_PLAIN[] = "[notfound]";
 
 // get rid of this later
 int sort_by_hash         (const void *v1, const void *v2, void *v3);
@@ -24,6 +25,7 @@ int sort_by_hash_no_salt (const void *v1, const void *v2, void *v3);
 
 // this function is for potfile comparison where the potfile does not contain all the
 // information requires to do a true sort_by_hash() bsearch
+/*
 static int sort_by_hash_t_salt (const void *v1, const void *v2)
 {
   const hash_t *h1 = (const hash_t *) v1;
@@ -54,6 +56,7 @@ static int sort_by_hash_t_salt (const void *v1, const void *v2)
 
   return 0;
 }
+*/
 
 // this function is special and only used whenever --username and --show are used together:
 // it will sort all tree entries according to the settings stored in hashconfig
@@ -66,9 +69,19 @@ int sort_pot_tree_by_hash (const void *v1, const void *v2)
   const hash_t *h1 = (const hash_t *) t1->nodes->hash_buf;
   const hash_t *h2 = (const hash_t *) t2->nodes->hash_buf;
 
-  hashconfig_t *hc = (hashconfig_t *) t1->hashconfig; // is same as t2->hashconfig
+  hashconfig_t *hc = t1->hashconfig; // is same as t2->hashconfig
 
   return sort_by_hash (h1, h2, hc);
+}
+
+// this function is used to reproduce the hash ordering based on the original input hash file
+
+int sort_pot_orig_line (const void *v1, const void *v2)
+{
+  const pot_orig_line_entry_t *t1 = (const pot_orig_line_entry_t *) v1;
+  const pot_orig_line_entry_t *t2 = (const pot_orig_line_entry_t *) v2;
+
+  return t1->line_pos > t2->line_pos;
 }
 
 // the problem with the GNU tdestroy () function is that it doesn't work with mingw etc
@@ -90,16 +103,17 @@ void pot_tree_destroy (pot_tree_entry_t *tree)
 
 int potfile_init (hashcat_ctx_t *hashcat_ctx)
 {
-  folder_config_t *folder_config = hashcat_ctx->folder_config;
-  potfile_ctx_t   *potfile_ctx   = hashcat_ctx->potfile_ctx;
-  user_options_t  *user_options  = hashcat_ctx->user_options;
+  const folder_config_t *folder_config = hashcat_ctx->folder_config;
+  const hashconfig_t    *hashconfig    = hashcat_ctx->hashconfig;
+        potfile_ctx_t   *potfile_ctx   = hashcat_ctx->potfile_ctx;
+  const user_options_t  *user_options  = hashcat_ctx->user_options;
 
   potfile_ctx->enabled = false;
 
   if (user_options->benchmark       == true) return 0;
   if (user_options->example_hashes  == true) return 0;
   if (user_options->keyspace        == true) return 0;
-  if (user_options->opencl_info     == true) return 0;
+  if (user_options->backend_info    == true) return 0;
   if (user_options->stdout_flag     == true) return 0;
   if (user_options->speed_only      == true) return 0;
   if (user_options->progress_only   == true) return 0;
@@ -107,40 +121,20 @@ int potfile_init (hashcat_ctx_t *hashcat_ctx)
   if (user_options->version         == true) return 0;
   if (user_options->potfile_disable == true) return 0;
 
+  if (hashconfig->potfile_disable == true) return 0;
+
   potfile_ctx->enabled = true;
 
   if (user_options->potfile_path == NULL)
   {
-    potfile_ctx->fp       = NULL;
+    potfile_ctx->fp.pfp   = NULL;
 
     hc_asprintf (&potfile_ctx->filename, "%s/hashcat.potfile", folder_config->profile_dir);
   }
   else
   {
     potfile_ctx->filename = hcstrdup (user_options->potfile_path);
-    potfile_ctx->fp       = NULL;
-  }
-
-  // keep all hashes if --username was combined with --left or --show
-
-  potfile_ctx->keep_all_hashes = false;
-
-  if (user_options->username == true)
-  {
-    if ((user_options->show == true) || (user_options->left == true))
-    {
-      potfile_ctx->keep_all_hashes = true;
-    }
-  }
-
-  // keep all hashes if -m 3000 was combined with --left or --show
-
-  if (user_options->hash_mode == 3000)
-  {
-    if ((user_options->show == true) || (user_options->left == true))
-    {
-      potfile_ctx->keep_all_hashes = true;
-    }
+    potfile_ctx->fp.pfp   = NULL;
   }
 
   // starting from here, we should allocate some scratch buffer for later use
@@ -178,9 +172,12 @@ int potfile_init (hashcat_ctx_t *hashcat_ctx)
 
 void potfile_destroy (hashcat_ctx_t *hashcat_ctx)
 {
+  hashconfig_t  *hashconfig  = hashcat_ctx->hashconfig;
   potfile_ctx_t *potfile_ctx = hashcat_ctx->potfile_ctx;
 
   if (potfile_ctx->enabled == false) return;
+
+  if (hashconfig->potfile_disable == true) return;
 
   hcfree (potfile_ctx->out_buf);
   hcfree (potfile_ctx->tmp_buf);
@@ -194,9 +191,7 @@ int potfile_read_open (hashcat_ctx_t *hashcat_ctx)
 
   if (potfile_ctx->enabled == false) return 0;
 
-  potfile_ctx->fp = fopen (potfile_ctx->filename, "rb");
-
-  if (potfile_ctx->fp == NULL)
+  if (hc_fopen (&potfile_ctx->fp, potfile_ctx->filename, "rb") == false)
   {
     event_log_error (hashcat_ctx, "%s: %s", potfile_ctx->filename, strerror (errno));
 
@@ -208,13 +203,16 @@ int potfile_read_open (hashcat_ctx_t *hashcat_ctx)
 
 void potfile_read_close (hashcat_ctx_t *hashcat_ctx)
 {
+  hashconfig_t  *hashconfig  = hashcat_ctx->hashconfig;
   potfile_ctx_t *potfile_ctx = hashcat_ctx->potfile_ctx;
 
   if (potfile_ctx->enabled == false) return;
 
-  if (potfile_ctx->fp == NULL) return;
+  if (hashconfig->potfile_disable == true) return;
 
-  fclose (potfile_ctx->fp);
+  if (potfile_ctx->fp.pfp == NULL) return;
+
+  hc_fclose (&potfile_ctx->fp);
 }
 
 int potfile_write_open (hashcat_ctx_t *hashcat_ctx)
@@ -223,45 +221,44 @@ int potfile_write_open (hashcat_ctx_t *hashcat_ctx)
 
   if (potfile_ctx->enabled == false) return 0;
 
-  FILE *fp = fopen (potfile_ctx->filename, "ab");
-
-  if (fp == NULL)
+  if (hc_fopen (&potfile_ctx->fp, potfile_ctx->filename, "ab") == false)
   {
     event_log_error (hashcat_ctx, "%s: %s", potfile_ctx->filename, strerror (errno));
 
     return -1;
   }
 
-  potfile_ctx->fp = fp;
-
   return 0;
 }
 
 void potfile_write_close (hashcat_ctx_t *hashcat_ctx)
 {
+  hashconfig_t  *hashconfig  = hashcat_ctx->hashconfig;
   potfile_ctx_t *potfile_ctx = hashcat_ctx->potfile_ctx;
 
   if (potfile_ctx->enabled == false) return;
 
-  fclose (potfile_ctx->fp);
+  if (hashconfig->potfile_disable == true) return;
+
+  hc_fclose (&potfile_ctx->fp);
 }
 
-void potfile_write_append (hashcat_ctx_t *hashcat_ctx, const char *out_buf, u8 *plain_ptr, unsigned int plain_len)
+void potfile_write_append (hashcat_ctx_t *hashcat_ctx, const char *out_buf, const int out_len, u8 *plain_ptr, unsigned int plain_len)
 {
   const hashconfig_t   *hashconfig   = hashcat_ctx->hashconfig;
-  const potfile_ctx_t  *potfile_ctx  = hashcat_ctx->potfile_ctx;
   const user_options_t *user_options = hashcat_ctx->user_options;
+  potfile_ctx_t        *potfile_ctx  = hashcat_ctx->potfile_ctx;
 
   if (potfile_ctx->enabled == false) return;
+
+  if (hashconfig->potfile_disable == true) return;
 
   u8 *tmp_buf = potfile_ctx->tmp_buf;
 
   int tmp_len = 0;
 
-  if (1)
+  if (true)
   {
-    const size_t out_len = strlen (out_buf);
-
     memcpy (tmp_buf + tmp_len, out_buf, out_len);
 
     tmp_len += out_len;
@@ -271,9 +268,9 @@ void potfile_write_append (hashcat_ctx_t *hashcat_ctx, const char *out_buf, u8 *
     tmp_len += 1;
   }
 
-  if (1)
+  if ((hashconfig->opts_type & OPTS_TYPE_POTFILE_NOPASS) == 0)
   {
-    const bool always_ascii = (hashconfig->hash_type & OPTS_TYPE_PT_ALWAYS_ASCII) ? true : false;
+    const bool always_ascii = (hashconfig->opts_type & OPTS_TYPE_PT_ALWAYS_ASCII) ? true : false;
 
     if ((user_options->outfile_autohex == true) && (need_hexify (plain_ptr, plain_len, hashconfig->separator, always_ascii) == true))
     {
@@ -299,13 +296,13 @@ void potfile_write_append (hashcat_ctx_t *hashcat_ctx, const char *out_buf, u8 *
 
   tmp_buf[tmp_len] = 0;
 
-  lock_file (potfile_ctx->fp);
+  hc_lockfile (&potfile_ctx->fp);
 
-  fprintf (potfile_ctx->fp, "%s" EOL, tmp_buf);
+  hc_fprintf (&potfile_ctx->fp, "%s" EOL, tmp_buf);
 
-  fflush (potfile_ctx->fp);
+  hc_fflush (&potfile_ctx->fp);
 
-  if (unlock_file (potfile_ctx->fp))
+  if (hc_unlockfile (&potfile_ctx->fp))
   {
     event_log_error (hashcat_ctx, "%s: Failed to unlock file.", potfile_ctx->filename);
   }
@@ -323,15 +320,18 @@ void potfile_update_hash (hashcat_ctx_t *hashcat_ctx, hash_t *found, char *line_
   found->pw_buf = (char *) hcmalloc (pw_len + 1);
   found->pw_len = pw_len;
 
-  memcpy (found->pw_buf, pw_buf, pw_len);
+  if (pw_buf)
+  {
+    memcpy (found->pw_buf, pw_buf, pw_len);
 
-  found->pw_buf[found->pw_len] = 0;
+    found->pw_buf[found->pw_len] = 0;
+  }
 
   found->cracked = 1;
 
   // if enabled, update also the loopback file
 
-  if (loopback_ctx->fp != NULL)
+  if (loopback_ctx->fp.pfp != NULL)
   {
     loopback_write_append (hashcat_ctx, (u8 *) pw_buf, (unsigned int) pw_len);
   }
@@ -355,10 +355,9 @@ void potfile_update_hashes (hashcat_ctx_t *hashcat_ctx, hash_t *hash_buf, char *
   search_entry.nodes      = &search_node;
   search_entry.hashconfig = hashconfig;
 
-
   // the main search function is this:
 
-  void **found = tfind (&search_entry, (void **) &tree, sort_pot_tree_by_hash);
+  void **found = (void **) tfind (&search_entry, (void **) &tree, sort_pot_tree_by_hash);
 
   if (found)
   {
@@ -377,11 +376,16 @@ void potfile_update_hashes (hashcat_ctx_t *hashcat_ctx, hash_t *hash_buf, char *
 
 int potfile_remove_parse (hashcat_ctx_t *hashcat_ctx)
 {
-        hashconfig_t   *hashconfig   = hashcat_ctx->hashconfig;
+  const hashconfig_t   *hashconfig   = hashcat_ctx->hashconfig;
   const hashes_t       *hashes       = hashcat_ctx->hashes;
-  const potfile_ctx_t  *potfile_ctx  = hashcat_ctx->potfile_ctx;
+  const module_ctx_t   *module_ctx   = hashcat_ctx->module_ctx;
+  potfile_ctx_t        *potfile_ctx  = hashcat_ctx->potfile_ctx;
 
   if (potfile_ctx->enabled == false) return 0;
+
+  if (hashconfig->potfile_disable == true) return 0;
+
+  if (hashconfig->opts_type & OPTS_TYPE_PT_NEVERCRACK) return 0;
 
   // if no potfile exists yet we don't need to do anything here
 
@@ -392,22 +396,16 @@ int potfile_remove_parse (hashcat_ctx_t *hashcat_ctx)
 
   // no solution for these special hash types (for instane because they use hashfile in output etc)
 
-  if  (hashconfig->hash_mode ==  5200)  return 0;
-  if ((hashconfig->hash_mode >=  6200)
-   && (hashconfig->hash_mode <=  6299)) return 0;
-  if  (hashconfig->hash_mode ==  9000)  return 0;
-  if ((hashconfig->hash_mode >= 13700)
-   && (hashconfig->hash_mode <= 13799)) return 0;
-  if  (hashconfig->hash_mode == 14600)  return 0;
-
   hash_t hash_buf;
 
   hash_buf.digest    = hcmalloc (hashconfig->dgst_size);
   hash_buf.salt      = NULL;
   hash_buf.esalt     = NULL;
   hash_buf.hook_salt = NULL;
-  hash_buf.hash_info = NULL;
   hash_buf.cracked   = 0;
+  hash_buf.hash_info = NULL;
+  hash_buf.pw_buf    = NULL;
+  hash_buf.pw_len    = 0;
 
   if (hashconfig->is_salted == true)
   {
@@ -431,7 +429,7 @@ int potfile_remove_parse (hashcat_ctx_t *hashcat_ctx)
   pot_tree_entry_t *tree_entry_cache = NULL;
   pot_hash_node_t  *tree_nodes_cache = NULL;
 
-  if (potfile_ctx->keep_all_hashes == true)
+  if (hashconfig->potfile_keep_all_hashes == true)
   {
     // we need *at most* one entry for every hash
     // (if there are no hashes with the same keys (hash + salt), a counter example would be: same hash but different user name)
@@ -461,10 +459,9 @@ int potfile_remove_parse (hashcat_ctx_t *hashcat_ctx)
       // to sort by salt and we also need to have the correct order of dgst_pos0...dgst_pos3:
       new_entry->hashconfig = (hashconfig_t *) hashconfig; // "const hashconfig_t" gives a warning
 
-
       // the following function searches if the "key" is already present and if not inserts the new entry:
 
-      void **found = tsearch (new_entry, (void **) &all_hashes_tree, sort_pot_tree_by_hash);
+      void **found = (void **) tsearch (new_entry, (void **) &all_hashes_tree, sort_pot_tree_by_hash);
 
       pot_tree_entry_t *found_entry = (pot_tree_entry_t *) *found;
 
@@ -501,25 +498,21 @@ int potfile_remove_parse (hashcat_ctx_t *hashcat_ctx)
     }
   }
 
+  // do not use this unless really needed, for example as in LM
 
-  // special case for a split hash
-
-  if (hashconfig->hash_mode == 3000)
+  if (module_ctx->module_hash_decode_zero_hash != MODULE_DEFAULT)
   {
-    int parser_status = hashconfig->parse_func ((u8 *) LM_ZERO_HASH, 16, &hash_buf, hashconfig);
+    module_ctx->module_hash_decode_zero_hash (hashconfig, hash_buf.digest, hash_buf.salt, hash_buf.esalt, hash_buf.hook_salt, hash_buf.hash_info);
 
-    if (parser_status == PARSER_OK)
+    if (hashconfig->potfile_keep_all_hashes == true)
     {
-      if (potfile_ctx->keep_all_hashes == true)
-      {
-        potfile_update_hashes (hashcat_ctx, &hash_buf, NULL, 0, all_hashes_tree);
-      }
-      else
-      {
-        hash_t *found = (hash_t *) hc_bsearch_r (&hash_buf, hashes_buf, hashes_cnt, sizeof (hash_t), sort_by_hash_no_salt, (void *) hashconfig);
+      potfile_update_hashes (hashcat_ctx, &hash_buf, NULL, 0, all_hashes_tree);
+    }
+    else
+    {
+      hash_t *found = (hash_t *) hc_bsearch_r (&hash_buf, hashes_buf, hashes_cnt, sizeof (hash_t), sort_by_hash_no_salt, (void *) hashconfig);
 
-        potfile_update_hash (hashcat_ctx, found, NULL, 0);
-      }
+      potfile_update_hash (hashcat_ctx, found, NULL, 0);
     }
   }
 
@@ -527,11 +520,18 @@ int potfile_remove_parse (hashcat_ctx_t *hashcat_ctx)
 
   if (rc == -1) return -1;
 
+  void *tmps = NULL;
+
+  if (hashconfig->tmp_size > 0)
+  {
+    tmps = hcmalloc (hashconfig->tmp_size);
+  }
+
   char *line_buf = (char *) hcmalloc (HCBUFSIZ_LARGE);
 
-  while (!feof (potfile_ctx->fp))
+  while (!hc_feof (&potfile_ctx->fp))
   {
-    size_t line_len = fgetl (potfile_ctx->fp, line_buf);
+    size_t line_len = fgetl (&potfile_ctx->fp, line_buf, HCBUFSIZ_LARGE);
 
     if (line_len == 0) continue;
 
@@ -545,124 +545,81 @@ int potfile_remove_parse (hashcat_ctx_t *hashcat_ctx)
 
     char *line_hash_buf = line_buf;
 
-    size_t line_hash_len = last_separator - line_buf;
+    int line_hash_len = last_separator - line_buf;
 
     line_hash_buf[line_hash_len] = 0;
 
     if (line_hash_len == 0) continue;
 
-    if (hashconfig->is_salted == true)
+    if (hash_buf.salt)
     {
       memset (hash_buf.salt, 0, sizeof (salt_t));
     }
 
-    if (hashconfig->esalt_size > 0)
+    if (hash_buf.esalt)
     {
       memset (hash_buf.esalt, 0, hashconfig->esalt_size);
     }
 
-    if (hashconfig->hook_salt_size > 0)
+    if (hash_buf.hook_salt)
     {
       memset (hash_buf.hook_salt, 0, hashconfig->hook_salt_size);
     }
 
-    hash_t *found = NULL;
-
-    if (hashconfig->hash_mode == 6800)
+    if (module_ctx->module_hash_decode_potfile != MODULE_DEFAULT)
     {
-      if (line_hash_len < 256) // 64 = 64 * u32 in salt_buf[]
+      if (module_ctx->module_potfile_custom_check != MODULE_DEFAULT)
       {
-        // manipulate salt_buf
-        memcpy (hash_buf.salt->salt_buf, line_hash_buf, line_hash_len);
+        const int parser_status = module_ctx->module_hash_decode_potfile (hashconfig, hash_buf.digest, hash_buf.salt, hash_buf.esalt, hash_buf.hook_salt, hash_buf.hash_info, line_hash_buf, line_hash_len, tmps);
 
-        hash_buf.salt->salt_len = (u32) line_hash_len;
+        if (parser_status != PARSER_OK) continue;
 
-        found = (hash_t *) bsearch (&hash_buf, hashes_buf, hashes_cnt, sizeof (hash_t), sort_by_hash_t_salt);
-      }
-    }
-    else if ((hashconfig->hash_mode == 2500) || (hashconfig->hash_mode == 2501))
-    {
-      // here we have in line_hash_buf: hash:macap:macsta:essid:password
+        for (u32 hashes_pos = 0; hashes_pos < hashes_cnt; hashes_pos++)
+        {
+          const bool cracked = module_ctx->module_potfile_custom_check (hashconfig, &hashes_buf[hashes_pos], &hash_buf, tmps);
 
-      char *sep_pos = strrchr (line_hash_buf, ':');
+          if (cracked == true)
+          {
+            potfile_update_hash (hashcat_ctx, &hashes_buf[hashes_pos], line_pw_buf, (u32) line_pw_len);
+          }
+        }
 
-      if (sep_pos == NULL) continue;
-
-      sep_pos[0] = 0;
-
-      char *hash_pos = line_hash_buf;
-
-      const size_t hash_len = strlen (hash_pos);
-
-      if (hash_len != 32 + 1 + 12 + 1 + 12) continue;
-
-      char *essid_pos = sep_pos + 1;
-
-      size_t essid_len = strlen (essid_pos);
-
-      if (is_hexify ((const u8 *) essid_pos, essid_len) == true)
-      {
-        essid_len = exec_unhexify ((const u8 *) essid_pos, essid_len, (u8 *) essid_pos, essid_len);
+        continue;
       }
 
-      if (essid_len > 32) continue;
-
-      if (hashconfig->is_salted == true)
-      {
-        // this should be always true, but we need it to make scan-build happy
-
-        memcpy (hash_buf.salt->salt_buf, essid_pos, essid_len);
-
-        hash_buf.salt->salt_len  = (u32) essid_len;
-        hash_buf.salt->salt_iter = ROUNDS_WPA_PBKDF2 - 1;
-
-        u32 hash[4];
-
-        hash[0] = hex_to_u32 ((const u8 *) &hash_pos[ 0]);
-        hash[1] = hex_to_u32 ((const u8 *) &hash_pos[ 8]);
-        hash[2] = hex_to_u32 ((const u8 *) &hash_pos[16]);
-        hash[3] = hex_to_u32 ((const u8 *) &hash_pos[24]);
-
-        hash[0] = byte_swap_32 (hash[0]);
-        hash[1] = byte_swap_32 (hash[1]);
-        hash[2] = byte_swap_32 (hash[2]);
-        hash[3] = byte_swap_32 (hash[3]);
-
-        u32 *digest = (u32 *) hash_buf.digest;
-
-        digest[0] = hash[0];
-        digest[1] = hash[1];
-        digest[2] = hash[2];
-        digest[3] = hash[3];
-      }
-
-      found = (hash_t *) hc_bsearch_r (&hash_buf, hashes_buf, hashes_cnt, sizeof (hash_t), sort_by_hash, (void *) hashconfig);
+      // should be rejected?
+      //const int parser_status = module_ctx->module_hash_decode_potfile (hashconfig, hash_buf.digest, hash_buf.salt, hash_buf.esalt, hash_buf.hook_salt, hash_buf.hash_info, line_hash_buf, line_hash_len, NULL);
+      //if (parser_status != PARSER_OK) continue;
     }
     else
     {
-      int parser_status = hashconfig->parse_func ((u8 *) line_hash_buf, (u32) line_hash_len, &hash_buf, hashconfig);
+      const int parser_status = module_ctx->module_hash_decode (hashconfig, hash_buf.digest, hash_buf.salt, hash_buf.esalt, hash_buf.hook_salt, hash_buf.hash_info, line_hash_buf, line_hash_len);
 
       if (parser_status != PARSER_OK) continue;
 
-      if (potfile_ctx->keep_all_hashes == true)
+      if (hashconfig->potfile_keep_all_hashes == true)
       {
         potfile_update_hashes (hashcat_ctx, &hash_buf, line_pw_buf, (u32) line_pw_len, all_hashes_tree);
 
         continue;
       }
 
-      found = (hash_t *) hc_bsearch_r (&hash_buf, hashes_buf, hashes_cnt, sizeof (hash_t), sort_by_hash, (void *) hashconfig);
-    }
+      hash_t *found = (hash_t *) hc_bsearch_r (&hash_buf, hashes_buf, hashes_cnt, sizeof (hash_t), sort_by_hash, (void *) hashconfig);
 
-    potfile_update_hash (hashcat_ctx, found, line_pw_buf, (u32) line_pw_len);
+      potfile_update_hash (hashcat_ctx, found, line_pw_buf, (u32) line_pw_len);
+    }
   }
 
   hcfree (line_buf);
 
+  if (hashconfig->tmp_size > 0)
+  {
+    hcfree (tmps);
+  }
+
   potfile_read_close (hashcat_ctx);
 
-
-  if (potfile_ctx->keep_all_hashes == true)
+  if (hashconfig->potfile_keep_all_hashes == true)
   {
     pot_tree_destroy (all_hashes_tree); // this could be slow (should we just skip it?)
 
@@ -701,8 +658,14 @@ int potfile_handle_show (hashcat_ctx_t *hashcat_ctx)
   u32     salts_cnt = hashes->salts_cnt;
   salt_t *salts_buf = hashes->salts_buf;
 
-  if (hashconfig->hash_mode == 3000)
+  pot_orig_line_entry_t *final_buf = (pot_orig_line_entry_t *) hccalloc (hashes->hashes_cnt, sizeof (pot_orig_line_entry_t));
+  u32                    final_cnt = 0;
+
+  if (hashconfig->opts_type & OPTS_TYPE_HASH_SPLIT)
   {
+    // this implementation will work for LM only
+    // however, LM is the only hash support which splits the password into multiple hashes
+
     for (u32 salt_idx = 0; salt_idx < salts_cnt; salt_idx++)
     {
       salt_t *salt_buf = salts_buf + salt_idx;
@@ -743,14 +706,14 @@ int potfile_handle_show (hashcat_ctx_t *hashcat_ctx)
 
         u8 *out_buf = potfile_ctx->out_buf;
 
-        out_buf[0] = 0;
-
-        ascii_digest (hashcat_ctx, (char *) out_buf + 0, HCBUFSIZ_LARGE - 0, salt_idx, digest_idx);
+        int out_len = hash_encode (hashcat_ctx->hashconfig, hashcat_ctx->hashes, hashcat_ctx->module_ctx, (char *) out_buf + 0, HCBUFSIZ_LARGE - 0, salt_idx, digest_idx);
 
         if (hash2)
         {
-          ascii_digest (hashcat_ctx, (char *) out_buf + 16, HCBUFSIZ_LARGE - 16, salt_idx, split_neighbor);
+          out_len += hash_encode (hashcat_ctx->hashconfig, hashcat_ctx->hashes, hashcat_ctx->module_ctx, (char *) out_buf + 16, HCBUFSIZ_LARGE - 16, salt_idx, split_neighbor);
         }
+
+        out_buf[out_len] = 0;
 
         // user
         unsigned char *username = NULL;
@@ -784,9 +747,9 @@ int potfile_handle_show (hashcat_ctx_t *hashcat_ctx)
         }
         else
         {
-          memcpy (mixed_buf + mixed_len, LM_MASKED_PLAIN, strlen (LM_MASKED_PLAIN));
+          memcpy (mixed_buf + mixed_len, MASKED_PLAIN, strlen (MASKED_PLAIN));
 
-          mixed_len += strlen (LM_MASKED_PLAIN);
+          mixed_len += strlen (MASKED_PLAIN);
         }
 
         if (hash2)
@@ -799,15 +762,25 @@ int potfile_handle_show (hashcat_ctx_t *hashcat_ctx)
           }
           else
           {
-            memcpy (mixed_buf + mixed_len, LM_MASKED_PLAIN, strlen (LM_MASKED_PLAIN));
+            memcpy (mixed_buf + mixed_len, MASKED_PLAIN, strlen (MASKED_PLAIN));
 
-            mixed_len += strlen (LM_MASKED_PLAIN);
+            mixed_len += strlen (MASKED_PLAIN);
           }
         }
 
-        const int tmp_len = outfile_write (hashcat_ctx, (char *) out_buf, (u8 *) mixed_buf, mixed_len, 0, username, user_len, (char *) tmp_buf);
+        const int tmp_len = outfile_write (hashcat_ctx, (char *) out_buf, out_len, (u8 *) mixed_buf, mixed_len, 0, username, user_len, true, (char *) tmp_buf);
 
-        EVENT_DATA (EVENT_POTFILE_HASH_SHOW, tmp_buf, tmp_len);
+        //EVENT_DATA (EVENT_POTFILE_HASH_SHOW, tmp_buf, tmp_len);
+
+        final_buf[final_cnt].hash_buf = (u8 *) hcmalloc (tmp_len);
+
+        memcpy (final_buf[final_cnt].hash_buf, tmp_buf, tmp_len);
+
+        final_buf[final_cnt].hash_len = tmp_len;
+
+        final_buf[final_cnt].line_pos = hash1->orig_line_pos;
+
+        final_cnt++;
       }
     }
   }
@@ -831,9 +804,9 @@ int potfile_handle_show (hashcat_ctx_t *hashcat_ctx)
 
         u8 *out_buf = potfile_ctx->out_buf;
 
-        out_buf[0] = 0;
+        const int out_len = hash_encode (hashcat_ctx->hashconfig, hashcat_ctx->hashes, hashcat_ctx->module_ctx, (char *) out_buf, HCBUFSIZ_LARGE, salt_idx, digest_idx);
 
-        ascii_digest (hashcat_ctx, (char *) out_buf, HCBUFSIZ_LARGE, salt_idx, digest_idx);
+        out_buf[out_len] = 0;
 
         // user
         unsigned char *username = NULL;
@@ -858,13 +831,12 @@ int potfile_handle_show (hashcat_ctx_t *hashcat_ctx)
 
         tmp_buf[0] = 0;
 
-
         // special case for collider modes: we do not use the $HEX[] format within the hash itself
         // therefore we need to convert the $HEX[] password into hexadecimal (without "$HEX[" and "]")
 
         bool is_collider_hex_password = false;
 
-        if ((hashconfig->hash_mode == 9710) || (hashconfig->hash_mode == 9810) || (hashconfig->hash_mode == 10410))
+        if (hashconfig->opts_type & OPTS_TYPE_PT_ALWAYS_HEXIFY)
         {
           if (is_hexify ((u8 *) hash->pw_buf, hash->pw_len) == true)
           {
@@ -876,21 +848,42 @@ int potfile_handle_show (hashcat_ctx_t *hashcat_ctx)
 
         if (is_collider_hex_password == true)
         {
-          u8 pass_unhexified[HCBUFSIZ_TINY] = { 0 };
+          u8 pass_unhexified[HCBUFSIZ_SMALL] = { 0 };
 
           const size_t pass_unhexified_len = exec_unhexify ((u8 *) hash->pw_buf, hash->pw_len, pass_unhexified, sizeof (pass_unhexified));
 
-          tmp_len = outfile_write (hashcat_ctx, (char *) out_buf, pass_unhexified, (u32) pass_unhexified_len, 0, username, user_len, (char *) tmp_buf);
+          tmp_len = outfile_write (hashcat_ctx, (char *) out_buf, out_len, pass_unhexified, (u32) pass_unhexified_len, 0, username, user_len, true, (char *) tmp_buf);
         }
         else
         {
-          tmp_len = outfile_write (hashcat_ctx, (char *) out_buf, (u8 *) hash->pw_buf, hash->pw_len, 0, username, user_len, (char *) tmp_buf);
+          tmp_len = outfile_write (hashcat_ctx, (char *) out_buf, out_len, (u8 *) hash->pw_buf, hash->pw_len, 0, username, user_len, true, (char *) tmp_buf);
         }
 
-        EVENT_DATA (EVENT_POTFILE_HASH_SHOW, tmp_buf, tmp_len);
+        //EVENT_DATA (EVENT_POTFILE_HASH_SHOW, tmp_buf, tmp_len);
+
+        final_buf[final_cnt].hash_buf = (u8 *) hcmalloc (tmp_len);
+
+        memcpy (final_buf[final_cnt].hash_buf, tmp_buf, tmp_len);
+
+        final_buf[final_cnt].hash_len = tmp_len;
+
+        final_buf[final_cnt].line_pos = hash->orig_line_pos;
+
+        final_cnt++;
       }
     }
   }
+
+  qsort (final_buf, final_cnt, sizeof (pot_orig_line_entry_t), sort_pot_orig_line);
+
+  for (u32 final_pos = 0; final_pos < final_cnt; final_pos++)
+  {
+    EVENT_DATA (EVENT_POTFILE_HASH_SHOW, final_buf[final_pos].hash_buf, final_buf[final_pos].hash_len);
+
+    hcfree (final_buf[final_pos].hash_buf);
+  }
+
+  hcfree (final_buf);
 
   return 0;
 }
@@ -899,6 +892,7 @@ int potfile_handle_left (hashcat_ctx_t *hashcat_ctx)
 {
   hashconfig_t  *hashconfig  = hashcat_ctx->hashconfig;
   hashes_t      *hashes      = hashcat_ctx->hashes;
+  module_ctx_t  *module_ctx  = hashcat_ctx->module_ctx;
   potfile_ctx_t *potfile_ctx = hashcat_ctx->potfile_ctx;
 
   hash_t *hashes_buf = hashes->hashes_buf;
@@ -906,8 +900,14 @@ int potfile_handle_left (hashcat_ctx_t *hashcat_ctx)
   u32     salts_cnt = hashes->salts_cnt;
   salt_t *salts_buf = hashes->salts_buf;
 
-  if (hashconfig->hash_mode == 3000)
+  pot_orig_line_entry_t *final_buf = (pot_orig_line_entry_t *) hccalloc (hashes->hashes_cnt, sizeof (pot_orig_line_entry_t));
+  u32                    final_cnt = 0;
+
+  if (hashconfig->opts_type & OPTS_TYPE_HASH_SPLIT)
   {
+    // this implementation will work for LM only
+    // however, LM is the only hash support which splits the password into multiple hashes
+
     for (u32 salt_idx = 0; salt_idx < salts_cnt; salt_idx++)
     {
       salt_t *salt_buf = salts_buf + salt_idx;
@@ -948,14 +948,14 @@ int potfile_handle_left (hashcat_ctx_t *hashcat_ctx)
 
         u8 *out_buf = potfile_ctx->out_buf;
 
-        out_buf[0] = 0;
-
-        ascii_digest (hashcat_ctx, (char *) out_buf + 0, HCBUFSIZ_LARGE - 0, salt_idx, digest_idx);
+        int out_len = hash_encode (hashcat_ctx->hashconfig, hashcat_ctx->hashes, hashcat_ctx->module_ctx, (char *) out_buf + 0, HCBUFSIZ_LARGE - 0, salt_idx, digest_idx);
 
         if (hash2)
         {
-          ascii_digest (hashcat_ctx, (char *) out_buf + 16, HCBUFSIZ_LARGE - 16, salt_idx, split_neighbor);
+          out_len += hash_encode (hashcat_ctx->hashconfig, hashcat_ctx->hashes, hashcat_ctx->module_ctx, (char *) out_buf + 16, HCBUFSIZ_LARGE - 16, salt_idx, split_neighbor);
         }
+
+        out_buf[out_len] = 0;
 
         // user
         unsigned char *username = NULL;
@@ -977,9 +977,19 @@ int potfile_handle_left (hashcat_ctx_t *hashcat_ctx)
 
         tmp_buf[0] = 0;
 
-        const int tmp_len = outfile_write (hashcat_ctx, (char *) out_buf, NULL, 0, 0, username, user_len, (char *) tmp_buf);
+        const int tmp_len = outfile_write (hashcat_ctx, (char *) out_buf, out_len, NULL, 0, 0, username, user_len, true, (char *) tmp_buf);
 
-        EVENT_DATA (EVENT_POTFILE_HASH_LEFT, tmp_buf, tmp_len);
+        //EVENT_DATA (EVENT_POTFILE_HASH_LEFT, tmp_buf, tmp_len);
+
+        final_buf[final_cnt].hash_buf = (u8 *) hcmalloc (tmp_len);
+
+        memcpy (final_buf[final_cnt].hash_buf, tmp_buf, tmp_len);
+
+        final_buf[final_cnt].hash_len = tmp_len;
+
+        final_buf[final_cnt].line_pos = hash1->orig_line_pos;
+
+        final_cnt++;
       }
     }
   }
@@ -1001,9 +1011,31 @@ int potfile_handle_left (hashcat_ctx_t *hashcat_ctx)
 
         u8 *out_buf = potfile_ctx->out_buf;
 
-        out_buf[0] = 0;
+        int out_len;
 
-        ascii_digest (hashcat_ctx, (char *) out_buf, HCBUFSIZ_LARGE, salt_idx, digest_idx);
+        if (module_ctx->module_hash_binary_save != MODULE_DEFAULT)
+        {
+          char *binary_buf = NULL;
+
+          int binary_len = module_ctx->module_hash_binary_save (hashes, salt_idx, digest_idx, &binary_buf);
+
+          if ((hashconfig->opts_type & OPTS_TYPE_BINARY_HASHFILE) == 0)
+          {
+            binary_len--; // no need for the newline
+          }
+
+          memcpy (out_buf, binary_buf, binary_len);
+
+          out_len = binary_len;
+
+          hcfree (binary_buf);
+        }
+        else
+        {
+          out_len = hash_encode (hashcat_ctx->hashconfig, hashcat_ctx->hashes, hashcat_ctx->module_ctx, (char *) out_buf, HCBUFSIZ_LARGE, salt_idx, digest_idx);
+        }
+
+        out_buf[out_len] = 0;
 
         hash_t *hash = &hashes_buf[hashes_idx];
 
@@ -1026,16 +1058,75 @@ int potfile_handle_left (hashcat_ctx_t *hashcat_ctx)
           }
         }
 
+        const bool print_eol = (hashconfig->opts_type & OPTS_TYPE_BINARY_HASHFILE) == 0;
+
         u8 *tmp_buf = potfile_ctx->tmp_buf;
 
         tmp_buf[0] = 0;
 
-        const int tmp_len = outfile_write (hashcat_ctx, (char *) out_buf, NULL, 0, 0, username, user_len, (char *) tmp_buf);
+        const int tmp_len = outfile_write (hashcat_ctx, (char *) out_buf, out_len, NULL, 0, 0, username, user_len, print_eol, (char *) tmp_buf);
 
-        EVENT_DATA (EVENT_POTFILE_HASH_LEFT, tmp_buf, tmp_len);
+        //EVENT_DATA (EVENT_POTFILE_HASH_LEFT, tmp_buf, tmp_len);
+
+        final_buf[final_cnt].hash_buf = (u8 *) hcmalloc (tmp_len);
+
+        memcpy (final_buf[final_cnt].hash_buf, tmp_buf, tmp_len);
+
+        final_buf[final_cnt].hash_len = tmp_len;
+
+        final_buf[final_cnt].line_pos = hash->orig_line_pos;
+
+        final_cnt++;
       }
     }
   }
+
+  qsort (final_buf, final_cnt, sizeof (pot_orig_line_entry_t), sort_pot_orig_line);
+
+  for (u32 final_pos = 0; final_pos < final_cnt; final_pos++)
+  {
+    u8 *event_data = NULL;
+
+    int event_len = 0;
+
+    // add EOL after hash, but only if NOT binary:
+
+    if ((hashconfig->opts_type & OPTS_TYPE_BINARY_HASHFILE) == 0)
+    {
+      u8 *eol_chars = (u8 *) EOL;
+
+      int eol_len = (int) strlen (EOL);
+
+      event_len = final_buf[final_pos].hash_len + eol_len;
+
+      event_data = (u8 *) hcmalloc (event_len);
+
+      memcpy (event_data, final_buf[final_pos].hash_buf, final_buf[final_pos].hash_len);
+
+      // only difference (add EOL to the buffer):
+
+      for (int i = 0, j = event_len - eol_len; i < eol_len; i++, j++)
+      {
+        event_data[j] = eol_chars[i];
+      }
+    }
+    else
+    {
+      event_len = final_buf[final_pos].hash_len;
+
+      event_data = (u8 *) hcmalloc (event_len);
+
+      memcpy (event_data, final_buf[final_pos].hash_buf, final_buf[final_pos].hash_len);
+    }
+
+    EVENT_DATA (EVENT_POTFILE_HASH_LEFT, event_data, event_len);
+
+    hcfree (event_data);
+
+    hcfree (final_buf[final_pos].hash_buf);
+  }
+
+  hcfree (final_buf);
 
   return 0;
 }

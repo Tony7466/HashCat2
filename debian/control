@@ -6,6 +6,7 @@ Uploaders: Daniel Echeverry <epsilon77@gmail.com>
 Build-Depends: debhelper-compat (= 12),
                libgmp-dev,
                libxxhash-dev,
+	       zlib1g-dev,
                opencl-headers
 Standards-Version: 4.5.0
 Homepage: https://hashcat.net/hashcat/

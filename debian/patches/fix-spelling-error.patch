@@ -1,11 +1,31 @@
-Description: Fix spelling error
-Author: Sophie Brun <sophie@freexian.com>
-Last-Update: 2018-04-04
+From: Sophie Brun <sophie@freexian.com>
+Date: Thu, 18 Jun 2020 10:42:18 +0200
+Subject: Fix spelling error
+
+Last-Update: 2020-06-18
 ---
-This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+ src/usage.c        | 2 +-
+ src/user_options.c | 1 -
+ 2 files changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/src/usage.c b/src/usage.c
+index 0f30e21..c1763bc 100644
+--- a/src/usage.c
++++ b/src/usage.c
+@@ -36,7 +36,7 @@ static const char *const USAGE_BIG_PRE_HASHMODES[] =
+   "     --hex-wordlist             |      | Assume words in wordlist are given in hex            |",
+   "     --force                    |      | Ignore warnings                                      |",
+   "     --status                   |      | Enable automatic update of the status screen         |",
+-  "     --status-json              |      | Enable JSON format for status ouput                  |",
++  "     --status-json              |      | Enable JSON format for status output                 |",
+   "     --status-timer             | Num  | Sets seconds between status screen updates to X      | --status-timer=1",
+   "     --stdin-timeout-abort      | Num  | Abort if there is no input from stdin for X seconds  | --stdin-timeout-abort=300",
+   "     --machine-readable         |      | Display the status view in a machine-readable format |",
+diff --git a/src/user_options.c b/src/user_options.c
+index 544abfc..69e3ccc 100644
 --- a/src/user_options.c
 +++ b/src/user_options.c
-@@ -103,7 +103,6 @@ static const struct option long_options[
+@@ -106,7 +106,6 @@ static const struct option long_options[] =
    {"segment-size",              required_argument, NULL, IDX_SEGMENT_SIZE},
    {"self-test-disable",         no_argument,       NULL, IDX_SELF_TEST_DISABLE},
    {"separator",                 required_argument, NULL, IDX_SEPARATOR},

@@ -1,7 +1,7 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: hashcat
 Source: http://hashcat.net/hashcat/
-Files-Excluded: deps/OpenCL-Headers deps/xxHash
+Files-Excluded: deps/OpenCL-Headers deps/xxHash deps/zlib
 Comment: remove deps already packaged in Debian
 
 Files: *

@@ -5,12 +5,12 @@ Files-Excluded: deps/OpenCL-Headers deps/xxHash deps/zlib
 Comment: remove deps already packaged in Debian
 
 Files: *
-Copyright: 2015-2017 Jens Steube <jens.steube@gmail.com>
+Copyright: 2015-2020 Jens Steube <jens.steube@gmail.com>
 License: Expat
 
 Files: debian/*
 Copyright: 2016 Daniel Echeverry <epsilon77@gmail.com>
-           2016 Sophie Brun <sophie@freexian.com>
+           2016-2020 Sophie Brun <sophie@offensive-security.com>
            2017 Samuel Henrique <samueloph@debian.org>
 License: Expat
 

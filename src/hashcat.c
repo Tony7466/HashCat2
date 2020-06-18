@@ -9,7 +9,6 @@
 
 #include "types.h"
 #include "folder.h"
-#include "locking.h"
 #include "memory.h"
 #include "shared.h"
 #include "thread.h"
@@ -27,7 +26,6 @@
 #include "dictstat.h"
 #include "dispatch.h"
 #include "event.h"
-#include "hashcat.h"
 #include "hashes.h"
 #include "hwmon.h"
 #include "induct.h"
@@ -36,20 +34,19 @@
 #include "loopback.h"
 #include "monitor.h"
 #include "mpsp.h"
-#include "opencl.h"
+#include "backend.h"
 #include "outfile_check.h"
 #include "outfile.h"
 #include "pidfile.h"
 #include "potfile.h"
 #include "restore.h"
-#include "rp.h"
 #include "selftest.h"
 #include "status.h"
 #include "straight.h"
 #include "tuningdb.h"
-#include "usage.h"
 #include "user_options.h"
 #include "wordlist.h"
+#include "hashcat.h"
 
 #ifdef WITH_BRAIN
 #include "brain.h"
@@ -62,7 +59,7 @@ static int inner2_loop (hashcat_ctx_t *hashcat_ctx)
   hashes_t             *hashes              = hashcat_ctx->hashes;
   induct_ctx_t         *induct_ctx          = hashcat_ctx->induct_ctx;
   logfile_ctx_t        *logfile_ctx         = hashcat_ctx->logfile_ctx;
-  opencl_ctx_t         *opencl_ctx          = hashcat_ctx->opencl_ctx;
+  backend_ctx_t        *backend_ctx         = hashcat_ctx->backend_ctx;
   restore_ctx_t        *restore_ctx         = hashcat_ctx->restore_ctx;
   status_ctx_t         *status_ctx          = hashcat_ctx->status_ctx;
   user_options_extra_t *user_options_extra  = hashcat_ctx->user_options_extra;
@@ -87,21 +84,18 @@ static int inner2_loop (hashcat_ctx_t *hashcat_ctx)
   status_ctx->words_off = 0;
   status_ctx->words_cur = 0;
 
-  if (restore_ctx->rd)
+  if (restore_ctx->restore_execute == true)
   {
+    restore_ctx->restore_execute = false;
+
     restore_data_t *rd = restore_ctx->rd;
 
-    if (rd->words_cur > 0)
-    {
-      status_ctx->words_off = rd->words_cur;
-      status_ctx->words_cur = status_ctx->words_off;
+    status_ctx->words_off = rd->words_cur;
+    status_ctx->words_cur = status_ctx->words_off;
 
-      rd->words_cur = 0;
+    // --restore always overrides --skip
 
-      // --restore always overrides --skip
-
-      user_options->skip = 0;
-    }
+    user_options->skip = 0;
   }
 
   if (user_options->skip > 0)
@@ -112,7 +106,7 @@ static int inner2_loop (hashcat_ctx_t *hashcat_ctx)
     user_options->skip = 0;
   }
 
-  opencl_session_reset (hashcat_ctx);
+  backend_session_reset (hashcat_ctx);
 
   cpt_ctx_reset (hashcat_ctx);
 
@@ -120,17 +114,13 @@ static int inner2_loop (hashcat_ctx_t *hashcat_ctx)
    * Update attack-mode specific stuff based on mask
    */
 
-  const int rc_mask_ctx_update_loop = mask_ctx_update_loop (hashcat_ctx);
-
-  if (rc_mask_ctx_update_loop == -1) return 0;
+  if (mask_ctx_update_loop (hashcat_ctx) == -1) return 0;
 
   /**
    * Update attack-mode specific stuff based on wordlist
    */
 
-  const int rc_straight_ctx_update_loop = straight_ctx_update_loop (hashcat_ctx);
-
-  if (rc_straight_ctx_update_loop == -1) return 0;
+  if (straight_ctx_update_loop (hashcat_ctx) == -1) return 0;
 
   // words base
 
@@ -177,15 +167,15 @@ static int inner2_loop (hashcat_ctx_t *hashcat_ctx)
    * this is required for autotune
    */
 
-  opencl_ctx_devices_kernel_loops (hashcat_ctx);
+  backend_ctx_devices_kernel_loops (hashcat_ctx);
 
   /**
    * prepare thread buffers
    */
 
-  thread_param_t *threads_param = (thread_param_t *) hccalloc (opencl_ctx->devices_cnt, sizeof (thread_param_t));
+  thread_param_t *threads_param = (thread_param_t *) hccalloc (backend_ctx->backend_devices_cnt, sizeof (thread_param_t));
 
-  hc_thread_t *c_threads = (hc_thread_t *) hccalloc (opencl_ctx->devices_cnt, sizeof (hc_thread_t));
+  hc_thread_t *c_threads = (hc_thread_t *) hccalloc (backend_ctx->backend_devices_cnt, sizeof (hc_thread_t));
 
   /**
    * create autotune threads
@@ -195,31 +185,31 @@ static int inner2_loop (hashcat_ctx_t *hashcat_ctx)
 
   status_ctx->devices_status = STATUS_AUTOTUNE;
 
-  for (u32 device_id = 0; device_id < opencl_ctx->devices_cnt; device_id++)
+  for (int backend_devices_idx = 0; backend_devices_idx < backend_ctx->backend_devices_cnt; backend_devices_idx++)
   {
-    thread_param_t *thread_param = threads_param + device_id;
+    thread_param_t *thread_param = threads_param + backend_devices_idx;
 
     thread_param->hashcat_ctx = hashcat_ctx;
-    thread_param->tid         = device_id;
+    thread_param->tid         = backend_devices_idx;
 
-    hc_thread_create (c_threads[device_id], thread_autotune, thread_param);
+    hc_thread_create (c_threads[backend_devices_idx], thread_autotune, thread_param);
   }
 
-  hc_thread_wait (opencl_ctx->devices_cnt, c_threads);
+  hc_thread_wait (backend_ctx->backend_devices_cnt, c_threads);
 
   EVENT (EVENT_AUTOTUNE_FINISHED);
 
   /**
-   * find same opencl devices and equal results
+   * find same backend devices and equal results
    */
 
-  opencl_ctx_devices_sync_tuning (hashcat_ctx);
+  backend_ctx_devices_sync_tuning (hashcat_ctx);
 
   /**
-   * autotune modified kernel_accel, which modifies opencl_ctx->kernel_power_all
+   * autotune modified kernel_accel, which modifies backend_ctx->kernel_power_all
    */
 
-  opencl_ctx_devices_update_power (hashcat_ctx);
+  backend_ctx_devices_update_power (hashcat_ctx);
 
   /**
    * Begin loopback recording
@@ -252,24 +242,24 @@ static int inner2_loop (hashcat_ctx_t *hashcat_ctx)
 
   status_ctx->accessible = true;
 
-  for (u32 device_id = 0; device_id < opencl_ctx->devices_cnt; device_id++)
+  for (int backend_devices_idx = 0; backend_devices_idx < backend_ctx->backend_devices_cnt; backend_devices_idx++)
   {
-    thread_param_t *thread_param = threads_param + device_id;
+    thread_param_t *thread_param = threads_param + backend_devices_idx;
 
     thread_param->hashcat_ctx = hashcat_ctx;
-    thread_param->tid         = device_id;
+    thread_param->tid         = backend_devices_idx;
 
     if (user_options_extra->wordlist_mode == WL_MODE_STDIN)
     {
-      hc_thread_create (c_threads[device_id], thread_calc_stdin, thread_param);
+      hc_thread_create (c_threads[backend_devices_idx], thread_calc_stdin, thread_param);
     }
     else
     {
-      hc_thread_create (c_threads[device_id], thread_calc, thread_param);
+      hc_thread_create (c_threads[backend_devices_idx], thread_calc, thread_param);
     }
   }
 
-  hc_thread_wait (opencl_ctx->devices_cnt, c_threads);
+  hc_thread_wait (backend_ctx->backend_devices_cnt, c_threads);
 
   hcfree (c_threads);
 
@@ -298,7 +288,7 @@ static int inner2_loop (hashcat_ctx_t *hashcat_ctx)
     // however, that can create confusion in hashcats RC, because exhausted translates to RC = 1.
     // but then having RC = 1 does not match our expection if we use for speed-only and progress-only.
     // to get hashcat to return RC = 0 we have to set it to CRACKED or BYPASS
-    // note: other options like --show, --left, --benchmark, --keyspace, --opencl-info, etc.
+    // note: other options like --show, --left, --benchmark, --keyspace, --backend-info, etc.
     // not not reach this section of the code, they've returned already with rc 0.
 
     if ((user_options->speed_only == true) || (user_options->progress_only == true))
@@ -352,9 +342,7 @@ static int inner2_loop (hashcat_ctx_t *hashcat_ctx)
       {
         if (status_ctx->devices_status == STATUS_EXHAUSTED)
         {
-          const int rc_inner2_loop = inner2_loop (hashcat_ctx);
-
-          if (rc_inner2_loop == -1) myabort (hashcat_ctx);
+          if (inner2_loop (hashcat_ctx) == -1) myabort (hashcat_ctx);
 
           if (status_ctx->run_main_level3 == false) break;
         }
@@ -409,9 +397,7 @@ static int inner1_loop (hashcat_ctx_t *hashcat_ctx)
     {
       straight_ctx->dicts_pos = dicts_pos;
 
-      const int rc_inner2_loop = inner2_loop (hashcat_ctx);
-
-      if (rc_inner2_loop == -1) myabort (hashcat_ctx);
+      if (inner2_loop (hashcat_ctx) == -1) myabort (hashcat_ctx);
 
       if (status_ctx->run_main_level3 == false) break;
     }
@@ -423,9 +409,7 @@ static int inner1_loop (hashcat_ctx_t *hashcat_ctx)
   }
   else
   {
-    const int rc_inner2_loop = inner2_loop (hashcat_ctx);
-
-    if (rc_inner2_loop == -1) myabort (hashcat_ctx);
+    if (inner2_loop (hashcat_ctx) == -1) myabort (hashcat_ctx);
   }
 
   EVENT (EVENT_INNERLOOP2_FINISHED);
@@ -438,9 +422,10 @@ static int inner1_loop (hashcat_ctx_t *hashcat_ctx)
 
 static int outer_loop (hashcat_ctx_t *hashcat_ctx)
 {
+  hashconfig_t   *hashconfig    = hashcat_ctx->hashconfig;
   hashes_t       *hashes        = hashcat_ctx->hashes;
   mask_ctx_t     *mask_ctx      = hashcat_ctx->mask_ctx;
-  opencl_ctx_t   *opencl_ctx    = hashcat_ctx->opencl_ctx;
+  backend_ctx_t  *backend_ctx   = hashcat_ctx->backend_ctx;
   outcheck_ctx_t *outcheck_ctx  = hashcat_ctx->outcheck_ctx;
   restore_ctx_t  *restore_ctx   = hashcat_ctx->restore_ctx;
   status_ctx_t   *status_ctx    = hashcat_ctx->status_ctx;
@@ -459,28 +444,28 @@ static int outer_loop (hashcat_ctx_t *hashcat_ctx)
    * setup variables and buffers depending on hash_mode
    */
 
-  const int rc_hashconfig = hashconfig_init (hashcat_ctx);
+  EVENT (EVENT_HASHCONFIG_PRE);
 
-  if (rc_hashconfig == -1)
+  if (hashconfig_init (hashcat_ctx) == -1)
   {
-    event_log_error (hashcat_ctx, "Unknown hash-type '%u' selected.", user_options->hash_mode);
+    event_log_error (hashcat_ctx, "Invalid hash-mode '%u' selected.", user_options->hash_mode);
 
     return -1;
   }
+
+  EVENT (EVENT_HASHCONFIG_POST);
 
   /**
    * generate hashlist filename for later use
    */
 
-  hashes_init_filename (hashcat_ctx);
+  if (hashes_init_filename (hashcat_ctx) == -1) return -1;
 
   /**
    * load hashes, stage 1
    */
 
-  const int rc_hashes_init_stage1 = hashes_init_stage1 (hashcat_ctx);
-
-  if (rc_hashes_init_stage1 == -1) return -1;
+  if (hashes_init_stage1 (hashcat_ctx) == -1) return -1;
 
   if ((user_options->keyspace == false) && (user_options->stdout_flag == false))
   {
@@ -498,9 +483,7 @@ static int outer_loop (hashcat_ctx_t *hashcat_ctx)
 
   hashes->hashes_cnt_orig = hashes->hashes_cnt;
 
-  const int rc_hashes_init_stage2 = hashes_init_stage2 (hashcat_ctx);
-
-  if (rc_hashes_init_stage2 == -1) return -1;
+  if (hashes_init_stage2 (hashcat_ctx) == -1) return -1;
 
   /**
    * potfile removes
@@ -529,9 +512,7 @@ static int outer_loop (hashcat_ctx_t *hashcat_ctx)
    * load hashes, stage 3, update cracked results from potfile
    */
 
-  const int rc_hashes_init_stage3 = hashes_init_stage3 (hashcat_ctx);
-
-  if (rc_hashes_init_stage3 == -1) return -1;
+  if (hashes_init_stage3 (hashcat_ctx) == -1) return -1;
 
   /**
    * potfile show/left handling
@@ -543,9 +524,7 @@ static int outer_loop (hashcat_ctx_t *hashcat_ctx)
 
     outfile_write_open (hashcat_ctx);
 
-    const int rc = potfile_handle_show (hashcat_ctx);
-
-    if (rc == -1) return -1;
+    if (potfile_handle_show (hashcat_ctx) == -1) return -1;
 
     outfile_write_close (hashcat_ctx);
 
@@ -558,13 +537,29 @@ static int outer_loop (hashcat_ctx_t *hashcat_ctx)
 
     outfile_write_open (hashcat_ctx);
 
-    const int rc = potfile_handle_left (hashcat_ctx);
-
-    if (rc == -1) return -1;
+    if (potfile_handle_left (hashcat_ctx) == -1) return -1;
 
     outfile_write_close (hashcat_ctx);
 
     return 0;
+  }
+
+  /**
+   * check global hash count in case module developer sets a them to a specific limit
+   */
+
+  if (hashes->digests_cnt < hashconfig->hashes_count_min)
+  {
+    event_log_error (hashcat_ctx, "Not enough hashes loaded - minimum is %u for this hash-mode.", hashconfig->hashes_count_min);
+
+    return -1;
+  }
+
+  if (hashes->digests_cnt > hashconfig->hashes_count_max)
+  {
+    event_log_error (hashcat_ctx, "Too many hashes loaded - maximum is %u for this hash-mode.", hashconfig->hashes_count_max);
+
+    return -1;
   }
 
   /**
@@ -573,7 +568,7 @@ static int outer_loop (hashcat_ctx_t *hashcat_ctx)
 
   if (status_ctx->devices_status == STATUS_CRACKED)
   {
-    if ((user_options->remove == true) && (hashes->hashlist_mode == HL_MODE_FILE))
+    if ((user_options->remove == true) && ((hashes->hashlist_mode == HL_MODE_FILE_PLAIN) || (hashes->hashlist_mode == HL_MODE_FILE_BINARY)))
     {
       if (hashes->digests_saved != hashes->digests_done)
       {
@@ -592,17 +587,19 @@ static int outer_loop (hashcat_ctx_t *hashcat_ctx)
    * load hashes, stage 4, automatic Optimizers
    */
 
-  const int rc_hashes_init_stage4 = hashes_init_stage4 (hashcat_ctx);
-
-  if (rc_hashes_init_stage4 == -1) return -1;
+  if (hashes_init_stage4 (hashcat_ctx) == -1) return -1;
 
   /**
    * load hashes, selftest
    */
 
-  const int rc_hashes_init_selftest = hashes_init_selftest (hashcat_ctx);
+  if (hashes_init_selftest (hashcat_ctx) == -1) return -1;
 
-  if (rc_hashes_init_selftest == -1) return -1;
+  /**
+   * load hashes, benchmark
+   */
+
+  if (hashes_init_benchmark (hashcat_ctx) == -1) return -1;
 
   /**
    * Done loading hashes, log results
@@ -616,9 +613,7 @@ static int outer_loop (hashcat_ctx_t *hashcat_ctx)
 
   EVENT (EVENT_BITMAP_INIT_PRE);
 
-  const int rc_bitmap_init = bitmap_ctx_init (hashcat_ctx);
-
-  if (rc_bitmap_init == -1) return -1;
+  if (bitmap_ctx_init (hashcat_ctx) == -1) return -1;
 
   EVENT (EVENT_BITMAP_INIT_POST);
 
@@ -632,33 +627,25 @@ static int outer_loop (hashcat_ctx_t *hashcat_ctx)
    * Wordlist allocate buffer
    */
 
-  const int rc_wl_data_init = wl_data_init (hashcat_ctx);
-
-  if (rc_wl_data_init == -1) return -1;
+  if (wl_data_init (hashcat_ctx) == -1) return -1;
 
   /**
    * straight mode init
    */
 
-  const int rc_straight_init = straight_ctx_init (hashcat_ctx);
-
-  if (rc_straight_init == -1) return -1;
+  if (straight_ctx_init (hashcat_ctx) == -1) return -1;
 
   /**
    * straight mode init
    */
 
-  const int rc_combinator_init = combinator_ctx_init (hashcat_ctx);
-
-  if (rc_combinator_init == -1) return -1;
+  if (combinator_ctx_init (hashcat_ctx) == -1) return -1;
 
   /**
    * charsets : keep them together for more easy maintainnce
    */
 
-  const int rc_mask_init = mask_ctx_init (hashcat_ctx);
-
-  if (rc_mask_init == -1) return -1;
+  if (mask_ctx_init (hashcat_ctx) == -1) return -1;
 
   /**
    * prevent the user from using --skip/--limit together with maskfile and/or multiple word lists
@@ -692,9 +679,7 @@ static int outer_loop (hashcat_ctx_t *hashcat_ctx)
    * status progress init; needs hashes that's why we have to do it here and separate from status_ctx_init
    */
 
-  const int rc_status_init = status_progress_init (hashcat_ctx);
-
-  if (rc_status_init == -1) return -1;
+  if (status_progress_init (hashcat_ctx) == -1) return -1;
 
   /**
    * main screen
@@ -712,77 +697,74 @@ static int outer_loop (hashcat_ctx_t *hashcat_ctx)
    * inform the user
    */
 
-  EVENT (EVENT_OPENCL_SESSION_PRE);
+  EVENT (EVENT_BACKEND_SESSION_PRE);
 
-  const int rc_session_begin = opencl_session_begin (hashcat_ctx);
+  if (backend_session_begin (hashcat_ctx) == -1) return -1;
 
-  if (rc_session_begin == -1) return -1;
-
-  EVENT (EVENT_OPENCL_SESSION_POST);
+  EVENT (EVENT_BACKEND_SESSION_POST);
 
   /**
    * create self-test threads
    */
 
-  EVENT (EVENT_SELFTEST_STARTING);
-
-  thread_param_t *threads_param = (thread_param_t *) hccalloc (opencl_ctx->devices_cnt, sizeof (thread_param_t));
-
-  hc_thread_t *selftest_threads = (hc_thread_t *) hccalloc (opencl_ctx->devices_cnt, sizeof (hc_thread_t));
-
-  status_ctx->devices_status = STATUS_SELFTEST;
-
-  for (u32 device_id = 0; device_id < opencl_ctx->devices_cnt; device_id++)
+  if ((hashconfig->opts_type & OPTS_TYPE_SELF_TEST_DISABLE) == 0)
   {
-    thread_param_t *thread_param = threads_param + device_id;
+    EVENT (EVENT_SELFTEST_STARTING);
 
-    thread_param->hashcat_ctx = hashcat_ctx;
-    thread_param->tid         = device_id;
+    thread_param_t *threads_param = (thread_param_t *) hccalloc (backend_ctx->backend_devices_cnt, sizeof (thread_param_t));
 
-    hc_thread_create (selftest_threads[device_id], thread_selftest, thread_param);
-  }
+    hc_thread_t *selftest_threads = (hc_thread_t *) hccalloc (backend_ctx->backend_devices_cnt, sizeof (hc_thread_t));
 
-  hc_thread_wait (opencl_ctx->devices_cnt, selftest_threads);
+    status_ctx->devices_status = STATUS_SELFTEST;
 
-  hcfree (threads_param);
-
-  hcfree (selftest_threads);
-
-  // check for any selftest failures
-
-  for (u32 device_id = 0; device_id < opencl_ctx->devices_cnt; device_id++)
-  {
-    if (opencl_ctx->enabled == false) continue;
-
-    if (user_options->self_test_disable == true) continue;
-
-    hc_device_param_t *device_param = opencl_ctx->devices_param + device_id;
-
-    if (device_param->skipped == true) continue;
-
-    if (device_param->st_status == ST_STATUS_FAILED)
+    for (int backend_devices_idx = 0; backend_devices_idx < backend_ctx->backend_devices_cnt; backend_devices_idx++)
     {
-      event_log_error (hashcat_ctx, "Aborting session due to kernel self-test failure.");
+      thread_param_t *thread_param = threads_param + backend_devices_idx;
 
-      event_log_warning (hashcat_ctx, "You can use --self-test-disable to override this, but do not report related errors.");
-      event_log_warning (hashcat_ctx, NULL);
+      thread_param->hashcat_ctx = hashcat_ctx;
+      thread_param->tid         = backend_devices_idx;
 
-      return -1;
+      hc_thread_create (selftest_threads[backend_devices_idx], thread_selftest, thread_param);
     }
+
+    hc_thread_wait (backend_ctx->backend_devices_cnt, selftest_threads);
+
+    hcfree (threads_param);
+
+    hcfree (selftest_threads);
+
+    // check for any selftest failures
+
+    for (int backend_devices_idx = 0; backend_devices_idx < backend_ctx->backend_devices_cnt; backend_devices_idx++)
+    {
+      if (backend_ctx->enabled == false) continue;
+
+      hc_device_param_t *device_param = backend_ctx->devices_param + backend_devices_idx;
+
+      if (device_param->skipped == true) continue;
+
+      if (device_param->st_status == ST_STATUS_FAILED)
+      {
+        event_log_error (hashcat_ctx, "Aborting session due to kernel self-test failure.");
+
+        event_log_warning (hashcat_ctx, "You can use --self-test-disable to override this, but do not report related errors.");
+        event_log_warning (hashcat_ctx, NULL);
+
+        return -1;
+      }
+    }
+
+    status_ctx->devices_status = STATUS_INIT;
+
+    EVENT (EVENT_SELFTEST_FINISHED);
   }
-
-  status_ctx->devices_status = STATUS_INIT;
-
-  EVENT (EVENT_SELFTEST_FINISHED);
 
   /**
    * (old) weak hash check is the first to write to potfile, so open it for writing from here
    * the weak hash check was removed maybe we can move this more to the bottom now
    */
 
-  const int rc_potfile_write = potfile_write_open (hashcat_ctx);
-
-  if (rc_potfile_write == -1) return -1;
+  if (potfile_write_open (hashcat_ctx) == -1) return -1;
 
   /**
    * status and monitor threads
@@ -834,9 +816,7 @@ static int outer_loop (hashcat_ctx_t *hashcat_ctx)
     {
       mask_ctx->masks_pos = masks_pos;
 
-      const int rc_inner1_loop = inner1_loop (hashcat_ctx);
-
-      if (rc_inner1_loop == -1) myabort (hashcat_ctx);
+      if (inner1_loop (hashcat_ctx) == -1) myabort (hashcat_ctx);
 
       if (status_ctx->run_main_level2 == false) break;
     }
@@ -848,9 +828,7 @@ static int outer_loop (hashcat_ctx_t *hashcat_ctx)
   }
   else
   {
-    const int rc_inner1_loop = inner1_loop (hashcat_ctx);
-
-    if (rc_inner1_loop == -1) myabort (hashcat_ctx);
+    if (inner1_loop (hashcat_ctx) == -1) myabort (hashcat_ctx);
   }
 
   // wait for inner threads
@@ -870,9 +848,9 @@ static int outer_loop (hashcat_ctx_t *hashcat_ctx)
 
   potfile_write_close (hashcat_ctx);
 
-  // finalize opencl session
+  // finalize backend session
 
-  opencl_session_destroy (hashcat_ctx);
+  backend_session_destroy (hashcat_ctx);
 
   // clean up
 
@@ -920,7 +898,8 @@ int hashcat_init (hashcat_ctx_t *hashcat_ctx, void (*event) (const u32, struct h
   hashcat_ctx->logfile_ctx        = (logfile_ctx_t *)         hcmalloc (sizeof (logfile_ctx_t));
   hashcat_ctx->loopback_ctx       = (loopback_ctx_t *)        hcmalloc (sizeof (loopback_ctx_t));
   hashcat_ctx->mask_ctx           = (mask_ctx_t *)            hcmalloc (sizeof (mask_ctx_t));
-  hashcat_ctx->opencl_ctx         = (opencl_ctx_t *)          hcmalloc (sizeof (opencl_ctx_t));
+  hashcat_ctx->module_ctx         = (module_ctx_t *)          hcmalloc (sizeof (module_ctx_t));
+  hashcat_ctx->backend_ctx        = (backend_ctx_t *)         hcmalloc (sizeof (backend_ctx_t));
   hashcat_ctx->outcheck_ctx       = (outcheck_ctx_t *)        hcmalloc (sizeof (outcheck_ctx_t));
   hashcat_ctx->outfile_ctx        = (outfile_ctx_t *)         hcmalloc (sizeof (outfile_ctx_t));
   hashcat_ctx->pidfile_ctx        = (pidfile_ctx_t *)         hcmalloc (sizeof (pidfile_ctx_t));
@@ -953,7 +932,8 @@ void hashcat_destroy (hashcat_ctx_t *hashcat_ctx)
   hcfree (hashcat_ctx->logfile_ctx);
   hcfree (hashcat_ctx->loopback_ctx);
   hcfree (hashcat_ctx->mask_ctx);
-  hcfree (hashcat_ctx->opencl_ctx);
+  hcfree (hashcat_ctx->module_ctx);
+  hcfree (hashcat_ctx->backend_ctx);
   hcfree (hashcat_ctx->outcheck_ctx);
   hcfree (hashcat_ctx->outfile_ctx);
   hcfree (hashcat_ctx->pidfile_ctx);
@@ -983,41 +963,31 @@ int hashcat_session_init (hashcat_ctx_t *hashcat_ctx, const char *install_folder
    * event init (needed for logging so should be first)
    */
 
-  const int rc_event_init = event_ctx_init (hashcat_ctx);
-
-  if (rc_event_init == -1) return -1;
+  if (event_ctx_init (hashcat_ctx) == -1) return -1;
 
   /**
    * status init
    */
 
-  const int rc_status_init = status_ctx_init (hashcat_ctx);
-
-  if (rc_status_init == -1) return -1;
+  if (status_ctx_init (hashcat_ctx) == -1) return -1;
 
   /**
    * folder
    */
 
-  const int rc_folder_config_init = folder_config_init (hashcat_ctx, install_folder, shared_folder);
-
-  if (rc_folder_config_init == -1) return -1;
+  if (folder_config_init (hashcat_ctx, install_folder, shared_folder) == -1) return -1;
 
   /**
    * pidfile
    */
 
-  const int rc_pidfile_init = pidfile_ctx_init (hashcat_ctx);
-
-  if (rc_pidfile_init == -1) return -1;
+  if (pidfile_ctx_init (hashcat_ctx) == -1) return -1;
 
   /**
    * restore
    */
 
-  const int rc_restore_init = restore_ctx_init (hashcat_ctx, argc, argv);
-
-  if (rc_restore_init == -1) return -1;
+  if (restore_ctx_init (hashcat_ctx, argc, argv) == -1) return -1;
 
   /**
    * process user input
@@ -1041,9 +1011,7 @@ int hashcat_session_init (hashcat_ctx_t *hashcat_ctx, const char *install_folder
 
     WORD wVersionRequested = MAKEWORD (2,2);
 
-    const int iResult = WSAStartup (wVersionRequested, &wsaData);
-
-    if (iResult != NO_ERROR)
+    if (WSAStartup (wVersionRequested, &wsaData) != NO_ERROR)
     {
       fprintf (stderr, "WSAStartup: %s\n", strerror (errno));
 
@@ -1057,17 +1025,13 @@ int hashcat_session_init (hashcat_ctx_t *hashcat_ctx, const char *install_folder
    * logfile
    */
 
-  const int rc_logfile_init = logfile_init (hashcat_ctx);
-
-  if (rc_logfile_init == -1) return -1;
+  if (logfile_init (hashcat_ctx) == -1) return -1;
 
   /**
    * cpu affinity
    */
 
-  const int rc_affinity = set_cpu_affinity (hashcat_ctx);
-
-  if (rc_affinity == -1) return -1;
+  if (set_cpu_affinity (hashcat_ctx) == -1) return -1;
 
   /**
    * prepare seeding for random number generator, required by logfile and rules generator
@@ -1079,7 +1043,7 @@ int hashcat_session_init (hashcat_ctx_t *hashcat_ctx, const char *install_folder
    * To help users a bit
    */
 
-  setup_environment_variables ();
+  setup_environment_variables (hashcat_ctx->folder_config);
 
   setup_umask ();
 
@@ -1087,33 +1051,25 @@ int hashcat_session_init (hashcat_ctx_t *hashcat_ctx, const char *install_folder
    * tuning db
    */
 
-  const int rc_tuning_db = tuning_db_init (hashcat_ctx);
-
-  if (rc_tuning_db == -1) return -1;
+  if (tuning_db_init (hashcat_ctx) == -1) return -1;
 
   /**
    * induction directory
    */
 
-  const int rc_induct_ctx_init = induct_ctx_init (hashcat_ctx);
-
-  if (rc_induct_ctx_init == -1) return -1;
+  if (induct_ctx_init (hashcat_ctx) == -1) return -1;
 
   /**
    * outfile-check directory
    */
 
-  const int rc_outcheck_ctx_init = outcheck_ctx_init (hashcat_ctx);
-
-  if (rc_outcheck_ctx_init == -1) return -1;
+  if (outcheck_ctx_init (hashcat_ctx) == -1) return -1;
 
   /**
    * outfile itself
    */
 
-  const int rc_outfile_init = outfile_init (hashcat_ctx);
-
-  if (rc_outfile_init == -1) return -1;
+  if (outfile_init (hashcat_ctx) == -1) return -1;
 
   /**
    * potfile init
@@ -1121,65 +1077,49 @@ int hashcat_session_init (hashcat_ctx_t *hashcat_ctx, const char *install_folder
    * plus it depends on hash_mode, so we continue using it in outer_loop
    */
 
-  const int rc_potfile_init = potfile_init (hashcat_ctx);
-
-  if (rc_potfile_init == -1) return -1;
+  if (potfile_init (hashcat_ctx) == -1) return -1;
 
   /**
    * dictstat init
    */
 
-  const int rc_dictstat_init = dictstat_init (hashcat_ctx);
-
-  if (rc_dictstat_init == -1) return -1;
+  if (dictstat_init (hashcat_ctx) == -1) return -1;
 
   /**
    * loopback init
    */
 
-  const int rc_loopback_init = loopback_init (hashcat_ctx);
-
-  if (rc_loopback_init == -1) return -1;
+  if (loopback_init (hashcat_ctx) == -1) return -1;
 
   /**
    * debugfile init
    */
 
-  const int rc_debugfile_init = debugfile_init (hashcat_ctx);
-
-  if (rc_debugfile_init == -1) return -1;
+  if (debugfile_init (hashcat_ctx) == -1) return -1;
 
   /**
    * Try to detect if all the files we're going to use are accessible in the mode we want them
    */
 
-  const int rc_user_options_check_files = user_options_check_files (hashcat_ctx);
-
-  if (rc_user_options_check_files == -1) return -1;
+  if (user_options_check_files (hashcat_ctx) == -1) return -1;
 
   /**
-   * Init OpenCL library loader
+   * Init backend library loader
    */
 
-  const int rc_opencl_init = opencl_ctx_init (hashcat_ctx);
-
-  if (rc_opencl_init == -1) return -1;
+  if (backend_ctx_init (hashcat_ctx) == -1) return -1;
 
   /**
-   * Init OpenCL devices
+   * Init backend devices
    */
 
-  const int rc_devices_init = opencl_ctx_devices_init (hashcat_ctx, comptime);
-
-  if (rc_devices_init == -1) return -1;
+  if (backend_ctx_devices_init (hashcat_ctx, comptime) == -1) return -1;
 
   /**
    * HM devices: init
    */
 
-  const int rc_hwmon_init = hwmon_ctx_init (hashcat_ctx);
-
-  if (rc_hwmon_init == -1) return -1;
+  if (hwmon_ctx_init (hashcat_ctx) == -1) return -1;
 
   // done
 
@@ -1228,7 +1168,7 @@ int hashcat_session_execute (hashcat_ctx_t *hashcat_ctx)
     }
     else
     {
-      int hash_mode;
+      int hash_mode = 0;
 
       while ((hash_mode = benchmark_next (hashcat_ctx)) != -1)
       {
@@ -1278,12 +1218,12 @@ int hashcat_session_execute (hashcat_ctx_t *hashcat_ctx)
 
   if (rc_final == 0)
   {
-    if (status_ctx->devices_status == STATUS_ABORTED_RUNTIME)     rc_final = 4;
-    if (status_ctx->devices_status == STATUS_ABORTED_CHECKPOINT)  rc_final = 3;
-    if (status_ctx->devices_status == STATUS_ABORTED)             rc_final = 2;
-    if (status_ctx->devices_status == STATUS_QUIT)                rc_final = 2;
-    if (status_ctx->devices_status == STATUS_EXHAUSTED)           rc_final = 1;
-    if (status_ctx->devices_status == STATUS_CRACKED)             rc_final = 0;
+    if (status_ctx->devices_status == STATUS_ABORTED_RUNTIME)     rc_final =  4;
+    if (status_ctx->devices_status == STATUS_ABORTED_CHECKPOINT)  rc_final =  3;
+    if (status_ctx->devices_status == STATUS_ABORTED)             rc_final =  2;
+    if (status_ctx->devices_status == STATUS_QUIT)                rc_final =  2;
+    if (status_ctx->devices_status == STATUS_EXHAUSTED)           rc_final =  1;
+    if (status_ctx->devices_status == STATUS_CRACKED)             rc_final =  0;
     if (status_ctx->devices_status == STATUS_ERROR)               rc_final = -1;
   }
 
@@ -1325,30 +1265,30 @@ int hashcat_session_destroy (hashcat_ctx_t *hashcat_ctx)
 
   if (user_options->brain_client == true)
   {
-    WSACleanup();
+    WSACleanup ();
   }
   #endif
   #endif
 
-  debugfile_destroy          (hashcat_ctx);
-  dictstat_destroy           (hashcat_ctx);
-  folder_config_destroy      (hashcat_ctx);
-  hwmon_ctx_destroy          (hashcat_ctx);
-  induct_ctx_destroy         (hashcat_ctx);
-  logfile_destroy            (hashcat_ctx);
-  loopback_destroy           (hashcat_ctx);
-  opencl_ctx_devices_destroy (hashcat_ctx);
-  opencl_ctx_destroy         (hashcat_ctx);
-  outcheck_ctx_destroy       (hashcat_ctx);
-  outfile_destroy            (hashcat_ctx);
-  pidfile_ctx_destroy        (hashcat_ctx);
-  potfile_destroy            (hashcat_ctx);
-  restore_ctx_destroy        (hashcat_ctx);
-  tuning_db_destroy          (hashcat_ctx);
-  user_options_destroy       (hashcat_ctx);
-  user_options_extra_destroy (hashcat_ctx);
-  status_ctx_destroy         (hashcat_ctx);
-  event_ctx_destroy          (hashcat_ctx);
+  debugfile_destroy           (hashcat_ctx);
+  dictstat_destroy            (hashcat_ctx);
+  folder_config_destroy       (hashcat_ctx);
+  hwmon_ctx_destroy           (hashcat_ctx);
+  induct_ctx_destroy          (hashcat_ctx);
+  logfile_destroy             (hashcat_ctx);
+  loopback_destroy            (hashcat_ctx);
+  backend_ctx_devices_destroy (hashcat_ctx);
+  backend_ctx_destroy         (hashcat_ctx);
+  outcheck_ctx_destroy        (hashcat_ctx);
+  outfile_destroy             (hashcat_ctx);
+  pidfile_ctx_destroy         (hashcat_ctx);
+  potfile_destroy             (hashcat_ctx);
+  restore_ctx_destroy         (hashcat_ctx);
+  tuning_db_destroy           (hashcat_ctx);
+  user_options_destroy        (hashcat_ctx);
+  user_options_extra_destroy  (hashcat_ctx);
+  status_ctx_destroy          (hashcat_ctx);
+  event_ctx_destroy           (hashcat_ctx);
 
   return 0;
 }
@@ -1384,7 +1324,7 @@ int hashcat_get_status (hashcat_ctx_t *hashcat_ctx, hashcat_status_t *hashcat_st
   hashcat_status->digests_done                = status_get_digests_done               (hashcat_ctx);
   hashcat_status->digests_percent             = status_get_digests_percent            (hashcat_ctx);
   hashcat_status->hash_target                 = status_get_hash_target                (hashcat_ctx);
-  hashcat_status->hash_type                   = status_get_hash_type                  (hashcat_ctx);
+  hashcat_status->hash_name                   = status_get_hash_name                  (hashcat_ctx);
   hashcat_status->guess_base                  = status_get_guess_base                 (hashcat_ctx);
   hashcat_status->guess_base_offset           = status_get_guess_base_offset          (hashcat_ctx);
   hashcat_status->guess_base_count            = status_get_guess_base_count           (hashcat_ctx);
@@ -1446,6 +1386,7 @@ int hashcat_get_status (hashcat_ctx_t *hashcat_ctx, hashcat_status_t *hashcat_st
     device_info_t *device_info = hashcat_status->device_info_buf + device_id;
 
     device_info->skipped_dev                    = status_get_skipped_dev                    (hashcat_ctx, device_id);
+    device_info->skipped_warning_dev            = status_get_skipped_warning_dev            (hashcat_ctx, device_id);
     device_info->hashes_msec_dev                = status_get_hashes_msec_dev                (hashcat_ctx, device_id);
     device_info->hashes_msec_dev_benchmark      = status_get_hashes_msec_dev_benchmark      (hashcat_ctx, device_id);
     device_info->exec_msec_dev                  = status_get_exec_msec_dev                  (hashcat_ctx, device_id);
@@ -1472,6 +1413,8 @@ int hashcat_get_status (hashcat_ctx_t *hashcat_ctx, hashcat_status_t *hashcat_st
     device_info->brain_link_send_bytes_dev      = status_get_brain_link_send_bytes_dev      (hashcat_ctx, device_id);
     device_info->brain_link_recv_bytes_sec_dev  = status_get_brain_link_recv_bytes_sec_dev  (hashcat_ctx, device_id);
     device_info->brain_link_send_bytes_sec_dev  = status_get_brain_link_send_bytes_sec_dev  (hashcat_ctx, device_id);
+    hashcat_status->brain_rx_all   = status_get_brain_rx_all   (hashcat_ctx);
+    hashcat_status->brain_tx_all   = status_get_brain_tx_all   (hashcat_ctx);
     #endif
   }
 

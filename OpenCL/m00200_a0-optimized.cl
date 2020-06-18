@@ -6,16 +6,17 @@
 //incompatible
 //#define NEW_SIMD_CODE
 
-#include "inc_vendor.cl"
-#include "inc_hash_constants.h"
-#include "inc_hash_functions.cl"
-#include "inc_types.cl"
+#ifdef KERNEL_STATIC
+#include "inc_vendor.h"
+#include "inc_types.h"
+#include "inc_platform.cl"
 #include "inc_common.cl"
 #include "inc_rp_optimized.h"
 #include "inc_rp_optimized.cl"
 #include "inc_simd.cl"
+#endif
 
-__kernel void m00200_m04 (KERN_ATTR_RULES ())
+KERNEL_FQ void m00200_m04 (KERN_ATTR_RULES ())
 {
   /**
    * modifier
@@ -56,7 +57,7 @@ __kernel void m00200_m04 (KERN_ATTR_RULES ())
     u32x w2[4] = { 0 };
     u32x w3[4] = { 0 };
 
-    const u32x out_len = apply_rules_vect (pw_buf0, pw_buf1, pw_len, rules_buf, il_pos, w0, w1);
+    const u32x out_len = apply_rules_vect_optimized (pw_buf0, pw_buf1, pw_len, rules_buf, il_pos, w0, w1);
 
     u32x w_t[16];
 
@@ -98,10 +99,10 @@ __kernel void m00200_m04 (KERN_ATTR_RULES ())
     {
       const u32x wj = w_t[j];
 
-      ROUND ((wj >>  0) & 0xff);
-      ROUND ((wj >>  8) & 0xff);
-      ROUND ((wj >> 16) & 0xff);
-      ROUND ((wj >> 24) & 0xff);
+      ROUND (unpack_v8a_from_v32 (wj));
+      ROUND (unpack_v8b_from_v32 (wj));
+      ROUND (unpack_v8c_from_v32 (wj));
+      ROUND (unpack_v8d_from_v32 (wj));
     }
 
     const u32x wj = w_t[j];
@@ -110,18 +111,18 @@ __kernel void m00200_m04 (KERN_ATTR_RULES ())
 
     if (left == 3)
     {
-      ROUND ((wj >>  0) & 0xff);
-      ROUND ((wj >>  8) & 0xff);
-      ROUND ((wj >> 16) & 0xff);
+      ROUND (unpack_v8a_from_v32 (wj));
+      ROUND (unpack_v8b_from_v32 (wj));
+      ROUND (unpack_v8c_from_v32 (wj));
     }
     else if (left == 2)
     {
-      ROUND ((wj >>  0) & 0xff);
-      ROUND ((wj >>  8) & 0xff);
+      ROUND (unpack_v8a_from_v32 (wj));
+      ROUND (unpack_v8b_from_v32 (wj));
     }
     else if (left == 1)
     {
-      ROUND ((wj >>  0) & 0xff);
+      ROUND (unpack_v8a_from_v32 (wj));
     }
 
     a &= 0x7fffffff;
@@ -133,15 +134,15 @@ __kernel void m00200_m04 (KERN_ATTR_RULES ())
   }
 }
 
-__kernel void m00200_m08 (KERN_ATTR_RULES ())
+KERNEL_FQ void m00200_m08 (KERN_ATTR_RULES ())
 {
 }
 
-__kernel void m00200_m16 (KERN_ATTR_RULES ())
+KERNEL_FQ void m00200_m16 (KERN_ATTR_RULES ())
 {
 }
 
-__kernel void m00200_s04 (KERN_ATTR_RULES ())
+KERNEL_FQ void m00200_s04 (KERN_ATTR_RULES ())
 {
   /**
    * modifier
@@ -194,7 +195,7 @@ __kernel void m00200_s04 (KERN_ATTR_RULES ())
     u32x w2[4] = { 0 };
     u32x w3[4] = { 0 };
 
-    const u32x out_len = apply_rules_vect (pw_buf0, pw_buf1, pw_len, rules_buf, il_pos, w0, w1);
+    const u32x out_len = apply_rules_vect_optimized (pw_buf0, pw_buf1, pw_len, rules_buf, il_pos, w0, w1);
 
     u32x w_t[16];
 
@@ -236,10 +237,10 @@ __kernel void m00200_s04 (KERN_ATTR_RULES ())
     {
       const u32x wj = w_t[j];
 
-      ROUND ((wj >>  0) & 0xff);
-      ROUND ((wj >>  8) & 0xff);
-      ROUND ((wj >> 16) & 0xff);
-      ROUND ((wj >> 24) & 0xff);
+      ROUND (unpack_v8a_from_v32 (wj));
+      ROUND (unpack_v8b_from_v32 (wj));
+      ROUND (unpack_v8c_from_v32 (wj));
+      ROUND (unpack_v8d_from_v32 (wj));
     }
 
     const u32x wj = w_t[j];
@@ -248,18 +249,18 @@ __kernel void m00200_s04 (KERN_ATTR_RULES ())
 
     if (left == 3)
     {
-      ROUND ((wj >>  0) & 0xff);
-      ROUND ((wj >>  8) & 0xff);
-      ROUND ((wj >> 16) & 0xff);
+      ROUND (unpack_v8a_from_v32 (wj));
+      ROUND (unpack_v8b_from_v32 (wj));
+      ROUND (unpack_v8c_from_v32 (wj));
     }
     else if (left == 2)
     {
-      ROUND ((wj >>  0) & 0xff);
-      ROUND ((wj >>  8) & 0xff);
+      ROUND (unpack_v8a_from_v32 (wj));
+      ROUND (unpack_v8b_from_v32 (wj));
     }
     else if (left == 1)
     {
-      ROUND ((wj >>  0) & 0xff);
+      ROUND (unpack_v8a_from_v32 (wj));
     }
 
     a &= 0x7fffffff;
@@ -271,10 +272,10 @@ __kernel void m00200_s04 (KERN_ATTR_RULES ())
   }
 }
 
-__kernel void m00200_s08 (KERN_ATTR_RULES ())
+KERNEL_FQ void m00200_s08 (KERN_ATTR_RULES ())
 {
 }
 
-__kernel void m00200_s16 (KERN_ATTR_RULES ())
+KERNEL_FQ void m00200_s16 (KERN_ATTR_RULES ())
 {
 }

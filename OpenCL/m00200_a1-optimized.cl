@@ -6,14 +6,15 @@
 //incompatible
 //#define NEW_SIMD_CODE
 
-#include "inc_vendor.cl"
-#include "inc_hash_constants.h"
-#include "inc_hash_functions.cl"
-#include "inc_types.cl"
+#ifdef KERNEL_STATIC
+#include "inc_vendor.h"
+#include "inc_types.h"
+#include "inc_platform.cl"
 #include "inc_common.cl"
 #include "inc_simd.cl"
+#endif
 
-__kernel void m00200_m04 (KERN_ATTR_BASIC ())
+KERNEL_FQ void m00200_m04 (KERN_ATTR_BASIC ())
 {
   /**
    * modifier
@@ -141,6 +142,8 @@ __kernel void m00200_m04 (KERN_ATTR_BASIC ())
 
     u32x a = MYSQL323_A;
     u32x b = MYSQL323_B;
+    u32x c = 0;
+    u32x d = 0;
 
     u32x add = 7;
 
@@ -158,10 +161,10 @@ __kernel void m00200_m04 (KERN_ATTR_BASIC ())
     {
       const u32x wj = w_t[j];
 
-      ROUND ((wj >>  0) & 0xff);
-      ROUND ((wj >>  8) & 0xff);
-      ROUND ((wj >> 16) & 0xff);
-      ROUND ((wj >> 24) & 0xff);
+      ROUND (unpack_v8a_from_v32 (wj));
+      ROUND (unpack_v8b_from_v32 (wj));
+      ROUND (unpack_v8c_from_v32 (wj));
+      ROUND (unpack_v8d_from_v32 (wj));
     }
 
     const u32x wj = w_t[j];
@@ -170,18 +173,18 @@ __kernel void m00200_m04 (KERN_ATTR_BASIC ())
 
     if (left == 3)
     {
-      ROUND ((wj >>  0) & 0xff);
-      ROUND ((wj >>  8) & 0xff);
-      ROUND ((wj >> 16) & 0xff);
+      ROUND (unpack_v8a_from_v32 (wj));
+      ROUND (unpack_v8b_from_v32 (wj));
+      ROUND (unpack_v8c_from_v32 (wj));
     }
     else if (left == 2)
     {
-      ROUND ((wj >>  0) & 0xff);
-      ROUND ((wj >>  8) & 0xff);
+      ROUND (unpack_v8a_from_v32 (wj));
+      ROUND (unpack_v8b_from_v32 (wj));
     }
     else if (left == 1)
     {
-      ROUND ((wj >>  0) & 0xff);
+      ROUND (unpack_v8a_from_v32 (wj));
     }
 
     a &= 0x7fffffff;
@@ -193,15 +196,15 @@ __kernel void m00200_m04 (KERN_ATTR_BASIC ())
   }
 }
 
-__kernel void m00200_m08 (KERN_ATTR_BASIC ())
+KERNEL_FQ void m00200_m08 (KERN_ATTR_BASIC ())
 {
 }
 
-__kernel void m00200_m16 (KERN_ATTR_BASIC ())
+KERNEL_FQ void m00200_m16 (KERN_ATTR_BASIC ())
 {
 }
 
-__kernel void m00200_s04 (KERN_ATTR_BASIC ())
+KERNEL_FQ void m00200_s04 (KERN_ATTR_BASIC ())
 {
   /**
    * modifier
@@ -360,10 +363,10 @@ __kernel void m00200_s04 (KERN_ATTR_BASIC ())
     {
       const u32x wj = w_t[j];
 
-      ROUND ((wj >>  0) & 0xff);
-      ROUND ((wj >>  8) & 0xff);
-      ROUND ((wj >> 16) & 0xff);
-      ROUND ((wj >> 24) & 0xff);
+      ROUND (unpack_v8a_from_v32 (wj));
+      ROUND (unpack_v8b_from_v32 (wj));
+      ROUND (unpack_v8c_from_v32 (wj));
+      ROUND (unpack_v8d_from_v32 (wj));
     }
 
     const u32x wj = w_t[j];
@@ -372,18 +375,18 @@ __kernel void m00200_s04 (KERN_ATTR_BASIC ())
 
     if (left == 3)
     {
-      ROUND ((wj >>  0) & 0xff);
-      ROUND ((wj >>  8) & 0xff);
-      ROUND ((wj >> 16) & 0xff);
+      ROUND (unpack_v8a_from_v32 (wj));
+      ROUND (unpack_v8b_from_v32 (wj));
+      ROUND (unpack_v8c_from_v32 (wj));
     }
     else if (left == 2)
     {
-      ROUND ((wj >>  0) & 0xff);
-      ROUND ((wj >>  8) & 0xff);
+      ROUND (unpack_v8a_from_v32 (wj));
+      ROUND (unpack_v8b_from_v32 (wj));
     }
     else if (left == 1)
     {
-      ROUND ((wj >>  0) & 0xff);
+      ROUND (unpack_v8a_from_v32 (wj));
     }
 
     a &= 0x7fffffff;
@@ -395,10 +398,10 @@ __kernel void m00200_s04 (KERN_ATTR_BASIC ())
   }
 }
 
-__kernel void m00200_s08 (KERN_ATTR_BASIC ())
+KERNEL_FQ void m00200_s08 (KERN_ATTR_BASIC ())
 {
 }
 
-__kernel void m00200_s16 (KERN_ATTR_BASIC ())
+KERNEL_FQ void m00200_s16 (KERN_ATTR_BASIC ())
 {
 }

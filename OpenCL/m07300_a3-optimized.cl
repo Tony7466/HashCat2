@@ -5,13 +5,21 @@
 
 #define NEW_SIMD_CODE
 
-#include "inc_vendor.cl"
-#include "inc_hash_constants.h"
-#include "inc_hash_functions.cl"
-#include "inc_types.cl"
+#ifdef KERNEL_STATIC
+#include "inc_vendor.h"
+#include "inc_types.h"
+#include "inc_platform.cl"
 #include "inc_common.cl"
 #include "inc_simd.cl"
 #include "inc_hash_sha1.cl"
+#endif
+
+typedef struct rakp
+{
+  u32 salt_buf[128];
+  u32 salt_len;
+
+} rakp_t;
 
 DECLSPEC void hmac_sha1_pad (u32x *w0, u32x *w1, u32x *w2, u32x *w3, u32x *ipad, u32x *opad)
 {
@@ -102,7 +110,7 @@ DECLSPEC void hmac_sha1_run (u32x *w0, u32x *w1, u32x *w2, u32x *w3, u32x *ipad,
   sha1_transform_vector (w0, w1, w2, w3, digest);
 }
 
-DECLSPEC void m07300m (u32 *w0, u32 *w1, u32 *w2, u32 *w3, const u32 pw_len, KERN_ATTR_ESALT (rakp_t))
+DECLSPEC void m07300m (u32 *w0, u32 *w1, u32 *w2, u32 *w3, const u32 pw_len, KERN_ATTR_ESALT (rakp_t), LOCAL_AS u32 *s_esalt_buf)
 {
   /**
    * modifier
@@ -167,40 +175,40 @@ DECLSPEC void m07300m (u32 *w0, u32 *w1, u32 *w2, u32 *w3, const u32 pw_len, KER
 
     for (esalt_left = esalt_size, esalt_off = 0; esalt_left >= 56; esalt_left -= 64, esalt_off += 16)
     {
-      w0_t[0] = esalt_bufs[digests_offset].salt_buf[esalt_off +  0];
-      w0_t[1] = esalt_bufs[digests_offset].salt_buf[esalt_off +  1];
-      w0_t[2] = esalt_bufs[digests_offset].salt_buf[esalt_off +  2];
-      w0_t[3] = esalt_bufs[digests_offset].salt_buf[esalt_off +  3];
-      w1_t[0] = esalt_bufs[digests_offset].salt_buf[esalt_off +  4];
-      w1_t[1] = esalt_bufs[digests_offset].salt_buf[esalt_off +  5];
-      w1_t[2] = esalt_bufs[digests_offset].salt_buf[esalt_off +  6];
-      w1_t[3] = esalt_bufs[digests_offset].salt_buf[esalt_off +  7];
-      w2_t[0] = esalt_bufs[digests_offset].salt_buf[esalt_off +  8];
-      w2_t[1] = esalt_bufs[digests_offset].salt_buf[esalt_off +  9];
-      w2_t[2] = esalt_bufs[digests_offset].salt_buf[esalt_off + 10];
-      w2_t[3] = esalt_bufs[digests_offset].salt_buf[esalt_off + 11];
-      w3_t[0] = esalt_bufs[digests_offset].salt_buf[esalt_off + 12];
-      w3_t[1] = esalt_bufs[digests_offset].salt_buf[esalt_off + 13];
-      w3_t[2] = esalt_bufs[digests_offset].salt_buf[esalt_off + 14];
-      w3_t[3] = esalt_bufs[digests_offset].salt_buf[esalt_off + 15];
+      w0_t[0] = s_esalt_buf[esalt_off +  0];
+      w0_t[1] = s_esalt_buf[esalt_off +  1];
+      w0_t[2] = s_esalt_buf[esalt_off +  2];
+      w0_t[3] = s_esalt_buf[esalt_off +  3];
+      w1_t[0] = s_esalt_buf[esalt_off +  4];
+      w1_t[1] = s_esalt_buf[esalt_off +  5];
+      w1_t[2] = s_esalt_buf[esalt_off +  6];
+      w1_t[3] = s_esalt_buf[esalt_off +  7];
+      w2_t[0] = s_esalt_buf[esalt_off +  8];
+      w2_t[1] = s_esalt_buf[esalt_off +  9];
+      w2_t[2] = s_esalt_buf[esalt_off + 10];
+      w2_t[3] = s_esalt_buf[esalt_off + 11];
+      w3_t[0] = s_esalt_buf[esalt_off + 12];
+      w3_t[1] = s_esalt_buf[esalt_off + 13];
+      w3_t[2] = s_esalt_buf[esalt_off + 14];
+      w3_t[3] = s_esalt_buf[esalt_off + 15];
 
       sha1_transform_vector (w0_t, w1_t, w2_t, w3_t, ipad);
     }
 
-    w0_t[0] = esalt_bufs[digests_offset].salt_buf[esalt_off +  0];
-    w0_t[1] = esalt_bufs[digests_offset].salt_buf[esalt_off +  1];
-    w0_t[2] = esalt_bufs[digests_offset].salt_buf[esalt_off +  2];
-    w0_t[3] = esalt_bufs[digests_offset].salt_buf[esalt_off +  3];
-    w1_t[0] = esalt_bufs[digests_offset].salt_buf[esalt_off +  4];
-    w1_t[1] = esalt_bufs[digests_offset].salt_buf[esalt_off +  5];
-    w1_t[2] = esalt_bufs[digests_offset].salt_buf[esalt_off +  6];
-    w1_t[3] = esalt_bufs[digests_offset].salt_buf[esalt_off +  7];
-    w2_t[0] = esalt_bufs[digests_offset].salt_buf[esalt_off +  8];
-    w2_t[1] = esalt_bufs[digests_offset].salt_buf[esalt_off +  9];
-    w2_t[2] = esalt_bufs[digests_offset].salt_buf[esalt_off + 10];
-    w2_t[3] = esalt_bufs[digests_offset].salt_buf[esalt_off + 11];
-    w3_t[0] = esalt_bufs[digests_offset].salt_buf[esalt_off + 12];
-    w3_t[1] = esalt_bufs[digests_offset].salt_buf[esalt_off + 13];
+    w0_t[0] = s_esalt_buf[esalt_off +  0];
+    w0_t[1] = s_esalt_buf[esalt_off +  1];
+    w0_t[2] = s_esalt_buf[esalt_off +  2];
+    w0_t[3] = s_esalt_buf[esalt_off +  3];
+    w1_t[0] = s_esalt_buf[esalt_off +  4];
+    w1_t[1] = s_esalt_buf[esalt_off +  5];
+    w1_t[2] = s_esalt_buf[esalt_off +  6];
+    w1_t[3] = s_esalt_buf[esalt_off +  7];
+    w2_t[0] = s_esalt_buf[esalt_off +  8];
+    w2_t[1] = s_esalt_buf[esalt_off +  9];
+    w2_t[2] = s_esalt_buf[esalt_off + 10];
+    w2_t[3] = s_esalt_buf[esalt_off + 11];
+    w3_t[0] = s_esalt_buf[esalt_off + 12];
+    w3_t[1] = s_esalt_buf[esalt_off + 13];
     w3_t[2] = 0;
     w3_t[3] = (64 + esalt_size) * 8;
 
@@ -212,7 +220,7 @@ DECLSPEC void m07300m (u32 *w0, u32 *w1, u32 *w2, u32 *w3, const u32 pw_len, KER
   }
 }
 
-DECLSPEC void m07300s (u32 *w0, u32 *w1, u32 *w2, u32 *w3, const u32 pw_len, KERN_ATTR_ESALT (rakp_t))
+DECLSPEC void m07300s (u32 *w0, u32 *w1, u32 *w2, u32 *w3, const u32 pw_len, KERN_ATTR_ESALT (rakp_t), LOCAL_AS u32 *s_esalt_buf)
 {
   /**
    * modifier
@@ -289,40 +297,40 @@ DECLSPEC void m07300s (u32 *w0, u32 *w1, u32 *w2, u32 *w3, const u32 pw_len, KER
 
     for (esalt_left = esalt_size, esalt_off = 0; esalt_left >= 56; esalt_left -= 64, esalt_off += 16)
     {
-      w0_t[0] = esalt_bufs[digests_offset].salt_buf[esalt_off +  0];
-      w0_t[1] = esalt_bufs[digests_offset].salt_buf[esalt_off +  1];
-      w0_t[2] = esalt_bufs[digests_offset].salt_buf[esalt_off +  2];
-      w0_t[3] = esalt_bufs[digests_offset].salt_buf[esalt_off +  3];
-      w1_t[0] = esalt_bufs[digests_offset].salt_buf[esalt_off +  4];
-      w1_t[1] = esalt_bufs[digests_offset].salt_buf[esalt_off +  5];
-      w1_t[2] = esalt_bufs[digests_offset].salt_buf[esalt_off +  6];
-      w1_t[3] = esalt_bufs[digests_offset].salt_buf[esalt_off +  7];
-      w2_t[0] = esalt_bufs[digests_offset].salt_buf[esalt_off +  8];
-      w2_t[1] = esalt_bufs[digests_offset].salt_buf[esalt_off +  9];
-      w2_t[2] = esalt_bufs[digests_offset].salt_buf[esalt_off + 10];
-      w2_t[3] = esalt_bufs[digests_offset].salt_buf[esalt_off + 11];
-      w3_t[0] = esalt_bufs[digests_offset].salt_buf[esalt_off + 12];
-      w3_t[1] = esalt_bufs[digests_offset].salt_buf[esalt_off + 13];
-      w3_t[2] = esalt_bufs[digests_offset].salt_buf[esalt_off + 14];
-      w3_t[3] = esalt_bufs[digests_offset].salt_buf[esalt_off + 15];
+      w0_t[0] = s_esalt_buf[esalt_off +  0];
+      w0_t[1] = s_esalt_buf[esalt_off +  1];
+      w0_t[2] = s_esalt_buf[esalt_off +  2];
+      w0_t[3] = s_esalt_buf[esalt_off +  3];
+      w1_t[0] = s_esalt_buf[esalt_off +  4];
+      w1_t[1] = s_esalt_buf[esalt_off +  5];
+      w1_t[2] = s_esalt_buf[esalt_off +  6];
+      w1_t[3] = s_esalt_buf[esalt_off +  7];
+      w2_t[0] = s_esalt_buf[esalt_off +  8];
+      w2_t[1] = s_esalt_buf[esalt_off +  9];
+      w2_t[2] = s_esalt_buf[esalt_off + 10];
+      w2_t[3] = s_esalt_buf[esalt_off + 11];
+      w3_t[0] = s_esalt_buf[esalt_off + 12];
+      w3_t[1] = s_esalt_buf[esalt_off + 13];
+      w3_t[2] = s_esalt_buf[esalt_off + 14];
+      w3_t[3] = s_esalt_buf[esalt_off + 15];
 
       sha1_transform_vector (w0_t, w1_t, w2_t, w3_t, ipad);
     }
 
-    w0_t[0] = esalt_bufs[digests_offset].salt_buf[esalt_off +  0];
-    w0_t[1] = esalt_bufs[digests_offset].salt_buf[esalt_off +  1];
-    w0_t[2] = esalt_bufs[digests_offset].salt_buf[esalt_off +  2];
-    w0_t[3] = esalt_bufs[digests_offset].salt_buf[esalt_off +  3];
-    w1_t[0] = esalt_bufs[digests_offset].salt_buf[esalt_off +  4];
-    w1_t[1] = esalt_bufs[digests_offset].salt_buf[esalt_off +  5];
-    w1_t[2] = esalt_bufs[digests_offset].salt_buf[esalt_off +  6];
-    w1_t[3] = esalt_bufs[digests_offset].salt_buf[esalt_off +  7];
-    w2_t[0] = esalt_bufs[digests_offset].salt_buf[esalt_off +  8];
-    w2_t[1] = esalt_bufs[digests_offset].salt_buf[esalt_off +  9];
-    w2_t[2] = esalt_bufs[digests_offset].salt_buf[esalt_off + 10];
-    w2_t[3] = esalt_bufs[digests_offset].salt_buf[esalt_off + 11];
-    w3_t[0] = esalt_bufs[digests_offset].salt_buf[esalt_off + 12];
-    w3_t[1] = esalt_bufs[digests_offset].salt_buf[esalt_off + 13];
+    w0_t[0] = s_esalt_buf[esalt_off +  0];
+    w0_t[1] = s_esalt_buf[esalt_off +  1];
+    w0_t[2] = s_esalt_buf[esalt_off +  2];
+    w0_t[3] = s_esalt_buf[esalt_off +  3];
+    w1_t[0] = s_esalt_buf[esalt_off +  4];
+    w1_t[1] = s_esalt_buf[esalt_off +  5];
+    w1_t[2] = s_esalt_buf[esalt_off +  6];
+    w1_t[3] = s_esalt_buf[esalt_off +  7];
+    w2_t[0] = s_esalt_buf[esalt_off +  8];
+    w2_t[1] = s_esalt_buf[esalt_off +  9];
+    w2_t[2] = s_esalt_buf[esalt_off + 10];
+    w2_t[3] = s_esalt_buf[esalt_off + 11];
+    w3_t[0] = s_esalt_buf[esalt_off + 12];
+    w3_t[1] = s_esalt_buf[esalt_off + 13];
     w3_t[2] = 0;
     w3_t[3] = (64 + esalt_size) * 8;
 
@@ -334,15 +342,34 @@ DECLSPEC void m07300s (u32 *w0, u32 *w1, u32 *w2, u32 *w3, const u32 pw_len, KER
   }
 }
 
-__kernel void m07300_m04 (KERN_ATTR_ESALT (rakp_t))
+KERNEL_FQ void m07300_m04 (KERN_ATTR_ESALT (rakp_t))
 {
   /**
-   * base
+   * modifier
    */
 
   const u64 gid = get_global_id (0);
+  const u64 lid = get_local_id (0);
+  const u64 lsz = get_local_size (0);
+
+  /**
+   * s_msg
+   */
+
+  LOCAL_VK u32 s_esalt_buf[128];
+
+  for (u32 i = lid; i < 128; i += lsz)
+  {
+    s_esalt_buf[i] = esalt_bufs[digests_offset].salt_buf[i];
+  }
+
+  SYNC_THREADS ();
 
   if (gid >= gid_max) return;
+
+  /**
+   * base
+   */
 
   u32 w0[4];
 
@@ -378,18 +405,37 @@ __kernel void m07300_m04 (KERN_ATTR_ESALT (rakp_t))
    * main
    */
 
-  m07300m (w0, w1, w2, w3, pw_len, pws, rules_buf, combs_buf, bfs_buf, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_scryptV0_buf, d_scryptV1_buf, d_scryptV2_buf, d_scryptV3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
+  m07300m (w0, w1, w2, w3, pw_len, pws, rules_buf, combs_buf, bfs_buf, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_extra0_buf, d_extra1_buf, d_extra2_buf, d_extra3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max, s_esalt_buf);
 }
 
-__kernel void m07300_m08 (KERN_ATTR_ESALT (rakp_t))
+KERNEL_FQ void m07300_m08 (KERN_ATTR_ESALT (rakp_t))
 {
   /**
-   * base
+   * modifier
    */
 
   const u64 gid = get_global_id (0);
+  const u64 lid = get_local_id (0);
+  const u64 lsz = get_local_size (0);
+
+  /**
+   * s_msg
+   */
+
+  LOCAL_VK u32 s_esalt_buf[128];
+
+  for (u32 i = lid; i < 128; i += lsz)
+  {
+    s_esalt_buf[i] = esalt_bufs[digests_offset].salt_buf[i];
+  }
+
+  SYNC_THREADS ();
 
   if (gid >= gid_max) return;
+
+  /**
+   * base
+   */
 
   u32 w0[4];
 
@@ -425,18 +471,37 @@ __kernel void m07300_m08 (KERN_ATTR_ESALT (rakp_t))
    * main
    */
 
-  m07300m (w0, w1, w2, w3, pw_len, pws, rules_buf, combs_buf, bfs_buf, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_scryptV0_buf, d_scryptV1_buf, d_scryptV2_buf, d_scryptV3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
+  m07300m (w0, w1, w2, w3, pw_len, pws, rules_buf, combs_buf, bfs_buf, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_extra0_buf, d_extra1_buf, d_extra2_buf, d_extra3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max, s_esalt_buf);
 }
 
-__kernel void m07300_m16 (KERN_ATTR_ESALT (rakp_t))
+KERNEL_FQ void m07300_m16 (KERN_ATTR_ESALT (rakp_t))
 {
   /**
-   * base
+   * modifier
    */
 
   const u64 gid = get_global_id (0);
+  const u64 lid = get_local_id (0);
+  const u64 lsz = get_local_size (0);
+
+  /**
+   * s_msg
+   */
+
+  LOCAL_VK u32 s_esalt_buf[128];
+
+  for (u32 i = lid; i < 128; i += lsz)
+  {
+    s_esalt_buf[i] = esalt_bufs[digests_offset].salt_buf[i];
+  }
+
+  SYNC_THREADS ();
 
   if (gid >= gid_max) return;
+
+  /**
+   * base
+   */
 
   u32 w0[4];
 
@@ -472,18 +537,37 @@ __kernel void m07300_m16 (KERN_ATTR_ESALT (rakp_t))
    * main
    */
 
-  m07300m (w0, w1, w2, w3, pw_len, pws, rules_buf, combs_buf, bfs_buf, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_scryptV0_buf, d_scryptV1_buf, d_scryptV2_buf, d_scryptV3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
+  m07300m (w0, w1, w2, w3, pw_len, pws, rules_buf, combs_buf, bfs_buf, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_extra0_buf, d_extra1_buf, d_extra2_buf, d_extra3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max, s_esalt_buf);
 }
 
-__kernel void m07300_s04 (KERN_ATTR_ESALT (rakp_t))
+KERNEL_FQ void m07300_s04 (KERN_ATTR_ESALT (rakp_t))
 {
   /**
-   * base
+   * modifier
    */
 
   const u64 gid = get_global_id (0);
+  const u64 lid = get_local_id (0);
+  const u64 lsz = get_local_size (0);
+
+  /**
+   * s_msg
+   */
+
+  LOCAL_VK u32 s_esalt_buf[128];
+
+  for (u32 i = lid; i < 128; i += lsz)
+  {
+    s_esalt_buf[i] = esalt_bufs[digests_offset].salt_buf[i];
+  }
+
+  SYNC_THREADS ();
 
   if (gid >= gid_max) return;
+
+  /**
+   * base
+   */
 
   u32 w0[4];
 
@@ -519,18 +603,37 @@ __kernel void m07300_s04 (KERN_ATTR_ESALT (rakp_t))
    * main
    */
 
-  m07300s (w0, w1, w2, w3, pw_len, pws, rules_buf, combs_buf, bfs_buf, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_scryptV0_buf, d_scryptV1_buf, d_scryptV2_buf, d_scryptV3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
+  m07300s (w0, w1, w2, w3, pw_len, pws, rules_buf, combs_buf, bfs_buf, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_extra0_buf, d_extra1_buf, d_extra2_buf, d_extra3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max, s_esalt_buf);
 }
 
-__kernel void m07300_s08 (KERN_ATTR_ESALT (rakp_t))
+KERNEL_FQ void m07300_s08 (KERN_ATTR_ESALT (rakp_t))
 {
   /**
-   * base
+   * modifier
    */
 
   const u64 gid = get_global_id (0);
+  const u64 lid = get_local_id (0);
+  const u64 lsz = get_local_size (0);
+
+  /**
+   * s_msg
+   */
+
+  LOCAL_VK u32 s_esalt_buf[128];
+
+  for (u32 i = lid; i < 128; i += lsz)
+  {
+    s_esalt_buf[i] = esalt_bufs[digests_offset].salt_buf[i];
+  }
+
+  SYNC_THREADS ();
 
   if (gid >= gid_max) return;
+
+  /**
+   * base
+   */
 
   u32 w0[4];
 
@@ -566,18 +669,37 @@ __kernel void m07300_s08 (KERN_ATTR_ESALT (rakp_t))
    * main
    */
 
-  m07300s (w0, w1, w2, w3, pw_len, pws, rules_buf, combs_buf, bfs_buf, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_scryptV0_buf, d_scryptV1_buf, d_scryptV2_buf, d_scryptV3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
+  m07300s (w0, w1, w2, w3, pw_len, pws, rules_buf, combs_buf, bfs_buf, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_extra0_buf, d_extra1_buf, d_extra2_buf, d_extra3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max, s_esalt_buf);
 }
 
-__kernel void m07300_s16 (KERN_ATTR_ESALT (rakp_t))
+KERNEL_FQ void m07300_s16 (KERN_ATTR_ESALT (rakp_t))
 {
   /**
-   * base
+   * modifier
    */
 
   const u64 gid = get_global_id (0);
+  const u64 lid = get_local_id (0);
+  const u64 lsz = get_local_size (0);
+
+  /**
+   * s_msg
+   */
+
+  LOCAL_VK u32 s_esalt_buf[128];
+
+  for (u32 i = lid; i < 128; i += lsz)
+  {
+    s_esalt_buf[i] = esalt_bufs[digests_offset].salt_buf[i];
+  }
+
+  SYNC_THREADS ();
 
   if (gid >= gid_max) return;
+
+  /**
+   * base
+   */
 
   u32 w0[4];
 
@@ -613,5 +735,5 @@ __kernel void m07300_s16 (KERN_ATTR_ESALT (rakp_t))
    * main
    */
 
-  m07300s (w0, w1, w2, w3, pw_len, pws, rules_buf, combs_buf, bfs_buf, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_scryptV0_buf, d_scryptV1_buf, d_scryptV2_buf, d_scryptV3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
+  m07300s (w0, w1, w2, w3, pw_len, pws, rules_buf, combs_buf, bfs_buf, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_extra0_buf, d_extra1_buf, d_extra2_buf, d_extra3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max, s_esalt_buf);
 }

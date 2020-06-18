@@ -5,12 +5,13 @@
 
 #define NEW_SIMD_CODE
 
-#include "inc_vendor.cl"
-#include "inc_hash_constants.h"
-#include "inc_hash_functions.cl"
-#include "inc_types.cl"
+#ifdef KERNEL_STATIC
+#include "inc_vendor.h"
+#include "inc_types.h"
+#include "inc_platform.cl"
 #include "inc_common.cl"
 #include "inc_simd.cl"
+#endif
 
 #define ROUND(v)                              \
 {                                             \
@@ -41,10 +42,10 @@
     {                                                             \
       const u32 wj = w[j];                                        \
                                                                   \
-      ROUND ((wj >>  0) & 0xff);                                  \
-      ROUND ((wj >>  8) & 0xff);                                  \
-      ROUND ((wj >> 16) & 0xff);                                  \
-      ROUND ((wj >> 24) & 0xff);                                  \
+      ROUND (unpack_v8a_from_v32 (wj));                           \
+      ROUND (unpack_v8b_from_v32 (wj));                           \
+      ROUND (unpack_v8c_from_v32 (wj));                           \
+      ROUND (unpack_v8d_from_v32 (wj));                           \
     }                                                             \
                                                                   \
     const u32 wj = w[j];                                          \
@@ -53,18 +54,18 @@
                                                                   \
     if (left == 3)                                                \
     {                                                             \
-      ROUND ((wj >>  0) & 0xff);                                  \
-      ROUND ((wj >>  8) & 0xff);                                  \
-      ROUND ((wj >> 16) & 0xff);                                  \
+      ROUND (unpack_v8a_from_v32 (wj));                           \
+      ROUND (unpack_v8b_from_v32 (wj));                           \
+      ROUND (unpack_v8c_from_v32 (wj));                           \
     }                                                             \
     else if (left == 2)                                           \
     {                                                             \
-      ROUND ((wj >>  0) & 0xff);                                  \
-      ROUND ((wj >>  8) & 0xff);                                  \
+      ROUND (unpack_v8a_from_v32 (wj));                           \
+      ROUND (unpack_v8b_from_v32 (wj));                           \
     }                                                             \
     else if (left == 1)                                           \
     {                                                             \
-      ROUND ((wj >>  0) & 0xff);                                  \
+      ROUND (unpack_v8a_from_v32 (wj));                           \
     }
 
 #define CODE_POST_M                                               \
@@ -99,140 +100,122 @@ DECLSPEC void m00200m (u32 *w, const u32 pw_len, KERN_ATTR_VECTOR ())
   const u64 lid = get_local_id (0);
 
   /**
+   * digest
+   */
+
+  const u32 search[4] =
+  {
+    digests_buf[digests_offset].digest_buf[DGST_R0],
+    digests_buf[digests_offset].digest_buf[DGST_R1],
+    0,
+    0
+  };
+
+  /**
    * loop
    */
 
   u32 w0l = w[0];
 
+  CODE_PRE;
+
   switch (pw_len)
   {
     case  1:
-      CODE_PRE;
-      ROUND ((w0   >>  0) & 0xff);
-      CODE_POST_M;
+      ROUND (unpack_v8a_from_v32 (  w0));
       break;
 
     case  2:
-      CODE_PRE;
-      ROUND ((w0   >>  0) & 0xff); ROUND ((w0   >>  8) & 0xff);
-      CODE_POST_M;
+      ROUND (unpack_v8a_from_v32 (  w0)); ROUND (unpack_v8b_from_v32 (  w0));
       break;
 
     case  3:
-      CODE_PRE;
-      ROUND ((w0   >>  0) & 0xff); ROUND ((w0   >>  8) & 0xff); ROUND ((w0   >> 16) & 0xff);
-      CODE_POST_M;
+      ROUND (unpack_v8a_from_v32 (  w0)); ROUND (unpack_v8b_from_v32 (  w0)); ROUND (unpack_v8c_from_v32 (  w0));
       break;
 
     case  4:
-      CODE_PRE;
-      ROUND ((w0   >>  0) & 0xff); ROUND ((w0   >>  8) & 0xff); ROUND ((w0   >> 16) & 0xff); ROUND ((w0   >> 24) & 0xff);
-      CODE_POST_M;
+      ROUND (unpack_v8a_from_v32 (  w0)); ROUND (unpack_v8b_from_v32 (  w0)); ROUND (unpack_v8c_from_v32 (  w0)); ROUND (unpack_v8d_from_v32 (  w0));
       break;
 
     case  5:
-      CODE_PRE;
-      ROUND ((w0   >>  0) & 0xff); ROUND ((w0   >>  8) & 0xff); ROUND ((w0   >> 16) & 0xff); ROUND ((w0   >> 24) & 0xff);
-      ROUND ((w[1] >>  0) & 0xff);
-      CODE_POST_M;
+      ROUND (unpack_v8a_from_v32 (  w0)); ROUND (unpack_v8b_from_v32 (  w0)); ROUND (unpack_v8c_from_v32 (  w0)); ROUND (unpack_v8d_from_v32 (  w0));
+      ROUND (unpack_v8a_from_v32 (w[1]));
       break;
 
     case  6:
-      CODE_PRE;
-      ROUND ((w0   >>  0) & 0xff); ROUND ((w0   >>  8) & 0xff); ROUND ((w0   >> 16) & 0xff); ROUND ((w0   >> 24) & 0xff);
-      ROUND ((w[1] >>  0) & 0xff); ROUND ((w[1] >>  8) & 0xff);
-      CODE_POST_M;
+      ROUND (unpack_v8a_from_v32 (  w0)); ROUND (unpack_v8b_from_v32 (  w0)); ROUND (unpack_v8c_from_v32 (  w0)); ROUND (unpack_v8d_from_v32 (  w0));
+      ROUND (unpack_v8a_from_v32 (w[1])); ROUND (unpack_v8b_from_v32 (w[1]));
       break;
 
     case  7:
-      CODE_PRE;
-      ROUND ((w0   >>  0) & 0xff); ROUND ((w0   >>  8) & 0xff); ROUND ((w0   >> 16) & 0xff); ROUND ((w0   >> 24) & 0xff);
-      ROUND ((w[1] >>  0) & 0xff); ROUND ((w[1] >>  8) & 0xff); ROUND ((w[1] >> 16) & 0xff);
-      CODE_POST_M;
+      ROUND (unpack_v8a_from_v32 (  w0)); ROUND (unpack_v8b_from_v32 (  w0)); ROUND (unpack_v8c_from_v32 (  w0)); ROUND (unpack_v8d_from_v32 (  w0));
+      ROUND (unpack_v8a_from_v32 (w[1])); ROUND (unpack_v8b_from_v32 (w[1])); ROUND (unpack_v8c_from_v32 (w[1]));
       break;
 
     case  8:
-      CODE_PRE;
-      ROUND ((w0   >>  0) & 0xff); ROUND ((w0   >>  8) & 0xff); ROUND ((w0   >> 16) & 0xff); ROUND ((w0   >> 24) & 0xff);
-      ROUND ((w[1] >>  0) & 0xff); ROUND ((w[1] >>  8) & 0xff); ROUND ((w[1] >> 16) & 0xff); ROUND ((w[1] >> 24) & 0xff);
-      CODE_POST_M;
+      ROUND (unpack_v8a_from_v32 (  w0)); ROUND (unpack_v8b_from_v32 (  w0)); ROUND (unpack_v8c_from_v32 (  w0)); ROUND (unpack_v8d_from_v32 (  w0));
+      ROUND (unpack_v8a_from_v32 (w[1])); ROUND (unpack_v8b_from_v32 (w[1])); ROUND (unpack_v8c_from_v32 (w[1])); ROUND (unpack_v8d_from_v32 (w[1]));
       break;
 
     case  9:
-      CODE_PRE;
-      ROUND ((w0   >>  0) & 0xff); ROUND ((w0   >>  8) & 0xff); ROUND ((w0   >> 16) & 0xff); ROUND ((w0   >> 24) & 0xff);
-      ROUND ((w[1] >>  0) & 0xff); ROUND ((w[1] >>  8) & 0xff); ROUND ((w[1] >> 16) & 0xff); ROUND ((w[1] >> 24) & 0xff);
-      ROUND ((w[2] >>  0) & 0xff);
-      CODE_POST_M;
+      ROUND (unpack_v8a_from_v32 (  w0)); ROUND (unpack_v8b_from_v32 (  w0)); ROUND (unpack_v8c_from_v32 (  w0)); ROUND (unpack_v8d_from_v32 (  w0));
+      ROUND (unpack_v8a_from_v32 (w[1])); ROUND (unpack_v8b_from_v32 (w[1])); ROUND (unpack_v8c_from_v32 (w[1])); ROUND (unpack_v8d_from_v32 (w[1]));
+      ROUND (unpack_v8a_from_v32 (w[2]));
       break;
 
     case 10:
-      CODE_PRE;
-      ROUND ((w0   >>  0) & 0xff); ROUND ((w0   >>  8) & 0xff); ROUND ((w0   >> 16) & 0xff); ROUND ((w0   >> 24) & 0xff);
-      ROUND ((w[1] >>  0) & 0xff); ROUND ((w[1] >>  8) & 0xff); ROUND ((w[1] >> 16) & 0xff); ROUND ((w[1] >> 24) & 0xff);
-      ROUND ((w[2] >>  0) & 0xff); ROUND ((w[2] >>  8) & 0xff);
-      CODE_POST_M;
+      ROUND (unpack_v8a_from_v32 (  w0)); ROUND (unpack_v8b_from_v32 (  w0)); ROUND (unpack_v8c_from_v32 (  w0)); ROUND (unpack_v8d_from_v32 (  w0));
+      ROUND (unpack_v8a_from_v32 (w[1])); ROUND (unpack_v8b_from_v32 (w[1])); ROUND (unpack_v8c_from_v32 (w[1])); ROUND (unpack_v8d_from_v32 (w[1]));
+      ROUND (unpack_v8a_from_v32 (w[2])); ROUND (unpack_v8b_from_v32 (w[2]));
       break;
 
     case 11:
-      CODE_PRE;
-      ROUND ((w0   >>  0) & 0xff); ROUND ((w0   >>  8) & 0xff); ROUND ((w0   >> 16) & 0xff); ROUND ((w0   >> 24) & 0xff);
-      ROUND ((w[1] >>  0) & 0xff); ROUND ((w[1] >>  8) & 0xff); ROUND ((w[1] >> 16) & 0xff); ROUND ((w[1] >> 24) & 0xff);
-      ROUND ((w[2] >>  0) & 0xff); ROUND ((w[2] >>  8) & 0xff); ROUND ((w[2] >> 16) & 0xff);
-      CODE_POST_M;
+      ROUND (unpack_v8a_from_v32 (  w0)); ROUND (unpack_v8b_from_v32 (  w0)); ROUND (unpack_v8c_from_v32 (  w0)); ROUND (unpack_v8d_from_v32 (  w0));
+      ROUND (unpack_v8a_from_v32 (w[1])); ROUND (unpack_v8b_from_v32 (w[1])); ROUND (unpack_v8c_from_v32 (w[1])); ROUND (unpack_v8d_from_v32 (w[1]));
+      ROUND (unpack_v8a_from_v32 (w[2])); ROUND (unpack_v8b_from_v32 (w[2])); ROUND (unpack_v8c_from_v32 (w[2]));
       break;
 
     case 12:
-      CODE_PRE;
-      ROUND ((w0   >>  0) & 0xff); ROUND ((w0   >>  8) & 0xff); ROUND ((w0   >> 16) & 0xff); ROUND ((w0   >> 24) & 0xff);
-      ROUND ((w[1] >>  0) & 0xff); ROUND ((w[1] >>  8) & 0xff); ROUND ((w[1] >> 16) & 0xff); ROUND ((w[1] >> 24) & 0xff);
-      ROUND ((w[2] >>  0) & 0xff); ROUND ((w[2] >>  8) & 0xff); ROUND ((w[2] >> 16) & 0xff); ROUND ((w[2] >> 24) & 0xff);
-      CODE_POST_M;
+      ROUND (unpack_v8a_from_v32 (  w0)); ROUND (unpack_v8b_from_v32 (  w0)); ROUND (unpack_v8c_from_v32 (  w0)); ROUND (unpack_v8d_from_v32 (  w0));
+      ROUND (unpack_v8a_from_v32 (w[1])); ROUND (unpack_v8b_from_v32 (w[1])); ROUND (unpack_v8c_from_v32 (w[1])); ROUND (unpack_v8d_from_v32 (w[1]));
+      ROUND (unpack_v8a_from_v32 (w[2])); ROUND (unpack_v8b_from_v32 (w[2])); ROUND (unpack_v8c_from_v32 (w[2])); ROUND (unpack_v8d_from_v32 (w[2]));
       break;
 
     case 13:
-      CODE_PRE;
-      ROUND ((w0   >>  0) & 0xff); ROUND ((w0   >>  8) & 0xff); ROUND ((w0   >> 16) & 0xff); ROUND ((w0   >> 24) & 0xff);
-      ROUND ((w[1] >>  0) & 0xff); ROUND ((w[1] >>  8) & 0xff); ROUND ((w[1] >> 16) & 0xff); ROUND ((w[1] >> 24) & 0xff);
-      ROUND ((w[2] >>  0) & 0xff); ROUND ((w[2] >>  8) & 0xff); ROUND ((w[2] >> 16) & 0xff); ROUND ((w[2] >> 24) & 0xff);
-      ROUND ((w[3] >>  0) & 0xff);
-      CODE_POST_M;
+      ROUND (unpack_v8a_from_v32 (  w0)); ROUND (unpack_v8b_from_v32 (  w0)); ROUND (unpack_v8c_from_v32 (  w0)); ROUND (unpack_v8d_from_v32 (  w0));
+      ROUND (unpack_v8a_from_v32 (w[1])); ROUND (unpack_v8b_from_v32 (w[1])); ROUND (unpack_v8c_from_v32 (w[1])); ROUND (unpack_v8d_from_v32 (w[1]));
+      ROUND (unpack_v8a_from_v32 (w[2])); ROUND (unpack_v8b_from_v32 (w[2])); ROUND (unpack_v8c_from_v32 (w[2])); ROUND (unpack_v8d_from_v32 (w[2]));
+      ROUND (unpack_v8a_from_v32 (w[3]));
       break;
 
     case 14:
-      CODE_PRE;
-      ROUND ((w0   >>  0) & 0xff); ROUND ((w0   >>  8) & 0xff); ROUND ((w0   >> 16) & 0xff); ROUND ((w0   >> 24) & 0xff);
-      ROUND ((w[1] >>  0) & 0xff); ROUND ((w[1] >>  8) & 0xff); ROUND ((w[1] >> 16) & 0xff); ROUND ((w[1] >> 24) & 0xff);
-      ROUND ((w[2] >>  0) & 0xff); ROUND ((w[2] >>  8) & 0xff); ROUND ((w[2] >> 16) & 0xff); ROUND ((w[2] >> 24) & 0xff);
-      ROUND ((w[3] >>  0) & 0xff); ROUND ((w[3] >>  8) & 0xff);
-      CODE_POST_M;
+      ROUND (unpack_v8a_from_v32 (  w0)); ROUND (unpack_v8b_from_v32 (  w0)); ROUND (unpack_v8c_from_v32 (  w0)); ROUND (unpack_v8d_from_v32 (  w0));
+      ROUND (unpack_v8a_from_v32 (w[1])); ROUND (unpack_v8b_from_v32 (w[1])); ROUND (unpack_v8c_from_v32 (w[1])); ROUND (unpack_v8d_from_v32 (w[1]));
+      ROUND (unpack_v8a_from_v32 (w[2])); ROUND (unpack_v8b_from_v32 (w[2])); ROUND (unpack_v8c_from_v32 (w[2])); ROUND (unpack_v8d_from_v32 (w[2]));
+      ROUND (unpack_v8a_from_v32 (w[3])); ROUND (unpack_v8b_from_v32 (w[3]));
       break;
 
     case 15:
-      CODE_PRE;
-      ROUND ((w0   >>  0) & 0xff); ROUND ((w0   >>  8) & 0xff); ROUND ((w0   >> 16) & 0xff); ROUND ((w0   >> 24) & 0xff);
-      ROUND ((w[1] >>  0) & 0xff); ROUND ((w[1] >>  8) & 0xff); ROUND ((w[1] >> 16) & 0xff); ROUND ((w[1] >> 24) & 0xff);
-      ROUND ((w[2] >>  0) & 0xff); ROUND ((w[2] >>  8) & 0xff); ROUND ((w[2] >> 16) & 0xff); ROUND ((w[2] >> 24) & 0xff);
-      ROUND ((w[3] >>  0) & 0xff); ROUND ((w[3] >>  8) & 0xff); ROUND ((w[3] >> 16) & 0xff);
-      CODE_POST_M;
+      ROUND (unpack_v8a_from_v32 (  w0)); ROUND (unpack_v8b_from_v32 (  w0)); ROUND (unpack_v8c_from_v32 (  w0)); ROUND (unpack_v8d_from_v32 (  w0));
+      ROUND (unpack_v8a_from_v32 (w[1])); ROUND (unpack_v8b_from_v32 (w[1])); ROUND (unpack_v8c_from_v32 (w[1])); ROUND (unpack_v8d_from_v32 (w[1]));
+      ROUND (unpack_v8a_from_v32 (w[2])); ROUND (unpack_v8b_from_v32 (w[2])); ROUND (unpack_v8c_from_v32 (w[2])); ROUND (unpack_v8d_from_v32 (w[2]));
+      ROUND (unpack_v8a_from_v32 (w[3])); ROUND (unpack_v8b_from_v32 (w[3])); ROUND (unpack_v8c_from_v32 (w[3]));
       break;
 
     case 16:
-      CODE_PRE;
-      ROUND ((w0   >>  0) & 0xff); ROUND ((w0   >>  8) & 0xff); ROUND ((w0   >> 16) & 0xff); ROUND ((w0   >> 24) & 0xff);
-      ROUND ((w[1] >>  0) & 0xff); ROUND ((w[1] >>  8) & 0xff); ROUND ((w[1] >> 16) & 0xff); ROUND ((w[1] >> 24) & 0xff);
-      ROUND ((w[2] >>  0) & 0xff); ROUND ((w[2] >>  8) & 0xff); ROUND ((w[2] >> 16) & 0xff); ROUND ((w[2] >> 24) & 0xff);
-      ROUND ((w[3] >>  0) & 0xff); ROUND ((w[3] >>  8) & 0xff); ROUND ((w[3] >> 16) & 0xff); ROUND ((w[3] >> 24) & 0xff);
-      CODE_POST_M;
+      ROUND (unpack_v8a_from_v32 (  w0)); ROUND (unpack_v8b_from_v32 (  w0)); ROUND (unpack_v8c_from_v32 (  w0)); ROUND (unpack_v8d_from_v32 (  w0));
+      ROUND (unpack_v8a_from_v32 (w[1])); ROUND (unpack_v8b_from_v32 (w[1])); ROUND (unpack_v8c_from_v32 (w[1])); ROUND (unpack_v8d_from_v32 (w[1]));
+      ROUND (unpack_v8a_from_v32 (w[2])); ROUND (unpack_v8b_from_v32 (w[2])); ROUND (unpack_v8c_from_v32 (w[2])); ROUND (unpack_v8d_from_v32 (w[2]));
+      ROUND (unpack_v8a_from_v32 (w[3])); ROUND (unpack_v8b_from_v32 (w[3])); ROUND (unpack_v8c_from_v32 (w[3])); ROUND (unpack_v8d_from_v32 (w[3]));
       break;
 
     default:
-      CODE_PRE;
-      ROUND ((w0   >>  0) & 0xff); ROUND ((w0   >>  8) & 0xff); ROUND ((w0   >> 16) & 0xff); ROUND ((w0   >> 24) & 0xff);
+      ROUND (unpack_v8a_from_v32 (  w0)); ROUND (unpack_v8b_from_v32 (  w0)); ROUND (unpack_v8c_from_v32 (  w0)); ROUND (unpack_v8d_from_v32 (  w0));
       CODE_LOOP (pw_len - 4);
-      CODE_POST_M;
       break;
   }
+
+  CODE_POST_M;
 }
 
 DECLSPEC void m00200s (u32 *w, const u32 pw_len, KERN_ATTR_VECTOR ())
@@ -262,138 +245,108 @@ DECLSPEC void m00200s (u32 *w, const u32 pw_len, KERN_ATTR_VECTOR ())
 
   u32 w0l = w[0];
 
+  CODE_PRE;
+
   switch (pw_len)
   {
     case  1:
-      CODE_PRE;
-      ROUND ((w0   >>  0) & 0xff);
-      CODE_POST_S;
+      ROUND (unpack_v8a_from_v32 (  w0));
       break;
 
     case  2:
-      CODE_PRE;
-      ROUND ((w0   >>  0) & 0xff); ROUND ((w0   >>  8) & 0xff);
-      CODE_POST_S;
+      ROUND (unpack_v8a_from_v32 (  w0)); ROUND (unpack_v8b_from_v32 (  w0));
       break;
 
     case  3:
-      CODE_PRE;
-      ROUND ((w0   >>  0) & 0xff); ROUND ((w0   >>  8) & 0xff); ROUND ((w0   >> 16) & 0xff);
-      CODE_POST_S;
+      ROUND (unpack_v8a_from_v32 (  w0)); ROUND (unpack_v8b_from_v32 (  w0)); ROUND (unpack_v8c_from_v32 (  w0));
       break;
 
     case  4:
-      CODE_PRE;
-      ROUND ((w0   >>  0) & 0xff); ROUND ((w0   >>  8) & 0xff); ROUND ((w0   >> 16) & 0xff); ROUND ((w0   >> 24) & 0xff);
-      CODE_POST_S;
+      ROUND (unpack_v8a_from_v32 (  w0)); ROUND (unpack_v8b_from_v32 (  w0)); ROUND (unpack_v8c_from_v32 (  w0)); ROUND (unpack_v8d_from_v32 (  w0));
       break;
 
     case  5:
-      CODE_PRE;
-      ROUND ((w0   >>  0) & 0xff); ROUND ((w0   >>  8) & 0xff); ROUND ((w0   >> 16) & 0xff); ROUND ((w0   >> 24) & 0xff);
-      ROUND ((w[1] >>  0) & 0xff);
-      CODE_POST_S;
+      ROUND (unpack_v8a_from_v32 (  w0)); ROUND (unpack_v8b_from_v32 (  w0)); ROUND (unpack_v8c_from_v32 (  w0)); ROUND (unpack_v8d_from_v32 (  w0));
+      ROUND (unpack_v8a_from_v32 (w[1]));
       break;
 
     case  6:
-      CODE_PRE;
-      ROUND ((w0   >>  0) & 0xff); ROUND ((w0   >>  8) & 0xff); ROUND ((w0   >> 16) & 0xff); ROUND ((w0   >> 24) & 0xff);
-      ROUND ((w[1] >>  0) & 0xff); ROUND ((w[1] >>  8) & 0xff);
-      CODE_POST_S;
+      ROUND (unpack_v8a_from_v32 (  w0)); ROUND (unpack_v8b_from_v32 (  w0)); ROUND (unpack_v8c_from_v32 (  w0)); ROUND (unpack_v8d_from_v32 (  w0));
+      ROUND (unpack_v8a_from_v32 (w[1])); ROUND (unpack_v8b_from_v32 (w[1]));
       break;
 
     case  7:
-      CODE_PRE;
-      ROUND ((w0   >>  0) & 0xff); ROUND ((w0   >>  8) & 0xff); ROUND ((w0   >> 16) & 0xff); ROUND ((w0   >> 24) & 0xff);
-      ROUND ((w[1] >>  0) & 0xff); ROUND ((w[1] >>  8) & 0xff); ROUND ((w[1] >> 16) & 0xff);
-      CODE_POST_S;
+      ROUND (unpack_v8a_from_v32 (  w0)); ROUND (unpack_v8b_from_v32 (  w0)); ROUND (unpack_v8c_from_v32 (  w0)); ROUND (unpack_v8d_from_v32 (  w0));
+      ROUND (unpack_v8a_from_v32 (w[1])); ROUND (unpack_v8b_from_v32 (w[1])); ROUND (unpack_v8c_from_v32 (w[1]));
       break;
 
     case  8:
-      CODE_PRE;
-      ROUND ((w0   >>  0) & 0xff); ROUND ((w0   >>  8) & 0xff); ROUND ((w0   >> 16) & 0xff); ROUND ((w0   >> 24) & 0xff);
-      ROUND ((w[1] >>  0) & 0xff); ROUND ((w[1] >>  8) & 0xff); ROUND ((w[1] >> 16) & 0xff); ROUND ((w[1] >> 24) & 0xff);
-      CODE_POST_S;
+      ROUND (unpack_v8a_from_v32 (  w0)); ROUND (unpack_v8b_from_v32 (  w0)); ROUND (unpack_v8c_from_v32 (  w0)); ROUND (unpack_v8d_from_v32 (  w0));
+      ROUND (unpack_v8a_from_v32 (w[1])); ROUND (unpack_v8b_from_v32 (w[1])); ROUND (unpack_v8c_from_v32 (w[1])); ROUND (unpack_v8d_from_v32 (w[1]));
       break;
 
     case  9:
-      CODE_PRE;
-      ROUND ((w0   >>  0) & 0xff); ROUND ((w0   >>  8) & 0xff); ROUND ((w0   >> 16) & 0xff); ROUND ((w0   >> 24) & 0xff);
-      ROUND ((w[1] >>  0) & 0xff); ROUND ((w[1] >>  8) & 0xff); ROUND ((w[1] >> 16) & 0xff); ROUND ((w[1] >> 24) & 0xff);
-      ROUND ((w[2] >>  0) & 0xff);
-      CODE_POST_S;
+      ROUND (unpack_v8a_from_v32 (  w0)); ROUND (unpack_v8b_from_v32 (  w0)); ROUND (unpack_v8c_from_v32 (  w0)); ROUND (unpack_v8d_from_v32 (  w0));
+      ROUND (unpack_v8a_from_v32 (w[1])); ROUND (unpack_v8b_from_v32 (w[1])); ROUND (unpack_v8c_from_v32 (w[1])); ROUND (unpack_v8d_from_v32 (w[1]));
+      ROUND (unpack_v8a_from_v32 (w[2]));
       break;
 
     case 10:
-      CODE_PRE;
-      ROUND ((w0   >>  0) & 0xff); ROUND ((w0   >>  8) & 0xff); ROUND ((w0   >> 16) & 0xff); ROUND ((w0   >> 24) & 0xff);
-      ROUND ((w[1] >>  0) & 0xff); ROUND ((w[1] >>  8) & 0xff); ROUND ((w[1] >> 16) & 0xff); ROUND ((w[1] >> 24) & 0xff);
-      ROUND ((w[2] >>  0) & 0xff); ROUND ((w[2] >>  8) & 0xff);
-      CODE_POST_S;
+      ROUND (unpack_v8a_from_v32 (  w0)); ROUND (unpack_v8b_from_v32 (  w0)); ROUND (unpack_v8c_from_v32 (  w0)); ROUND (unpack_v8d_from_v32 (  w0));
+      ROUND (unpack_v8a_from_v32 (w[1])); ROUND (unpack_v8b_from_v32 (w[1])); ROUND (unpack_v8c_from_v32 (w[1])); ROUND (unpack_v8d_from_v32 (w[1]));
+      ROUND (unpack_v8a_from_v32 (w[2])); ROUND (unpack_v8b_from_v32 (w[2]));
       break;
 
     case 11:
-      CODE_PRE;
-      ROUND ((w0   >>  0) & 0xff); ROUND ((w0   >>  8) & 0xff); ROUND ((w0   >> 16) & 0xff); ROUND ((w0   >> 24) & 0xff);
-      ROUND ((w[1] >>  0) & 0xff); ROUND ((w[1] >>  8) & 0xff); ROUND ((w[1] >> 16) & 0xff); ROUND ((w[1] >> 24) & 0xff);
-      ROUND ((w[2] >>  0) & 0xff); ROUND ((w[2] >>  8) & 0xff); ROUND ((w[2] >> 16) & 0xff);
-      CODE_POST_S;
+      ROUND (unpack_v8a_from_v32 (  w0)); ROUND (unpack_v8b_from_v32 (  w0)); ROUND (unpack_v8c_from_v32 (  w0)); ROUND (unpack_v8d_from_v32 (  w0));
+      ROUND (unpack_v8a_from_v32 (w[1])); ROUND (unpack_v8b_from_v32 (w[1])); ROUND (unpack_v8c_from_v32 (w[1])); ROUND (unpack_v8d_from_v32 (w[1]));
+      ROUND (unpack_v8a_from_v32 (w[2])); ROUND (unpack_v8b_from_v32 (w[2])); ROUND (unpack_v8c_from_v32 (w[2]));
       break;
 
     case 12:
-      CODE_PRE;
-      ROUND ((w0   >>  0) & 0xff); ROUND ((w0   >>  8) & 0xff); ROUND ((w0   >> 16) & 0xff); ROUND ((w0   >> 24) & 0xff);
-      ROUND ((w[1] >>  0) & 0xff); ROUND ((w[1] >>  8) & 0xff); ROUND ((w[1] >> 16) & 0xff); ROUND ((w[1] >> 24) & 0xff);
-      ROUND ((w[2] >>  0) & 0xff); ROUND ((w[2] >>  8) & 0xff); ROUND ((w[2] >> 16) & 0xff); ROUND ((w[2] >> 24) & 0xff);
-      CODE_POST_S;
+      ROUND (unpack_v8a_from_v32 (  w0)); ROUND (unpack_v8b_from_v32 (  w0)); ROUND (unpack_v8c_from_v32 (  w0)); ROUND (unpack_v8d_from_v32 (  w0));
+      ROUND (unpack_v8a_from_v32 (w[1])); ROUND (unpack_v8b_from_v32 (w[1])); ROUND (unpack_v8c_from_v32 (w[1])); ROUND (unpack_v8d_from_v32 (w[1]));
+      ROUND (unpack_v8a_from_v32 (w[2])); ROUND (unpack_v8b_from_v32 (w[2])); ROUND (unpack_v8c_from_v32 (w[2])); ROUND (unpack_v8d_from_v32 (w[2]));
       break;
 
     case 13:
-      CODE_PRE;
-      ROUND ((w0   >>  0) & 0xff); ROUND ((w0   >>  8) & 0xff); ROUND ((w0   >> 16) & 0xff); ROUND ((w0   >> 24) & 0xff);
-      ROUND ((w[1] >>  0) & 0xff); ROUND ((w[1] >>  8) & 0xff); ROUND ((w[1] >> 16) & 0xff); ROUND ((w[1] >> 24) & 0xff);
-      ROUND ((w[2] >>  0) & 0xff); ROUND ((w[2] >>  8) & 0xff); ROUND ((w[2] >> 16) & 0xff); ROUND ((w[2] >> 24) & 0xff);
-      ROUND ((w[3] >>  0) & 0xff);
-      CODE_POST_S;
+      ROUND (unpack_v8a_from_v32 (  w0)); ROUND (unpack_v8b_from_v32 (  w0)); ROUND (unpack_v8c_from_v32 (  w0)); ROUND (unpack_v8d_from_v32 (  w0));
+      ROUND (unpack_v8a_from_v32 (w[1])); ROUND (unpack_v8b_from_v32 (w[1])); ROUND (unpack_v8c_from_v32 (w[1])); ROUND (unpack_v8d_from_v32 (w[1]));
+      ROUND (unpack_v8a_from_v32 (w[2])); ROUND (unpack_v8b_from_v32 (w[2])); ROUND (unpack_v8c_from_v32 (w[2])); ROUND (unpack_v8d_from_v32 (w[2]));
+      ROUND (unpack_v8a_from_v32 (w[3]));
       break;
 
     case 14:
-      CODE_PRE;
-      ROUND ((w0   >>  0) & 0xff); ROUND ((w0   >>  8) & 0xff); ROUND ((w0   >> 16) & 0xff); ROUND ((w0   >> 24) & 0xff);
-      ROUND ((w[1] >>  0) & 0xff); ROUND ((w[1] >>  8) & 0xff); ROUND ((w[1] >> 16) & 0xff); ROUND ((w[1] >> 24) & 0xff);
-      ROUND ((w[2] >>  0) & 0xff); ROUND ((w[2] >>  8) & 0xff); ROUND ((w[2] >> 16) & 0xff); ROUND ((w[2] >> 24) & 0xff);
-      ROUND ((w[3] >>  0) & 0xff); ROUND ((w[3] >>  8) & 0xff);
-      CODE_POST_S;
+      ROUND (unpack_v8a_from_v32 (  w0)); ROUND (unpack_v8b_from_v32 (  w0)); ROUND (unpack_v8c_from_v32 (  w0)); ROUND (unpack_v8d_from_v32 (  w0));
+      ROUND (unpack_v8a_from_v32 (w[1])); ROUND (unpack_v8b_from_v32 (w[1])); ROUND (unpack_v8c_from_v32 (w[1])); ROUND (unpack_v8d_from_v32 (w[1]));
+      ROUND (unpack_v8a_from_v32 (w[2])); ROUND (unpack_v8b_from_v32 (w[2])); ROUND (unpack_v8c_from_v32 (w[2])); ROUND (unpack_v8d_from_v32 (w[2]));
+      ROUND (unpack_v8a_from_v32 (w[3])); ROUND (unpack_v8b_from_v32 (w[3]));
       break;
 
     case 15:
-      CODE_PRE;
-      ROUND ((w0   >>  0) & 0xff); ROUND ((w0   >>  8) & 0xff); ROUND ((w0   >> 16) & 0xff); ROUND ((w0   >> 24) & 0xff);
-      ROUND ((w[1] >>  0) & 0xff); ROUND ((w[1] >>  8) & 0xff); ROUND ((w[1] >> 16) & 0xff); ROUND ((w[1] >> 24) & 0xff);
-      ROUND ((w[2] >>  0) & 0xff); ROUND ((w[2] >>  8) & 0xff); ROUND ((w[2] >> 16) & 0xff); ROUND ((w[2] >> 24) & 0xff);
-      ROUND ((w[3] >>  0) & 0xff); ROUND ((w[3] >>  8) & 0xff); ROUND ((w[3] >> 16) & 0xff);
-      CODE_POST_S;
+      ROUND (unpack_v8a_from_v32 (  w0)); ROUND (unpack_v8b_from_v32 (  w0)); ROUND (unpack_v8c_from_v32 (  w0)); ROUND (unpack_v8d_from_v32 (  w0));
+      ROUND (unpack_v8a_from_v32 (w[1])); ROUND (unpack_v8b_from_v32 (w[1])); ROUND (unpack_v8c_from_v32 (w[1])); ROUND (unpack_v8d_from_v32 (w[1]));
+      ROUND (unpack_v8a_from_v32 (w[2])); ROUND (unpack_v8b_from_v32 (w[2])); ROUND (unpack_v8c_from_v32 (w[2])); ROUND (unpack_v8d_from_v32 (w[2]));
+      ROUND (unpack_v8a_from_v32 (w[3])); ROUND (unpack_v8b_from_v32 (w[3])); ROUND (unpack_v8c_from_v32 (w[3]));
       break;
 
     case 16:
-      CODE_PRE;
-      ROUND ((w0   >>  0) & 0xff); ROUND ((w0   >>  8) & 0xff); ROUND ((w0   >> 16) & 0xff); ROUND ((w0   >> 24) & 0xff);
-      ROUND ((w[1] >>  0) & 0xff); ROUND ((w[1] >>  8) & 0xff); ROUND ((w[1] >> 16) & 0xff); ROUND ((w[1] >> 24) & 0xff);
-      ROUND ((w[2] >>  0) & 0xff); ROUND ((w[2] >>  8) & 0xff); ROUND ((w[2] >> 16) & 0xff); ROUND ((w[2] >> 24) & 0xff);
-      ROUND ((w[3] >>  0) & 0xff); ROUND ((w[3] >>  8) & 0xff); ROUND ((w[3] >> 16) & 0xff); ROUND ((w[3] >> 24) & 0xff);
-      CODE_POST_S;
+      ROUND (unpack_v8a_from_v32 (  w0)); ROUND (unpack_v8b_from_v32 (  w0)); ROUND (unpack_v8c_from_v32 (  w0)); ROUND (unpack_v8d_from_v32 (  w0));
+      ROUND (unpack_v8a_from_v32 (w[1])); ROUND (unpack_v8b_from_v32 (w[1])); ROUND (unpack_v8c_from_v32 (w[1])); ROUND (unpack_v8d_from_v32 (w[1]));
+      ROUND (unpack_v8a_from_v32 (w[2])); ROUND (unpack_v8b_from_v32 (w[2])); ROUND (unpack_v8c_from_v32 (w[2])); ROUND (unpack_v8d_from_v32 (w[2]));
+      ROUND (unpack_v8a_from_v32 (w[3])); ROUND (unpack_v8b_from_v32 (w[3])); ROUND (unpack_v8c_from_v32 (w[3])); ROUND (unpack_v8d_from_v32 (w[3]));
       break;
 
     default:
-      CODE_PRE;
-      ROUND ((w0   >>  0) & 0xff); ROUND ((w0   >>  8) & 0xff); ROUND ((w0   >> 16) & 0xff); ROUND ((w0   >> 24) & 0xff);
+      ROUND (unpack_v8a_from_v32 (  w0)); ROUND (unpack_v8b_from_v32 (  w0)); ROUND (unpack_v8c_from_v32 (  w0)); ROUND (unpack_v8d_from_v32 (  w0));
       CODE_LOOP (pw_len - 4);
-      CODE_POST_S;
       break;
   }
+
+  CODE_POST_S;
 }
 
-__kernel void m00200_m04 (KERN_ATTR_VECTOR ())
+KERNEL_FQ void m00200_m04 (KERN_ATTR_VECTOR ())
 {
   /**
    * base
@@ -428,10 +381,10 @@ __kernel void m00200_m04 (KERN_ATTR_VECTOR ())
    * main
    */
 
-  m00200m (w, pw_len, pws, rules_buf, combs_buf, words_buf_r, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_scryptV0_buf, d_scryptV1_buf, d_scryptV2_buf, d_scryptV3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
+  m00200m (w, pw_len, pws, rules_buf, combs_buf, words_buf_r, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_extra0_buf, d_extra1_buf, d_extra2_buf, d_extra3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
 }
 
-__kernel void m00200_m08 (KERN_ATTR_VECTOR ())
+KERNEL_FQ void m00200_m08 (KERN_ATTR_VECTOR ())
 {
   /**
    * base
@@ -466,10 +419,10 @@ __kernel void m00200_m08 (KERN_ATTR_VECTOR ())
    * main
    */
 
-  m00200m (w, pw_len, pws, rules_buf, combs_buf, words_buf_r, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_scryptV0_buf, d_scryptV1_buf, d_scryptV2_buf, d_scryptV3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
+  m00200m (w, pw_len, pws, rules_buf, combs_buf, words_buf_r, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_extra0_buf, d_extra1_buf, d_extra2_buf, d_extra3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
 }
 
-__kernel void m00200_m16 (KERN_ATTR_VECTOR ())
+KERNEL_FQ void m00200_m16 (KERN_ATTR_VECTOR ())
 {
   /**
    * base
@@ -504,10 +457,10 @@ __kernel void m00200_m16 (KERN_ATTR_VECTOR ())
    * main
    */
 
-  m00200m (w, pw_len, pws, rules_buf, combs_buf, words_buf_r, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_scryptV0_buf, d_scryptV1_buf, d_scryptV2_buf, d_scryptV3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
+  m00200m (w, pw_len, pws, rules_buf, combs_buf, words_buf_r, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_extra0_buf, d_extra1_buf, d_extra2_buf, d_extra3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
 }
 
-__kernel void m00200_s04 (KERN_ATTR_VECTOR ())
+KERNEL_FQ void m00200_s04 (KERN_ATTR_VECTOR ())
 {
   /**
    * base
@@ -542,10 +495,10 @@ __kernel void m00200_s04 (KERN_ATTR_VECTOR ())
    * main
    */
 
-  m00200s (w, pw_len, pws, rules_buf, combs_buf, words_buf_r, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_scryptV0_buf, d_scryptV1_buf, d_scryptV2_buf, d_scryptV3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
+  m00200s (w, pw_len, pws, rules_buf, combs_buf, words_buf_r, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_extra0_buf, d_extra1_buf, d_extra2_buf, d_extra3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
 }
 
-__kernel void m00200_s08 (KERN_ATTR_VECTOR ())
+KERNEL_FQ void m00200_s08 (KERN_ATTR_VECTOR ())
 {
   /**
    * base
@@ -580,10 +533,10 @@ __kernel void m00200_s08 (KERN_ATTR_VECTOR ())
    * main
    */
 
-  m00200s (w, pw_len, pws, rules_buf, combs_buf, words_buf_r, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_scryptV0_buf, d_scryptV1_buf, d_scryptV2_buf, d_scryptV3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
+  m00200s (w, pw_len, pws, rules_buf, combs_buf, words_buf_r, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_extra0_buf, d_extra1_buf, d_extra2_buf, d_extra3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
 }
 
-__kernel void m00200_s16 (KERN_ATTR_VECTOR ())
+KERNEL_FQ void m00200_s16 (KERN_ATTR_VECTOR ())
 {
   /**
    * base
@@ -618,5 +571,5 @@ __kernel void m00200_s16 (KERN_ATTR_VECTOR ())
    * main
    */
 
-  m00200s (w, pw_len, pws, rules_buf, combs_buf, words_buf_r, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_scryptV0_buf, d_scryptV1_buf, d_scryptV2_buf, d_scryptV3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
+  m00200s (w, pw_len, pws, rules_buf, combs_buf, words_buf_r, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_extra0_buf, d_extra1_buf, d_extra2_buf, d_extra3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
 }

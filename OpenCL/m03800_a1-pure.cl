@@ -5,15 +5,16 @@
 
 //#define NEW_SIMD_CODE
 
-#include "inc_vendor.cl"
-#include "inc_hash_constants.h"
-#include "inc_hash_functions.cl"
-#include "inc_types.cl"
+#ifdef KERNEL_STATIC
+#include "inc_vendor.h"
+#include "inc_types.h"
+#include "inc_platform.cl"
 #include "inc_common.cl"
 #include "inc_scalar.cl"
 #include "inc_hash_md5.cl"
+#endif
 
-__kernel void m03800_mxx (KERN_ATTR_BASIC ())
+KERNEL_FQ void m03800_mxx (KERN_ATTR_BASIC ())
 {
   /**
    * modifier
@@ -32,7 +33,7 @@ __kernel void m03800_mxx (KERN_ATTR_BASIC ())
 
   u32 s[64] = { 0 };
 
-  for (int i = 0, idx = 0; i < salt_len; i += 4, idx += 1)
+  for (u32 i = 0, idx = 0; i < salt_len; i += 4, idx += 1)
   {
     s[idx] = salt_bufs[salt_pos].salt_buf[idx];
   }
@@ -43,7 +44,7 @@ __kernel void m03800_mxx (KERN_ATTR_BASIC ())
 
   md5_update (&ctx0, s, salt_len);
 
-  md5_update_global (&ctx0, pws[gid].i, pws[gid].pw_len & 255);
+  md5_update_global (&ctx0, pws[gid].i, pws[gid].pw_len);
 
   /**
    * loop
@@ -53,7 +54,7 @@ __kernel void m03800_mxx (KERN_ATTR_BASIC ())
   {
     md5_ctx_t ctx = ctx0;
 
-    md5_update_global (&ctx, combs_buf[il_pos].i, combs_buf[il_pos].pw_len & 255);
+    md5_update_global (&ctx, combs_buf[il_pos].i, combs_buf[il_pos].pw_len);
 
     md5_update (&ctx, s, salt_len);
 
@@ -68,7 +69,7 @@ __kernel void m03800_mxx (KERN_ATTR_BASIC ())
   }
 }
 
-__kernel void m03800_sxx (KERN_ATTR_BASIC ())
+KERNEL_FQ void m03800_sxx (KERN_ATTR_BASIC ())
 {
   /**
    * modifier
@@ -99,7 +100,7 @@ __kernel void m03800_sxx (KERN_ATTR_BASIC ())
 
   u32 s[64] = { 0 };
 
-  for (int i = 0, idx = 0; i < salt_len; i += 4, idx += 1)
+  for (u32 i = 0, idx = 0; i < salt_len; i += 4, idx += 1)
   {
     s[idx] = salt_bufs[salt_pos].salt_buf[idx];
   }
@@ -110,7 +111,7 @@ __kernel void m03800_sxx (KERN_ATTR_BASIC ())
 
   md5_update (&ctx0, s, salt_len);
 
-  md5_update_global (&ctx0, pws[gid].i, pws[gid].pw_len & 255);
+  md5_update_global (&ctx0, pws[gid].i, pws[gid].pw_len);
 
   /**
    * loop
@@ -120,7 +121,7 @@ __kernel void m03800_sxx (KERN_ATTR_BASIC ())
   {
     md5_ctx_t ctx = ctx0;
 
-    md5_update_global (&ctx, combs_buf[il_pos].i, combs_buf[il_pos].pw_len & 255);
+    md5_update_global (&ctx, combs_buf[il_pos].i, combs_buf[il_pos].pw_len);
 
     md5_update (&ctx, s, salt_len);
 

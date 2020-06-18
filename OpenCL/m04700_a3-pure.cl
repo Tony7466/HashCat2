@@ -5,28 +5,29 @@
 
 #define NEW_SIMD_CODE
 
-#include "inc_vendor.cl"
-#include "inc_hash_constants.h"
-#include "inc_hash_functions.cl"
-#include "inc_types.cl"
+#ifdef KERNEL_STATIC
+#include "inc_vendor.h"
+#include "inc_types.h"
+#include "inc_platform.cl"
 #include "inc_common.cl"
 #include "inc_simd.cl"
 #include "inc_hash_md5.cl"
 #include "inc_hash_sha1.cl"
-
-#if   VECT_SIZE == 1
-#define uint_to_hex_lower8_le(i) (u32x) (l_bin2asc[(i)])
-#elif VECT_SIZE == 2
-#define uint_to_hex_lower8_le(i) (u32x) (l_bin2asc[(i).s0], l_bin2asc[(i).s1])
-#elif VECT_SIZE == 4
-#define uint_to_hex_lower8_le(i) (u32x) (l_bin2asc[(i).s0], l_bin2asc[(i).s1], l_bin2asc[(i).s2], l_bin2asc[(i).s3])
-#elif VECT_SIZE == 8
-#define uint_to_hex_lower8_le(i) (u32x) (l_bin2asc[(i).s0], l_bin2asc[(i).s1], l_bin2asc[(i).s2], l_bin2asc[(i).s3], l_bin2asc[(i).s4], l_bin2asc[(i).s5], l_bin2asc[(i).s6], l_bin2asc[(i).s7])
-#elif VECT_SIZE == 16
-#define uint_to_hex_lower8_le(i) (u32x) (l_bin2asc[(i).s0], l_bin2asc[(i).s1], l_bin2asc[(i).s2], l_bin2asc[(i).s3], l_bin2asc[(i).s4], l_bin2asc[(i).s5], l_bin2asc[(i).s6], l_bin2asc[(i).s7], l_bin2asc[(i).s8], l_bin2asc[(i).s9], l_bin2asc[(i).sa], l_bin2asc[(i).sb], l_bin2asc[(i).sc], l_bin2asc[(i).sd], l_bin2asc[(i).se], l_bin2asc[(i).sf])
 #endif
 
-__kernel void m04700_mxx (KERN_ATTR_VECTOR ())
+#if   VECT_SIZE == 1
+#define uint_to_hex_lower8_le(i) make_u32x (l_bin2asc[(i)])
+#elif VECT_SIZE == 2
+#define uint_to_hex_lower8_le(i) make_u32x (l_bin2asc[(i).s0], l_bin2asc[(i).s1])
+#elif VECT_SIZE == 4
+#define uint_to_hex_lower8_le(i) make_u32x (l_bin2asc[(i).s0], l_bin2asc[(i).s1], l_bin2asc[(i).s2], l_bin2asc[(i).s3])
+#elif VECT_SIZE == 8
+#define uint_to_hex_lower8_le(i) make_u32x (l_bin2asc[(i).s0], l_bin2asc[(i).s1], l_bin2asc[(i).s2], l_bin2asc[(i).s3], l_bin2asc[(i).s4], l_bin2asc[(i).s5], l_bin2asc[(i).s6], l_bin2asc[(i).s7])
+#elif VECT_SIZE == 16
+#define uint_to_hex_lower8_le(i) make_u32x (l_bin2asc[(i).s0], l_bin2asc[(i).s1], l_bin2asc[(i).s2], l_bin2asc[(i).s3], l_bin2asc[(i).s4], l_bin2asc[(i).s5], l_bin2asc[(i).s6], l_bin2asc[(i).s7], l_bin2asc[(i).s8], l_bin2asc[(i).s9], l_bin2asc[(i).sa], l_bin2asc[(i).sb], l_bin2asc[(i).sc], l_bin2asc[(i).sd], l_bin2asc[(i).se], l_bin2asc[(i).sf])
+#endif
+
+KERNEL_FQ void m04700_mxx (KERN_ATTR_VECTOR ())
 {
   /**
    * modifier
@@ -40,9 +41,9 @@ __kernel void m04700_mxx (KERN_ATTR_VECTOR ())
    * bin2asc table
    */
 
-  __local u32 l_bin2asc[256];
+  LOCAL_VK u32 l_bin2asc[256];
 
-  for (MAYBE_VOLATILE u32 i = lid; i < 256; i += lsz)
+  for (u32 i = lid; i < 256; i += lsz)
   {
     const u32 i0 = (i >> 0) & 15;
     const u32 i1 = (i >> 4) & 15;
@@ -51,7 +52,7 @@ __kernel void m04700_mxx (KERN_ATTR_VECTOR ())
                  | ((i1 < 10) ? '0' + i1 : 'a' - 10 + i1) << 8;
   }
 
-  barrier (CLK_LOCAL_MEM_FENCE);
+  SYNC_THREADS ();
 
   if (gid >= gid_max) return;
 
@@ -59,11 +60,11 @@ __kernel void m04700_mxx (KERN_ATTR_VECTOR ())
    * base
    */
 
-  const u32 pw_len = pws[gid].pw_len & 255;
+  const u32 pw_len = pws[gid].pw_len;
 
   u32x w[64] = { 0 };
 
-  for (int i = 0, idx = 0; i < pw_len; i += 4, idx += 1)
+  for (u32 i = 0, idx = 0; i < pw_len; i += 4, idx += 1)
   {
     w[idx] = pws[gid].i[idx];
   }
@@ -129,7 +130,7 @@ __kernel void m04700_mxx (KERN_ATTR_VECTOR ())
   }
 }
 
-__kernel void m04700_sxx (KERN_ATTR_VECTOR ())
+KERNEL_FQ void m04700_sxx (KERN_ATTR_VECTOR ())
 {
   /**
    * modifier
@@ -143,9 +144,9 @@ __kernel void m04700_sxx (KERN_ATTR_VECTOR ())
    * bin2asc table
    */
 
-  __local u32 l_bin2asc[256];
+  LOCAL_VK u32 l_bin2asc[256];
 
-  for (MAYBE_VOLATILE u32 i = lid; i < 256; i += lsz)
+  for (u32 i = lid; i < 256; i += lsz)
   {
     const u32 i0 = (i >> 0) & 15;
     const u32 i1 = (i >> 4) & 15;
@@ -154,7 +155,7 @@ __kernel void m04700_sxx (KERN_ATTR_VECTOR ())
                  | ((i1 < 10) ? '0' + i1 : 'a' - 10 + i1) << 8;
   }
 
-  barrier (CLK_LOCAL_MEM_FENCE);
+  SYNC_THREADS ();
 
   if (gid >= gid_max) return;
 
@@ -174,11 +175,11 @@ __kernel void m04700_sxx (KERN_ATTR_VECTOR ())
    * base
    */
 
-  const u32 pw_len = pws[gid].pw_len & 255;
+  const u32 pw_len = pws[gid].pw_len;
 
   u32x w[64] = { 0 };
 
-  for (int i = 0, idx = 0; i < pw_len; i += 4, idx += 1)
+  for (u32 i = 0, idx = 0; i < pw_len; i += 4, idx += 1)
   {
     w[idx] = pws[gid].i[idx];
   }

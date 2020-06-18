@@ -8,14 +8,18 @@
 #include "memory.h"
 #include "bitops.h"
 #include "event.h"
-#include "dictstat.h"
 #include "locking.h"
 #include "shared.h"
+#include "dictstat.h"
 
 int sort_by_dictstat (const void *s1, const void *s2)
 {
   const dictstat_t *d1 = (const dictstat_t *) s1;
   const dictstat_t *d2 = (const dictstat_t *) s2;
+
+  const int rc_hash = memcmp (d1->hash_filename, d2->hash_filename, 16);
+
+  if (rc_hash != 0) return rc_hash;
 
   const int rc_from = strcmp (d1->encoding_from, d2->encoding_from);
 
@@ -56,14 +60,12 @@ int dictstat_init (hashcat_ctx_t *hashcat_ctx)
   if (user_options->example_hashes == true) return 0;
   if (user_options->keyspace       == true) return 0;
   if (user_options->left           == true) return 0;
-  if (user_options->opencl_info    == true) return 0;
+  if (user_options->backend_info   == true) return 0;
   if (user_options->show           == true) return 0;
   if (user_options->usage          == true) return 0;
   if (user_options->version        == true) return 0;
 
   if (user_options->attack_mode == ATTACK_MODE_BF) return 0;
-
-  if (user_options->hash_mode == 3000) return 0; // this mode virtually creates words in the wordlists
 
   dictstat_ctx->enabled  = true;
   dictstat_ctx->base     = (dictstat_t *) hccalloc (MAX_DICTSTAT, sizeof (dictstat_t));
@@ -76,9 +78,12 @@ int dictstat_init (hashcat_ctx_t *hashcat_ctx)
 
 void dictstat_destroy (hashcat_ctx_t *hashcat_ctx)
 {
+  hashconfig_t   *hashconfig   = hashcat_ctx->hashconfig;
   dictstat_ctx_t *dictstat_ctx = hashcat_ctx->dictstat_ctx;
 
   if (dictstat_ctx->enabled == false) return;
+
+  if (hashconfig->dictstat_disable == true) return;
 
   hcfree (dictstat_ctx->filename);
   hcfree (dictstat_ctx->base);
@@ -88,13 +93,16 @@ void dictstat_destroy (hashcat_ctx_t *hashcat_ctx)
 
 void dictstat_read (hashcat_ctx_t *hashcat_ctx)
 {
+  hashconfig_t   *hashconfig   = hashcat_ctx->hashconfig;
   dictstat_ctx_t *dictstat_ctx = hashcat_ctx->dictstat_ctx;
 
   if (dictstat_ctx->enabled == false) return;
 
-  FILE *fp = fopen (dictstat_ctx->filename, "rb");
+  if (hashconfig->dictstat_disable == true) return;
 
-  if (fp == NULL)
+  HCFILE fp;
+
+  if (hc_fopen (&fp, dictstat_ctx->filename, "rb") == false)
   {
     // first run, file does not exist, do not error out
 
@@ -106,14 +114,14 @@ void dictstat_read (hashcat_ctx_t *hashcat_ctx)
   u64 v;
   u64 z;
 
-  const size_t nread1 = hc_fread (&v, sizeof (u64), 1, fp);
-  const size_t nread2 = hc_fread (&z, sizeof (u64), 1, fp);
+  const size_t nread1 = hc_fread (&v, sizeof (u64), 1, &fp);
+  const size_t nread2 = hc_fread (&z, sizeof (u64), 1, &fp);
 
   if ((nread1 != 1) || (nread2 != 1))
   {
     event_log_error (hashcat_ctx, "%s: Invalid header", dictstat_ctx->filename);
 
-    fclose (fp);
+    hc_fclose (&fp);
 
     return;
   }
@@ -125,7 +133,7 @@ void dictstat_read (hashcat_ctx_t *hashcat_ctx)
   {
     event_log_error (hashcat_ctx, "%s: Invalid header, ignoring content", dictstat_ctx->filename);
 
-    fclose (fp);
+    hc_fclose (&fp);
 
     return;
   }
@@ -134,7 +142,7 @@ void dictstat_read (hashcat_ctx_t *hashcat_ctx)
   {
     event_log_error (hashcat_ctx, "%s: Invalid header, ignoring content", dictstat_ctx->filename);
 
-    fclose (fp);
+    hc_fclose (&fp);
 
     return;
   }
@@ -143,18 +151,18 @@ void dictstat_read (hashcat_ctx_t *hashcat_ctx)
   {
     event_log_warning (hashcat_ctx, "%s: Outdated header version, ignoring content", dictstat_ctx->filename);
 
-    fclose (fp);
+    hc_fclose (&fp);
 
     return;
   }
 
   // parse data
 
-  while (!feof (fp))
+  while (!hc_feof (&fp))
   {
     dictstat_t d;
 
-    const size_t nread = hc_fread (&d, sizeof (dictstat_t), 1, fp);
+    const size_t nread = hc_fread (&d, sizeof (dictstat_t), 1, &fp);
 
     if (nread == 0) continue;
 
@@ -168,27 +176,30 @@ void dictstat_read (hashcat_ctx_t *hashcat_ctx)
     }
   }
 
-  fclose (fp);
+  hc_fclose (&fp);
 }
 
 int dictstat_write (hashcat_ctx_t *hashcat_ctx)
 {
+  hashconfig_t   *hashconfig   = hashcat_ctx->hashconfig;
   dictstat_ctx_t *dictstat_ctx = hashcat_ctx->dictstat_ctx;
 
   if (dictstat_ctx->enabled == false) return 0;
 
-  FILE *fp = fopen (dictstat_ctx->filename, "wb");
+  if (hashconfig->dictstat_disable == true) return 0;
 
-  if (fp == NULL)
+  HCFILE fp;
+
+  if (hc_fopen (&fp, dictstat_ctx->filename, "wb") == false)
   {
     event_log_error (hashcat_ctx, "%s: %s", dictstat_ctx->filename, strerror (errno));
 
     return -1;
   }
 
-  if (lock_file (fp) == -1)
+  if (hc_lockfile (&fp) == -1)
   {
-    fclose (fp);
+    hc_fclose (&fp);
 
     event_log_error (hashcat_ctx, "%s: %s", dictstat_ctx->filename, strerror (errno));
 
@@ -203,23 +214,35 @@ int dictstat_write (hashcat_ctx_t *hashcat_ctx)
   v = byte_swap_64 (v);
   z = byte_swap_64 (z);
 
-  hc_fwrite (&v, sizeof (u64), 1, fp);
-  hc_fwrite (&z, sizeof (u64), 1, fp);
+  hc_fwrite (&v, sizeof (u64), 1, &fp);
+  hc_fwrite (&z, sizeof (u64), 1, &fp);
 
   // data
 
-  hc_fwrite (dictstat_ctx->base, sizeof (dictstat_t), dictstat_ctx->cnt, fp);
+  hc_fwrite (dictstat_ctx->base, sizeof (dictstat_t), dictstat_ctx->cnt, &fp);
 
-  fclose (fp);
+  if (hc_unlockfile (&fp) == -1)
+  {
+    hc_fclose (&fp);
+
+    event_log_error (hashcat_ctx, "%s: %s", dictstat_ctx->filename, strerror (errno));
+
+    return -1;
+  }
+
+  hc_fclose (&fp);
 
   return 0;
 }
 
 u64 dictstat_find (hashcat_ctx_t *hashcat_ctx, dictstat_t *d)
 {
+  hashconfig_t   *hashconfig   = hashcat_ctx->hashconfig;
   dictstat_ctx_t *dictstat_ctx = hashcat_ctx->dictstat_ctx;
 
   if (dictstat_ctx->enabled == false) return 0;
+
+  if (hashconfig->dictstat_disable == true) return 0;
 
   dictstat_t *d_cache = (dictstat_t *) lfind (d, dictstat_ctx->base, &dictstat_ctx->cnt, sizeof (dictstat_t), sort_by_dictstat);
 
@@ -230,9 +253,12 @@ u64 dictstat_find (hashcat_ctx_t *hashcat_ctx, dictstat_t *d)
 
 void dictstat_append (hashcat_ctx_t *hashcat_ctx, dictstat_t *d)
 {
+  hashconfig_t   *hashconfig   = hashcat_ctx->hashconfig;
   dictstat_ctx_t *dictstat_ctx = hashcat_ctx->dictstat_ctx;
 
   if (dictstat_ctx->enabled == false) return;
+
+  if (hashconfig->dictstat_disable == true) return;
 
   if (dictstat_ctx->cnt == MAX_DICTSTAT)
   {

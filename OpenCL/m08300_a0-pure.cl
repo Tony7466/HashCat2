@@ -5,17 +5,18 @@
 
 //#define NEW_SIMD_CODE
 
-#include "inc_vendor.cl"
-#include "inc_hash_constants.h"
-#include "inc_hash_functions.cl"
-#include "inc_types.cl"
+#ifdef KERNEL_STATIC
+#include "inc_vendor.h"
+#include "inc_types.h"
+#include "inc_platform.cl"
 #include "inc_common.cl"
 #include "inc_rp.h"
 #include "inc_rp.cl"
 #include "inc_scalar.cl"
 #include "inc_hash_sha1.cl"
+#endif
 
-__kernel void m08300_mxx (KERN_ATTR_RULES ())
+KERNEL_FQ void m08300_mxx (KERN_ATTR_RULES ())
 {
   /**
    * modifier
@@ -36,9 +37,9 @@ __kernel void m08300_mxx (KERN_ATTR_RULES ())
 
   u32 s[64] = { 0 };
 
-  for (int i = 0, idx = 0; i < salt_len; i += 4, idx += 1)
+  for (u32 i = 0, idx = 0; i < salt_len; i += 4, idx += 1)
   {
-    s[idx] = swap32_S (salt_bufs[salt_pos].salt_buf[idx]);
+    s[idx] = hc_swap32_S (salt_bufs[salt_pos].salt_buf[idx]);
   }
 
   const u32 salt_len_pc = salt_bufs[salt_pos].salt_len_pc;
@@ -47,7 +48,7 @@ __kernel void m08300_mxx (KERN_ATTR_RULES ())
 
   for (int i = 0, idx = 0; i < salt_len_pc; i += 4, idx += 1)
   {
-    s_pc[idx] = swap32_S (salt_bufs[salt_pos].salt_buf_pc[idx]);
+    s_pc[idx] = hc_swap32_S (salt_bufs[salt_pos].salt_buf_pc[idx]);
   }
 
   const u32 salt_iter = salt_bufs[salt_pos].salt_iter;
@@ -66,11 +67,36 @@ __kernel void m08300_mxx (KERN_ATTR_RULES ())
 
     sha1_init (&ctx1);
 
-    ctx1.w0[0] = (tmp.pw_len & 0xff) << 24;
+    // replace "." with the length:
 
-    ctx1.len = 1;
+    if (tmp.pw_len > 0)
+    {
+      u32 len = 0;
 
-    sha1_update_swap (&ctx1, tmp.i, tmp.pw_len);
+      for (int pos = tmp.pw_len - 1; pos >= 0; pos--)
+      {
+        const u32 div = pos  / 4;
+        const u32 mod = pos  & 3;
+        const u32 sht = mod << 3;
+
+        if (((tmp.i[div] >> sht) & 0xff) == 0x2e) // '.'
+        {
+          tmp.i[div] += (len - 0x2e) << sht;
+
+          len = 0;
+
+          continue;
+        }
+
+        len++;
+      }
+
+      ctx1.w0[0] = (len & 0xff) << 24;
+
+      ctx1.len = 1;
+
+      sha1_update_swap (&ctx1, tmp.i, tmp.pw_len);
+    }
 
     sha1_update (&ctx1, s_pc, salt_len_pc + 1);
 
@@ -122,7 +148,7 @@ __kernel void m08300_mxx (KERN_ATTR_RULES ())
   }
 }
 
-__kernel void m08300_sxx (KERN_ATTR_RULES ())
+KERNEL_FQ void m08300_sxx (KERN_ATTR_RULES ())
 {
   /**
    * modifier
@@ -155,9 +181,9 @@ __kernel void m08300_sxx (KERN_ATTR_RULES ())
 
   u32 s[64] = { 0 };
 
-  for (int i = 0, idx = 0; i < salt_len; i += 4, idx += 1)
+  for (u32 i = 0, idx = 0; i < salt_len; i += 4, idx += 1)
   {
-    s[idx] = swap32_S (salt_bufs[salt_pos].salt_buf[idx]);
+    s[idx] = hc_swap32_S (salt_bufs[salt_pos].salt_buf[idx]);
   }
 
   const u32 salt_len_pc = salt_bufs[salt_pos].salt_len_pc;
@@ -166,7 +192,7 @@ __kernel void m08300_sxx (KERN_ATTR_RULES ())
 
   for (int i = 0, idx = 0; i < salt_len_pc; i += 4, idx += 1)
   {
-    s_pc[idx] = swap32_S (salt_bufs[salt_pos].salt_buf_pc[idx]);
+    s_pc[idx] = hc_swap32_S (salt_bufs[salt_pos].salt_buf_pc[idx]);
   }
 
   const u32 salt_iter = salt_bufs[salt_pos].salt_iter;
@@ -185,11 +211,36 @@ __kernel void m08300_sxx (KERN_ATTR_RULES ())
 
     sha1_init (&ctx1);
 
-    ctx1.w0[0] = (tmp.pw_len & 0xff) << 24;
+    // replace "." with the length:
 
-    ctx1.len = 1;
+    if (tmp.pw_len > 0)
+    {
+      u32 len = 0;
 
-    sha1_update_swap (&ctx1, tmp.i, tmp.pw_len);
+      for (int pos = tmp.pw_len - 1; pos >= 0; pos--)
+      {
+        const u32 div = pos  / 4;
+        const u32 mod = pos  & 3;
+        const u32 sht = mod << 3;
+
+        if (((tmp.i[div] >> sht) & 0xff) == 0x2e) // '.'
+        {
+          tmp.i[div] += (len - 0x2e) << sht;
+
+          len = 0;
+
+          continue;
+        }
+
+        len++;
+      }
+
+      ctx1.w0[0] = (len & 0xff) << 24;
+
+      ctx1.len = 1;
+
+      sha1_update_swap (&ctx1, tmp.i, tmp.pw_len);
+    }
 
     sha1_update (&ctx1, s_pc, salt_len_pc + 1);
 

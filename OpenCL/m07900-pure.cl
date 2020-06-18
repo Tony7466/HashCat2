@@ -3,17 +3,24 @@
  * License.....: MIT
  */
 
-#include "inc_vendor.cl"
-#include "inc_hash_constants.h"
-#include "inc_hash_functions.cl"
-#include "inc_types.cl"
+#ifdef KERNEL_STATIC
+#include "inc_vendor.h"
+#include "inc_types.h"
+#include "inc_platform.cl"
 #include "inc_common.cl"
 #include "inc_hash_sha512.cl"
+#endif
 
 #define COMPARE_S "inc_comp_single.cl"
 #define COMPARE_M "inc_comp_multi.cl"
 
-__kernel void m07900_init (KERN_ATTR_TMPS (drupal7_tmp_t))
+typedef struct drupal7_tmp
+{
+  u64  digest_buf[8];
+
+} drupal7_tmp_t;
+
+KERNEL_FQ void m07900_init (KERN_ATTR_TMPS (drupal7_tmp_t))
 {
   /**
    * base
@@ -29,7 +36,7 @@ __kernel void m07900_init (KERN_ATTR_TMPS (drupal7_tmp_t))
 
   sha512_update_global_swap (&ctx, salt_bufs[salt_pos].salt_buf, salt_bufs[salt_pos].salt_len);
 
-  sha512_update_global_swap (&ctx, pws[gid].i, pws[gid].pw_len & 255);
+  sha512_update_global_swap (&ctx, pws[gid].i, pws[gid].pw_len);
 
   sha512_final (&ctx);
 
@@ -43,7 +50,7 @@ __kernel void m07900_init (KERN_ATTR_TMPS (drupal7_tmp_t))
   tmps[gid].digest_buf[7] = ctx.h[7];
 }
 
-__kernel void m07900_loop (KERN_ATTR_TMPS (drupal7_tmp_t))
+KERNEL_FQ void m07900_loop (KERN_ATTR_TMPS (drupal7_tmp_t))
 {
   /**
    * base
@@ -57,19 +64,7 @@ __kernel void m07900_loop (KERN_ATTR_TMPS (drupal7_tmp_t))
    * init
    */
 
-  const u32 pw_len = pws[gid].pw_len & 255;
-
-  u32 w[64] = { 0 };
-
-  for (int i = 0, idx = 0; i < pw_len; i += 4, idx += 1)
-  {
-    w[idx] = pws[gid].i[idx];
-  }
-
-  for (int i = 0, idx = 0; i < pw_len; i += 4, idx += 1)
-  {
-    w[idx] = swap32_S (w[idx]);
-  }
+  const u32 pw_len = pws[gid].pw_len;
 
   /**
    * load
@@ -113,7 +108,7 @@ __kernel void m07900_loop (KERN_ATTR_TMPS (drupal7_tmp_t))
 
   sha512_ctx.len = 64;
 
-  sha512_update (&sha512_ctx, w, pw_len);
+  sha512_update_global_swap (&sha512_ctx, pws[gid].i, pw_len);
 
   sha512_final (&sha512_ctx);
 
@@ -151,7 +146,7 @@ __kernel void m07900_loop (KERN_ATTR_TMPS (drupal7_tmp_t))
 
       sha512_ctx.len = 64;
 
-      sha512_update (&sha512_ctx, w, pw_len);
+      sha512_update_global_swap (&sha512_ctx, pws[gid].i, pw_len);
 
       sha512_final (&sha512_ctx);
 
@@ -209,7 +204,7 @@ __kernel void m07900_loop (KERN_ATTR_TMPS (drupal7_tmp_t))
   tmps[gid].digest_buf[7] = digest[7];
 }
 
-__kernel void m07900_comp (KERN_ATTR_TMPS (drupal7_tmp_t))
+KERNEL_FQ void m07900_comp (KERN_ATTR_TMPS (drupal7_tmp_t))
 {
   /**
    * modifier
@@ -232,5 +227,7 @@ __kernel void m07900_comp (KERN_ATTR_TMPS (drupal7_tmp_t))
 
   #define il_pos 0
 
+  #ifdef KERNEL_STATIC
   #include COMPARE_M
+  #endif
 }

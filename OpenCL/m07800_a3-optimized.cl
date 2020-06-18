@@ -6,15 +6,16 @@
 //incompatible data-dependant code
 //#define NEW_SIMD_CODE
 
-#include "inc_vendor.cl"
-#include "inc_hash_constants.h"
-#include "inc_hash_functions.cl"
-#include "inc_types.cl"
+#ifdef KERNEL_STATIC
+#include "inc_vendor.h"
+#include "inc_types.h"
+#include "inc_platform.cl"
 #include "inc_common.cl"
 #include "inc_simd.cl"
 #include "inc_hash_sha1.cl"
+#endif
 
-__constant u32a theMagicArray[64] =
+CONSTANT_VK u32a theMagicArray[64] =
 {
   0x91ac5114, 0x9f675443, 0x24e73be0, 0x28747bc2, 0x863313eb, 0x5a4fcb5c, 0x080a7337, 0x0e5d1c2f,
   0x338fe6e5, 0xf89baedd, 0x16f24b8d, 0x2ce1d4dc, 0xb0cbdf9d, 0xd4706d17, 0xf94d423f, 0x9b1b1194,
@@ -26,7 +27,7 @@ __constant u32a theMagicArray[64] =
   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
 };
 
-DECLSPEC u32 GETSHIFTEDINT_CONST (__constant u32 *a, const int n)
+DECLSPEC u32 GETSHIFTEDINT_CONST (CONSTANT_AS u32a *a, const int n)
 {
   const int d = n / 4;
   const int m = n & 3;
@@ -66,14 +67,14 @@ DECLSPEC void m07800m (u32 *w0, u32 *w1, u32 *w2, u32 *w3, const u32 pw_len, KER
 
   u32 salt_buf[8];
 
-  salt_buf[0] = swap32_S (salt_bufs[salt_pos].salt_buf[0]);
-  salt_buf[1] = swap32_S (salt_bufs[salt_pos].salt_buf[1]);
-  salt_buf[2] = swap32_S (salt_bufs[salt_pos].salt_buf[2]);
-  salt_buf[3] = swap32_S (salt_bufs[salt_pos].salt_buf[3]);
-  salt_buf[4] = swap32_S (salt_bufs[salt_pos].salt_buf[4]);
-  salt_buf[5] = swap32_S (salt_bufs[salt_pos].salt_buf[5]);
-  salt_buf[6] = swap32_S (salt_bufs[salt_pos].salt_buf[6]);
-  salt_buf[7] = swap32_S (salt_bufs[salt_pos].salt_buf[7]);
+  salt_buf[0] = hc_swap32_S (salt_bufs[salt_pos].salt_buf[0]);
+  salt_buf[1] = hc_swap32_S (salt_bufs[salt_pos].salt_buf[1]);
+  salt_buf[2] = hc_swap32_S (salt_bufs[salt_pos].salt_buf[2]);
+  salt_buf[3] = hc_swap32_S (salt_bufs[salt_pos].salt_buf[3]);
+  salt_buf[4] = hc_swap32_S (salt_bufs[salt_pos].salt_buf[4]);
+  salt_buf[5] = hc_swap32_S (salt_bufs[salt_pos].salt_buf[5]);
+  salt_buf[6] = hc_swap32_S (salt_bufs[salt_pos].salt_buf[6]);
+  salt_buf[7] = hc_swap32_S (salt_bufs[salt_pos].salt_buf[7]);
 
   const u32 salt_len = salt_bufs[salt_pos].salt_len;
 
@@ -164,33 +165,33 @@ DECLSPEC void m07800m (u32 *w0, u32 *w1, u32 *w2, u32 *w3, const u32 pw_len, KER
     digest[3] = SHA1M_D;
     digest[4] = SHA1M_E;
 
-    sha1_transform (&final[0], &final[4], &final[8], &final[12], digest);
+    sha1_transform (final +  0, final +  4, final +  8, final + 12, digest);
 
     // prepare magic array range
 
     u32 lengthMagicArray = 0x20;
     u32 offsetMagicArray = 0;
 
-    lengthMagicArray += ((digest[0] >> 24) & 0xff) % 6;
-    lengthMagicArray += ((digest[0] >> 16) & 0xff) % 6;
-    lengthMagicArray += ((digest[0] >>  8) & 0xff) % 6;
-    lengthMagicArray += ((digest[0] >>  0) & 0xff) % 6;
-    lengthMagicArray += ((digest[1] >> 24) & 0xff) % 6;
-    lengthMagicArray += ((digest[1] >> 16) & 0xff) % 6;
-    lengthMagicArray += ((digest[1] >>  8) & 0xff) % 6;
-    lengthMagicArray += ((digest[1] >>  0) & 0xff) % 6;
-    lengthMagicArray += ((digest[2] >> 24) & 0xff) % 6;
-    lengthMagicArray += ((digest[2] >> 16) & 0xff) % 6;
-    offsetMagicArray += ((digest[2] >>  8) & 0xff) % 8;
-    offsetMagicArray += ((digest[2] >>  0) & 0xff) % 8;
-    offsetMagicArray += ((digest[3] >> 24) & 0xff) % 8;
-    offsetMagicArray += ((digest[3] >> 16) & 0xff) % 8;
-    offsetMagicArray += ((digest[3] >>  8) & 0xff) % 8;
-    offsetMagicArray += ((digest[3] >>  0) & 0xff) % 8;
-    offsetMagicArray += ((digest[4] >> 24) & 0xff) % 8;
-    offsetMagicArray += ((digest[4] >> 16) & 0xff) % 8;
-    offsetMagicArray += ((digest[4] >>  8) & 0xff) % 8;
-    offsetMagicArray += ((digest[4] >>  0) & 0xff) % 8;
+    lengthMagicArray += unpack_v8d_from_v32_S (digest[0]) % 6;
+    lengthMagicArray += unpack_v8c_from_v32_S (digest[0]) % 6;
+    lengthMagicArray += unpack_v8b_from_v32_S (digest[0]) % 6;
+    lengthMagicArray += unpack_v8a_from_v32_S (digest[0]) % 6;
+    lengthMagicArray += unpack_v8d_from_v32_S (digest[1]) % 6;
+    lengthMagicArray += unpack_v8c_from_v32_S (digest[1]) % 6;
+    lengthMagicArray += unpack_v8b_from_v32_S (digest[1]) % 6;
+    lengthMagicArray += unpack_v8a_from_v32_S (digest[1]) % 6;
+    lengthMagicArray += unpack_v8d_from_v32_S (digest[2]) % 6;
+    lengthMagicArray += unpack_v8c_from_v32_S (digest[2]) % 6;
+    offsetMagicArray += unpack_v8b_from_v32_S (digest[2]) & 7;
+    offsetMagicArray += unpack_v8a_from_v32_S (digest[2]) & 7;
+    offsetMagicArray += unpack_v8d_from_v32_S (digest[3]) & 7;
+    offsetMagicArray += unpack_v8c_from_v32_S (digest[3]) & 7;
+    offsetMagicArray += unpack_v8b_from_v32_S (digest[3]) & 7;
+    offsetMagicArray += unpack_v8a_from_v32_S (digest[3]) & 7;
+    offsetMagicArray += unpack_v8d_from_v32_S (digest[4]) & 7;
+    offsetMagicArray += unpack_v8c_from_v32_S (digest[4]) & 7;
+    offsetMagicArray += unpack_v8b_from_v32_S (digest[4]) & 7;
+    offsetMagicArray += unpack_v8a_from_v32_S (digest[4]) & 7;
 
     // final
 
@@ -251,17 +252,21 @@ DECLSPEC void m07800m (u32 *w0, u32 *w1, u32 *w2, u32 *w3, const u32 pw_len, KER
 
     // calculate
 
-    int left;
-    int off;
-
-    for (left = final_len, off = 0; left >= 56; left -= 64, off += 16)
+    if (final_len >= 56)
     {
-      sha1_transform (&final[off + 0], &final[off + 4], &final[off + 8], &final[off + 12], digest);
+      final[30] = 0;
+      final[31] = final_len * 8;
+
+      sha1_transform (final +  0, final +  4, final +  8, final + 12, digest);
+      sha1_transform (final + 16, final + 20, final + 24, final + 28, digest);
     }
+    else
+    {
+      final[14] = 0;
+      final[15] = final_len * 8;
 
-    final[off + 15] = final_len * 8;
-
-    sha1_transform (&final[off + 0], &final[off + 4], &final[off + 8], &final[off + 12], digest);
+      sha1_transform (final +  0, final +  4, final +  8, final + 12, digest);
+    }
 
     COMPARE_M_SIMD (digest[3], digest[4], digest[2], digest[1]);
   }
@@ -282,14 +287,14 @@ DECLSPEC void m07800s (u32 *w0, u32 *w1, u32 *w2, u32 *w3, const u32 pw_len, KER
 
   u32 salt_buf[8];
 
-  salt_buf[0] = swap32_S (salt_bufs[salt_pos].salt_buf[0]);
-  salt_buf[1] = swap32_S (salt_bufs[salt_pos].salt_buf[1]);
-  salt_buf[2] = swap32_S (salt_bufs[salt_pos].salt_buf[2]);
-  salt_buf[3] = swap32_S (salt_bufs[salt_pos].salt_buf[3]);
-  salt_buf[4] = swap32_S (salt_bufs[salt_pos].salt_buf[4]);
-  salt_buf[5] = swap32_S (salt_bufs[salt_pos].salt_buf[5]);
-  salt_buf[6] = swap32_S (salt_bufs[salt_pos].salt_buf[6]);
-  salt_buf[7] = swap32_S (salt_bufs[salt_pos].salt_buf[7]);
+  salt_buf[0] = hc_swap32_S (salt_bufs[salt_pos].salt_buf[0]);
+  salt_buf[1] = hc_swap32_S (salt_bufs[salt_pos].salt_buf[1]);
+  salt_buf[2] = hc_swap32_S (salt_bufs[salt_pos].salt_buf[2]);
+  salt_buf[3] = hc_swap32_S (salt_bufs[salt_pos].salt_buf[3]);
+  salt_buf[4] = hc_swap32_S (salt_bufs[salt_pos].salt_buf[4]);
+  salt_buf[5] = hc_swap32_S (salt_bufs[salt_pos].salt_buf[5]);
+  salt_buf[6] = hc_swap32_S (salt_bufs[salt_pos].salt_buf[6]);
+  salt_buf[7] = hc_swap32_S (salt_bufs[salt_pos].salt_buf[7]);
 
   const u32 salt_len = salt_bufs[salt_pos].salt_len;
 
@@ -392,33 +397,33 @@ DECLSPEC void m07800s (u32 *w0, u32 *w1, u32 *w2, u32 *w3, const u32 pw_len, KER
     digest[3] = SHA1M_D;
     digest[4] = SHA1M_E;
 
-    sha1_transform (&final[0], &final[4], &final[8], &final[12], digest);
+    sha1_transform (final +  0, final +  4, final +  8, final + 12, digest);
 
     // prepare magic array range
 
     u32 lengthMagicArray = 0x20;
     u32 offsetMagicArray = 0;
 
-    lengthMagicArray += ((digest[0] >> 24) & 0xff) % 6;
-    lengthMagicArray += ((digest[0] >> 16) & 0xff) % 6;
-    lengthMagicArray += ((digest[0] >>  8) & 0xff) % 6;
-    lengthMagicArray += ((digest[0] >>  0) & 0xff) % 6;
-    lengthMagicArray += ((digest[1] >> 24) & 0xff) % 6;
-    lengthMagicArray += ((digest[1] >> 16) & 0xff) % 6;
-    lengthMagicArray += ((digest[1] >>  8) & 0xff) % 6;
-    lengthMagicArray += ((digest[1] >>  0) & 0xff) % 6;
-    lengthMagicArray += ((digest[2] >> 24) & 0xff) % 6;
-    lengthMagicArray += ((digest[2] >> 16) & 0xff) % 6;
-    offsetMagicArray += ((digest[2] >>  8) & 0xff) % 8;
-    offsetMagicArray += ((digest[2] >>  0) & 0xff) % 8;
-    offsetMagicArray += ((digest[3] >> 24) & 0xff) % 8;
-    offsetMagicArray += ((digest[3] >> 16) & 0xff) % 8;
-    offsetMagicArray += ((digest[3] >>  8) & 0xff) % 8;
-    offsetMagicArray += ((digest[3] >>  0) & 0xff) % 8;
-    offsetMagicArray += ((digest[4] >> 24) & 0xff) % 8;
-    offsetMagicArray += ((digest[4] >> 16) & 0xff) % 8;
-    offsetMagicArray += ((digest[4] >>  8) & 0xff) % 8;
-    offsetMagicArray += ((digest[4] >>  0) & 0xff) % 8;
+    lengthMagicArray += unpack_v8d_from_v32_S (digest[0]) % 6;
+    lengthMagicArray += unpack_v8c_from_v32_S (digest[0]) % 6;
+    lengthMagicArray += unpack_v8b_from_v32_S (digest[0]) % 6;
+    lengthMagicArray += unpack_v8a_from_v32_S (digest[0]) % 6;
+    lengthMagicArray += unpack_v8d_from_v32_S (digest[1]) % 6;
+    lengthMagicArray += unpack_v8c_from_v32_S (digest[1]) % 6;
+    lengthMagicArray += unpack_v8b_from_v32_S (digest[1]) % 6;
+    lengthMagicArray += unpack_v8a_from_v32_S (digest[1]) % 6;
+    lengthMagicArray += unpack_v8d_from_v32_S (digest[2]) % 6;
+    lengthMagicArray += unpack_v8c_from_v32_S (digest[2]) % 6;
+    offsetMagicArray += unpack_v8b_from_v32_S (digest[2]) & 7;
+    offsetMagicArray += unpack_v8a_from_v32_S (digest[2]) & 7;
+    offsetMagicArray += unpack_v8d_from_v32_S (digest[3]) & 7;
+    offsetMagicArray += unpack_v8c_from_v32_S (digest[3]) & 7;
+    offsetMagicArray += unpack_v8b_from_v32_S (digest[3]) & 7;
+    offsetMagicArray += unpack_v8a_from_v32_S (digest[3]) & 7;
+    offsetMagicArray += unpack_v8d_from_v32_S (digest[4]) & 7;
+    offsetMagicArray += unpack_v8c_from_v32_S (digest[4]) & 7;
+    offsetMagicArray += unpack_v8b_from_v32_S (digest[4]) & 7;
+    offsetMagicArray += unpack_v8a_from_v32_S (digest[4]) & 7;
 
     // final
 
@@ -479,23 +484,27 @@ DECLSPEC void m07800s (u32 *w0, u32 *w1, u32 *w2, u32 *w3, const u32 pw_len, KER
 
     // calculate
 
-    int left;
-    int off;
-
-    for (left = final_len, off = 0; left >= 56; left -= 64, off += 16)
+    if (final_len >= 56)
     {
-      sha1_transform (&final[off + 0], &final[off + 4], &final[off + 8], &final[off + 12], digest);
+      final[30] = 0;
+      final[31] = final_len * 8;
+
+      sha1_transform (final +  0, final +  4, final +  8, final + 12, digest);
+      sha1_transform (final + 16, final + 20, final + 24, final + 28, digest);
     }
+    else
+    {
+      final[14] = 0;
+      final[15] = final_len * 8;
 
-    final[off + 15] = final_len * 8;
-
-    sha1_transform (&final[off + 0], &final[off + 4], &final[off + 8], &final[off + 12], digest);
+      sha1_transform (final +  0, final +  4, final +  8, final + 12, digest);
+    }
 
     COMPARE_S_SIMD (digest[3], digest[4], digest[2], digest[1]);
   }
 }
 
-__kernel void m07800_m04 (KERN_ATTR_BASIC ())
+KERNEL_FQ void m07800_m04 (KERN_ATTR_BASIC ())
 {
   /**
    * base
@@ -545,10 +554,10 @@ __kernel void m07800_m04 (KERN_ATTR_BASIC ())
    * main
    */
 
-  m07800m (w0, w1, w2, w3, pw_len, pws, rules_buf, combs_buf, bfs_buf, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_scryptV0_buf, d_scryptV1_buf, d_scryptV2_buf, d_scryptV3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
+  m07800m (w0, w1, w2, w3, pw_len, pws, rules_buf, combs_buf, bfs_buf, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_extra0_buf, d_extra1_buf, d_extra2_buf, d_extra3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
 }
 
-__kernel void m07800_m08 (KERN_ATTR_BASIC ())
+KERNEL_FQ void m07800_m08 (KERN_ATTR_BASIC ())
 {
   /**
    * base
@@ -598,14 +607,14 @@ __kernel void m07800_m08 (KERN_ATTR_BASIC ())
    * main
    */
 
-  m07800m (w0, w1, w2, w3, pw_len, pws, rules_buf, combs_buf, bfs_buf, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_scryptV0_buf, d_scryptV1_buf, d_scryptV2_buf, d_scryptV3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
+  m07800m (w0, w1, w2, w3, pw_len, pws, rules_buf, combs_buf, bfs_buf, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_extra0_buf, d_extra1_buf, d_extra2_buf, d_extra3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
 }
 
-__kernel void m07800_m16 (KERN_ATTR_BASIC ())
+KERNEL_FQ void m07800_m16 (KERN_ATTR_BASIC ())
 {
 }
 
-__kernel void m07800_s04 (KERN_ATTR_BASIC ())
+KERNEL_FQ void m07800_s04 (KERN_ATTR_BASIC ())
 {
   /**
    * base
@@ -655,10 +664,10 @@ __kernel void m07800_s04 (KERN_ATTR_BASIC ())
    * main
    */
 
-  m07800s (w0, w1, w2, w3, pw_len, pws, rules_buf, combs_buf, bfs_buf, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_scryptV0_buf, d_scryptV1_buf, d_scryptV2_buf, d_scryptV3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
+  m07800s (w0, w1, w2, w3, pw_len, pws, rules_buf, combs_buf, bfs_buf, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_extra0_buf, d_extra1_buf, d_extra2_buf, d_extra3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
 }
 
-__kernel void m07800_s08 (KERN_ATTR_BASIC ())
+KERNEL_FQ void m07800_s08 (KERN_ATTR_BASIC ())
 {
   /**
    * base
@@ -708,9 +717,9 @@ __kernel void m07800_s08 (KERN_ATTR_BASIC ())
    * main
    */
 
-  m07800s (w0, w1, w2, w3, pw_len, pws, rules_buf, combs_buf, bfs_buf, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_scryptV0_buf, d_scryptV1_buf, d_scryptV2_buf, d_scryptV3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
+  m07800s (w0, w1, w2, w3, pw_len, pws, rules_buf, combs_buf, bfs_buf, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_extra0_buf, d_extra1_buf, d_extra2_buf, d_extra3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
 }
 
-__kernel void m07800_s16 (KERN_ATTR_BASIC ())
+KERNEL_FQ void m07800_s16 (KERN_ATTR_BASIC ())
 {
 }

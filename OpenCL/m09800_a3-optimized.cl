@@ -3,13 +3,27 @@
  * License.....: MIT
  */
 
-#include "inc_vendor.cl"
-#include "inc_hash_constants.h"
-#include "inc_hash_functions.cl"
-#include "inc_types.cl"
+#ifdef KERNEL_STATIC
+#include "inc_vendor.h"
+#include "inc_types.h"
+#include "inc_platform.cl"
 #include "inc_common.cl"
 #include "inc_simd.cl"
 #include "inc_hash_sha1.cl"
+#endif
+
+#define MIN_NULL_BYTES 10
+
+typedef struct oldoffice34
+{
+  u32 version;
+  u32 encryptedVerifier[4];
+  u32 encryptedVerifierHash[5];
+  u32 secondBlockData[8];
+  u32 secondBlockLen;
+  u32 rc4key[2];
+
+} oldoffice34_t;
 
 typedef struct
 {
@@ -19,7 +33,7 @@ typedef struct
 
 } RC4_KEY;
 
-DECLSPEC void swap (__local RC4_KEY *rc4_key, const u8 i, const u8 j)
+DECLSPEC void swap (LOCAL_AS RC4_KEY *rc4_key, const u8 i, const u8 j)
 {
   u8 tmp;
 
@@ -28,12 +42,12 @@ DECLSPEC void swap (__local RC4_KEY *rc4_key, const u8 i, const u8 j)
   rc4_key->S[j] = tmp;
 }
 
-DECLSPEC void rc4_init_16 (__local RC4_KEY *rc4_key, const u32 *data)
+DECLSPEC void rc4_init_16 (LOCAL_AS RC4_KEY *rc4_key, const u32 *data)
 {
   u32 v = 0x03020100;
   u32 a = 0x04040404;
 
-  __local u32 *ptr = (__local u32 *) rc4_key->S;
+  LOCAL_AS u32 *ptr = (LOCAL_AS u32 *) rc4_key->S;
 
   #ifdef _unroll
   #pragma unroll
@@ -81,7 +95,7 @@ DECLSPEC void rc4_init_16 (__local RC4_KEY *rc4_key, const u32 *data)
   }
 }
 
-DECLSPEC u8 rc4_next_16 (__local RC4_KEY *rc4_key, u8 i, u8 j, const u32 *in, u32 *out)
+DECLSPEC u8 rc4_next_16 (LOCAL_AS RC4_KEY *rc4_key, u8 i, u8 j, const u32 *in, u32 *out)
 {
   #ifdef _unroll
   #pragma unroll
@@ -134,7 +148,7 @@ DECLSPEC u8 rc4_next_16 (__local RC4_KEY *rc4_key, u8 i, u8 j, const u32 *in, u3
   return j;
 }
 
-DECLSPEC void m09800m (__local RC4_KEY *rc4_keys, u32 *w0, u32 *w1, u32 *w2, u32 *w3, const u32 pw_len, KERN_ATTR_ESALT (oldoffice34_t))
+DECLSPEC void m09800m (LOCAL_AS RC4_KEY *rc4_keys, u32 *w0, u32 *w1, u32 *w2, u32 *w3, const u32 pw_len, KERN_ATTR_ESALT (oldoffice34_t))
 {
   /**
    * modifier
@@ -147,7 +161,7 @@ DECLSPEC void m09800m (__local RC4_KEY *rc4_keys, u32 *w0, u32 *w1, u32 *w2, u32
    * shared
    */
 
-  __local RC4_KEY *rc4_key = &rc4_keys[lid];
+  LOCAL_AS RC4_KEY *rc4_key = &rc4_keys[lid];
 
   /**
    * salt
@@ -213,21 +227,21 @@ DECLSPEC void m09800m (__local RC4_KEY *rc4_keys, u32 *w0, u32 *w1, u32 *w2, u32
     w3_t[2] = 0;
     w3_t[3] = pw_salt_len * 8;
 
-    u32 digest[5];
+    u32 pass_hash[5];
 
-    digest[0] = SHA1M_A;
-    digest[1] = SHA1M_B;
-    digest[2] = SHA1M_C;
-    digest[3] = SHA1M_D;
-    digest[4] = SHA1M_E;
+    pass_hash[0] = SHA1M_A;
+    pass_hash[1] = SHA1M_B;
+    pass_hash[2] = SHA1M_C;
+    pass_hash[3] = SHA1M_D;
+    pass_hash[4] = SHA1M_E;
 
-    sha1_transform (w0_t, w1_t, w2_t, w3_t, digest);
+    sha1_transform (w0_t, w1_t, w2_t, w3_t, pass_hash);
 
-    w0_t[0] = digest[0];
-    w0_t[1] = digest[1];
-    w0_t[2] = digest[2];
-    w0_t[3] = digest[3];
-    w1_t[0] = digest[4];
+    w0_t[0] = pass_hash[0];
+    w0_t[1] = pass_hash[1];
+    w0_t[2] = pass_hash[2];
+    w0_t[3] = pass_hash[3];
+    w1_t[0] = pass_hash[4];
     w1_t[1] = 0;
     w1_t[2] = 0x80000000;
     w1_t[3] = 0;
@@ -240,6 +254,8 @@ DECLSPEC void m09800m (__local RC4_KEY *rc4_keys, u32 *w0, u32 *w1, u32 *w2, u32
     w3_t[2] = 0;
     w3_t[3] = (20 + 4) * 8;
 
+    u32 digest[5];
+
     digest[0] = SHA1M_A;
     digest[1] = SHA1M_B;
     digest[2] = SHA1M_C;
@@ -248,10 +264,10 @@ DECLSPEC void m09800m (__local RC4_KEY *rc4_keys, u32 *w0, u32 *w1, u32 *w2, u32
 
     sha1_transform (w0_t, w1_t, w2_t, w3_t, digest);
 
-    digest[0] = swap32_S (digest[0]);
-    digest[1] = swap32_S (digest[1]);
-    digest[2] = swap32_S (digest[2]);
-    digest[3] = swap32_S (digest[3]);
+    digest[0] = hc_swap32_S (digest[0]);
+    digest[1] = hc_swap32_S (digest[1]);
+    digest[2] = hc_swap32_S (digest[2]);
+    digest[3] = hc_swap32_S (digest[3]);
 
     if (version == 3)
     {
@@ -266,10 +282,10 @@ DECLSPEC void m09800m (__local RC4_KEY *rc4_keys, u32 *w0, u32 *w1, u32 *w2, u32
 
     u8 j = rc4_next_16 (rc4_key, 0, 0, encryptedVerifier, out);
 
-    w0_t[0] = swap32_S (out[0]);
-    w0_t[1] = swap32_S (out[1]);
-    w0_t[2] = swap32_S (out[2]);
-    w0_t[3] = swap32_S (out[3]);
+    w0_t[0] = hc_swap32_S (out[0]);
+    w0_t[1] = hc_swap32_S (out[1]);
+    w0_t[2] = hc_swap32_S (out[2]);
+    w0_t[3] = hc_swap32_S (out[3]);
     w1_t[0] = 0x80000000;
     w1_t[1] = 0;
     w1_t[2] = 0;
@@ -291,18 +307,104 @@ DECLSPEC void m09800m (__local RC4_KEY *rc4_keys, u32 *w0, u32 *w1, u32 *w2, u32
 
     sha1_transform (w0_t, w1_t, w2_t, w3_t, digest);
 
-    digest[0] = swap32_S (digest[0]);
-    digest[1] = swap32_S (digest[1]);
-    digest[2] = swap32_S (digest[2]);
-    digest[3] = swap32_S (digest[3]);
+    digest[0] = hc_swap32_S (digest[0]);
+    digest[1] = hc_swap32_S (digest[1]);
+    digest[2] = hc_swap32_S (digest[2]);
+    digest[3] = hc_swap32_S (digest[3]);
 
     rc4_next_16 (rc4_key, 16, j, digest, out);
 
-    COMPARE_M_SIMD (out[0], out[1], out[2], out[3]);
+    // initial compare
+
+    int digest_pos = find_hash (out, digests_cnt, &digests_buf[digests_offset]);
+
+    if (digest_pos == -1) continue;
+
+    if (esalt_bufs[digests_offset].secondBlockLen != 0)
+    {
+      w0[0] = pass_hash[0];
+      w0[1] = pass_hash[1];
+      w0[2] = pass_hash[2];
+      w0[3] = pass_hash[3];
+      w1[0] = pass_hash[4];
+      w1[1] = 0x01000000;
+      w1[2] = 0x80000000;
+      w1[3] = 0;
+      w2[0] = 0;
+      w2[1] = 0;
+      w2[2] = 0;
+      w2[3] = 0;
+      w3[0] = 0;
+      w3[1] = 0;
+      w3[2] = 0;
+      w3[3] = (20 + 4) * 8;
+
+      digest[0] = SHA1M_A;
+      digest[1] = SHA1M_B;
+      digest[2] = SHA1M_C;
+      digest[3] = SHA1M_D;
+      digest[4] = SHA1M_E;
+
+      sha1_transform (w0, w1, w2, w3, digest);
+
+      digest[0] = hc_swap32_S (digest[0]);
+      digest[1] = hc_swap32_S (digest[1]);
+      digest[2] = 0;
+      digest[3] = 0;
+
+      digest[1] &= 0xff; // only 40-bit key
+
+      // second block decrypt:
+
+      rc4_init_16 (rc4_key, digest);
+
+      u32 secondBlockData[4];
+
+      secondBlockData[0] = esalt_bufs[digests_offset].secondBlockData[0];
+      secondBlockData[1] = esalt_bufs[digests_offset].secondBlockData[1];
+      secondBlockData[2] = esalt_bufs[digests_offset].secondBlockData[2];
+      secondBlockData[3] = esalt_bufs[digests_offset].secondBlockData[3];
+
+      j = rc4_next_16 (rc4_key, 0, 0, secondBlockData, out);
+
+      int null_bytes = 0;
+
+      for (int k = 0; k < 4; k++)
+      {
+        if ((out[k] & 0x000000ff) == 0) null_bytes++;
+        if ((out[k] & 0x0000ff00) == 0) null_bytes++;
+        if ((out[k] & 0x00ff0000) == 0) null_bytes++;
+        if ((out[k] & 0xff000000) == 0) null_bytes++;
+      }
+
+      secondBlockData[0] = esalt_bufs[digests_offset].secondBlockData[4];
+      secondBlockData[1] = esalt_bufs[digests_offset].secondBlockData[5];
+      secondBlockData[2] = esalt_bufs[digests_offset].secondBlockData[6];
+      secondBlockData[3] = esalt_bufs[digests_offset].secondBlockData[7];
+
+      rc4_next_16 (rc4_key, 16, j, secondBlockData, out);
+
+      for (int k = 0; k < 4; k++)
+      {
+        if ((out[k] & 0x000000ff) == 0) null_bytes++;
+        if ((out[k] & 0x0000ff00) == 0) null_bytes++;
+        if ((out[k] & 0x00ff0000) == 0) null_bytes++;
+        if ((out[k] & 0xff000000) == 0) null_bytes++;
+      }
+
+      if (null_bytes < MIN_NULL_BYTES) continue;
+    }
+
+    const u32 final_hash_pos = digests_offset + digest_pos;
+
+    if (atomic_inc (&hashes_shown[final_hash_pos]) == 0)
+    {
+      mark_hash (plains_buf, d_return_buf, salt_pos, digests_cnt, digest_pos, final_hash_pos, gid, il_pos, 0, 0);
+    }
   }
 }
 
-DECLSPEC void m09800s (__local RC4_KEY *rc4_keys, u32 *w0, u32 *w1, u32 *w2, u32 *w3, const u32 pw_len, KERN_ATTR_ESALT (oldoffice34_t))
+DECLSPEC void m09800s (LOCAL_AS RC4_KEY *rc4_keys, u32 *w0, u32 *w1, u32 *w2, u32 *w3, const u32 pw_len, KERN_ATTR_ESALT (oldoffice34_t))
 {
   /**
    * modifier
@@ -315,7 +417,7 @@ DECLSPEC void m09800s (__local RC4_KEY *rc4_keys, u32 *w0, u32 *w1, u32 *w2, u32
    * shared
    */
 
-  __local RC4_KEY *rc4_key = &rc4_keys[lid];
+  LOCAL_AS RC4_KEY *rc4_key = &rc4_keys[lid];
 
   /**
    * salt
@@ -393,21 +495,21 @@ DECLSPEC void m09800s (__local RC4_KEY *rc4_keys, u32 *w0, u32 *w1, u32 *w2, u32
     w3_t[2] = 0;
     w3_t[3] = pw_salt_len * 8;
 
-    u32 digest[5];
+    u32 pass_hash[5];
 
-    digest[0] = SHA1M_A;
-    digest[1] = SHA1M_B;
-    digest[2] = SHA1M_C;
-    digest[3] = SHA1M_D;
-    digest[4] = SHA1M_E;
+    pass_hash[0] = SHA1M_A;
+    pass_hash[1] = SHA1M_B;
+    pass_hash[2] = SHA1M_C;
+    pass_hash[3] = SHA1M_D;
+    pass_hash[4] = SHA1M_E;
 
-    sha1_transform (w0_t, w1_t, w2_t, w3_t, digest);
+    sha1_transform (w0_t, w1_t, w2_t, w3_t, pass_hash);
 
-    w0_t[0] = digest[0];
-    w0_t[1] = digest[1];
-    w0_t[2] = digest[2];
-    w0_t[3] = digest[3];
-    w1_t[0] = digest[4];
+    w0_t[0] = pass_hash[0];
+    w0_t[1] = pass_hash[1];
+    w0_t[2] = pass_hash[2];
+    w0_t[3] = pass_hash[3];
+    w1_t[0] = pass_hash[4];
     w1_t[1] = 0;
     w1_t[2] = 0x80000000;
     w1_t[3] = 0;
@@ -420,6 +522,8 @@ DECLSPEC void m09800s (__local RC4_KEY *rc4_keys, u32 *w0, u32 *w1, u32 *w2, u32
     w3_t[2] = 0;
     w3_t[3] = (20 + 4) * 8;
 
+    u32 digest[5];
+
     digest[0] = SHA1M_A;
     digest[1] = SHA1M_B;
     digest[2] = SHA1M_C;
@@ -428,10 +532,10 @@ DECLSPEC void m09800s (__local RC4_KEY *rc4_keys, u32 *w0, u32 *w1, u32 *w2, u32
 
     sha1_transform (w0_t, w1_t, w2_t, w3_t, digest);
 
-    digest[0] = swap32_S (digest[0]);
-    digest[1] = swap32_S (digest[1]);
-    digest[2] = swap32_S (digest[2]);
-    digest[3] = swap32_S (digest[3]);
+    digest[0] = hc_swap32_S (digest[0]);
+    digest[1] = hc_swap32_S (digest[1]);
+    digest[2] = hc_swap32_S (digest[2]);
+    digest[3] = hc_swap32_S (digest[3]);
 
     if (version == 3)
     {
@@ -446,10 +550,10 @@ DECLSPEC void m09800s (__local RC4_KEY *rc4_keys, u32 *w0, u32 *w1, u32 *w2, u32
 
     u8 j = rc4_next_16 (rc4_key, 0, 0, encryptedVerifier, out);
 
-    w0_t[0] = swap32_S (out[0]);
-    w0_t[1] = swap32_S (out[1]);
-    w0_t[2] = swap32_S (out[2]);
-    w0_t[3] = swap32_S (out[3]);
+    w0_t[0] = hc_swap32_S (out[0]);
+    w0_t[1] = hc_swap32_S (out[1]);
+    w0_t[2] = hc_swap32_S (out[2]);
+    w0_t[3] = hc_swap32_S (out[3]);
     w1_t[0] = 0x80000000;
     w1_t[1] = 0;
     w1_t[2] = 0;
@@ -471,18 +575,103 @@ DECLSPEC void m09800s (__local RC4_KEY *rc4_keys, u32 *w0, u32 *w1, u32 *w2, u32
 
     sha1_transform (w0_t, w1_t, w2_t, w3_t, digest);
 
-    digest[0] = swap32_S (digest[0]);
-    digest[1] = swap32_S (digest[1]);
-    digest[2] = swap32_S (digest[2]);
-    digest[3] = swap32_S (digest[3]);
+    digest[0] = hc_swap32_S (digest[0]);
+    digest[1] = hc_swap32_S (digest[1]);
+    digest[2] = hc_swap32_S (digest[2]);
+    digest[3] = hc_swap32_S (digest[3]);
 
     rc4_next_16 (rc4_key, 16, j, digest, out);
 
-    COMPARE_S_SIMD (out[0], out[1], out[2], out[3]);
+    // initial compare
+
+    if (out[0] != search[0]) continue;
+    if (out[1] != search[1]) continue;
+    if (out[2] != search[2]) continue;
+    if (out[3] != search[3]) continue;
+
+    if (esalt_bufs[digests_offset].secondBlockLen != 0)
+    {
+      w0[0] = pass_hash[0];
+      w0[1] = pass_hash[1];
+      w0[2] = pass_hash[2];
+      w0[3] = pass_hash[3];
+      w1[0] = pass_hash[4];
+      w1[1] = 0x01000000;
+      w1[2] = 0x80000000;
+      w1[3] = 0;
+      w2[0] = 0;
+      w2[1] = 0;
+      w2[2] = 0;
+      w2[3] = 0;
+      w3[0] = 0;
+      w3[1] = 0;
+      w3[2] = 0;
+      w3[3] = (20 + 4) * 8;
+
+      digest[0] = SHA1M_A;
+      digest[1] = SHA1M_B;
+      digest[2] = SHA1M_C;
+      digest[3] = SHA1M_D;
+      digest[4] = SHA1M_E;
+
+      sha1_transform (w0, w1, w2, w3, digest);
+
+      digest[0] = hc_swap32_S (digest[0]);
+      digest[1] = hc_swap32_S (digest[1]);
+      digest[2] = 0;
+      digest[3] = 0;
+
+      digest[1] &= 0xff; // only 40-bit key
+
+      // second block decrypt:
+
+      rc4_init_16 (rc4_key, digest);
+
+      u32 secondBlockData[4];
+
+      secondBlockData[0] = esalt_bufs[digests_offset].secondBlockData[0];
+      secondBlockData[1] = esalt_bufs[digests_offset].secondBlockData[1];
+      secondBlockData[2] = esalt_bufs[digests_offset].secondBlockData[2];
+      secondBlockData[3] = esalt_bufs[digests_offset].secondBlockData[3];
+
+      j = rc4_next_16 (rc4_key, 0, 0, secondBlockData, out);
+
+      int null_bytes = 0;
+
+      for (int k = 0; k < 4; k++)
+      {
+        if ((out[k] & 0x000000ff) == 0) null_bytes++;
+        if ((out[k] & 0x0000ff00) == 0) null_bytes++;
+        if ((out[k] & 0x00ff0000) == 0) null_bytes++;
+        if ((out[k] & 0xff000000) == 0) null_bytes++;
+      }
+
+      secondBlockData[0] = esalt_bufs[digests_offset].secondBlockData[4];
+      secondBlockData[1] = esalt_bufs[digests_offset].secondBlockData[5];
+      secondBlockData[2] = esalt_bufs[digests_offset].secondBlockData[6];
+      secondBlockData[3] = esalt_bufs[digests_offset].secondBlockData[7];
+
+      rc4_next_16 (rc4_key, 16, j, secondBlockData, out);
+
+      for (int k = 0; k < 4; k++)
+      {
+        if ((out[k] & 0x000000ff) == 0) null_bytes++;
+        if ((out[k] & 0x0000ff00) == 0) null_bytes++;
+        if ((out[k] & 0x00ff0000) == 0) null_bytes++;
+        if ((out[k] & 0xff000000) == 0) null_bytes++;
+      }
+
+      if (null_bytes < MIN_NULL_BYTES) continue;
+    }
+
+    if (atomic_inc (&hashes_shown[digests_offset]) == 0)
+    {
+      mark_hash (plains_buf, d_return_buf, salt_pos, digests_cnt, 0, digests_offset + 0, gid, il_pos, 0, 0);
+    }
   }
 }
 
-__kernel void __attribute__((reqd_work_group_size(64, 1, 1))) m09800_m04 (KERN_ATTR_ESALT (oldoffice34_t))
+KERNEL_FQ void m09800_m04 (KERN_ATTR_ESALT (oldoffice34_t))
 {
   /**
    * base
@@ -526,12 +715,12 @@ __kernel void __attribute__((reqd_work_group_size(64, 1, 1))) m09800_m04 (KERN_A
    * main
    */
 
-  __local RC4_KEY rc4_keys[64];
+  LOCAL_VK RC4_KEY rc4_keys[64];
 
-  m09800m (rc4_keys, w0, w1, w2, w3, pw_len, pws, rules_buf, combs_buf, bfs_buf, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_scryptV0_buf, d_scryptV1_buf, d_scryptV2_buf, d_scryptV3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
+  m09800m (rc4_keys, w0, w1, w2, w3, pw_len, pws, rules_buf, combs_buf, bfs_buf, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_extra0_buf, d_extra1_buf, d_extra2_buf, d_extra3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
 }
 
-__kernel void __attribute__((reqd_work_group_size(64, 1, 1))) m09800_m08 (KERN_ATTR_ESALT (oldoffice34_t))
+KERNEL_FQ void m09800_m08 (KERN_ATTR_ESALT (oldoffice34_t))
 {
   /**
    * base
@@ -575,12 +764,12 @@ __kernel void __attribute__((reqd_work_group_size(64, 1, 1))) m09800_m08 (KERN_A
    * main
    */
 
-  __local RC4_KEY rc4_keys[64];
+  LOCAL_VK RC4_KEY rc4_keys[64];
 
-  m09800m (rc4_keys, w0, w1, w2, w3, pw_len, pws, rules_buf, combs_buf, bfs_buf, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_scryptV0_buf, d_scryptV1_buf, d_scryptV2_buf, d_scryptV3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
+  m09800m (rc4_keys, w0, w1, w2, w3, pw_len, pws, rules_buf, combs_buf, bfs_buf, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_extra0_buf, d_extra1_buf, d_extra2_buf, d_extra3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
 }
 
-__kernel void __attribute__((reqd_work_group_size(64, 1, 1))) m09800_m16 (KERN_ATTR_ESALT (oldoffice34_t))
+KERNEL_FQ void m09800_m16 (KERN_ATTR_ESALT (oldoffice34_t))
 {
   /**
    * base
@@ -624,12 +813,12 @@ __kernel void __attribute__((reqd_work_group_size(64, 1, 1))) m09800_m16 (KERN_A
    * main
    */
 
-  __local RC4_KEY rc4_keys[64];
+  LOCAL_VK RC4_KEY rc4_keys[64];
 
-  m09800m (rc4_keys, w0, w1, w2, w3, pw_len, pws, rules_buf, combs_buf, bfs_buf, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_scryptV0_buf, d_scryptV1_buf, d_scryptV2_buf, d_scryptV3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
+  m09800m (rc4_keys, w0, w1, w2, w3, pw_len, pws, rules_buf, combs_buf, bfs_buf, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_extra0_buf, d_extra1_buf, d_extra2_buf, d_extra3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
 }
 
-__kernel void __attribute__((reqd_work_group_size(64, 1, 1))) m09800_s04 (KERN_ATTR_ESALT (oldoffice34_t))
+KERNEL_FQ void m09800_s04 (KERN_ATTR_ESALT (oldoffice34_t))
 {
   /**
    * base
@@ -673,12 +862,12 @@ __kernel void __attribute__((reqd_work_group_size(64, 1, 1))) m09800_s04 (KERN_A
    * main
    */
 
-  __local RC4_KEY rc4_keys[64];
+  LOCAL_VK RC4_KEY rc4_keys[64];
 
-  m09800s (rc4_keys, w0, w1, w2, w3, pw_len, pws, rules_buf, combs_buf, bfs_buf, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_scryptV0_buf, d_scryptV1_buf, d_scryptV2_buf, d_scryptV3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
+  m09800s (rc4_keys, w0, w1, w2, w3, pw_len, pws, rules_buf, combs_buf, bfs_buf, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_extra0_buf, d_extra1_buf, d_extra2_buf, d_extra3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
 }
 
-__kernel void __attribute__((reqd_work_group_size(64, 1, 1))) m09800_s08 (KERN_ATTR_ESALT (oldoffice34_t))
+KERNEL_FQ void m09800_s08 (KERN_ATTR_ESALT (oldoffice34_t))
 {
   /**
    * base
@@ -722,12 +911,12 @@ __kernel void __attribute__((reqd_work_group_size(64, 1, 1))) m09800_s08 (KERN_A
    * main
    */
 
-  __local RC4_KEY rc4_keys[64];
+  LOCAL_VK RC4_KEY rc4_keys[64];
 
-  m09800s (rc4_keys, w0, w1, w2, w3, pw_len, pws, rules_buf, combs_buf, bfs_buf, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_scryptV0_buf, d_scryptV1_buf, d_scryptV2_buf, d_scryptV3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
+  m09800s (rc4_keys, w0, w1, w2, w3, pw_len, pws, rules_buf, combs_buf, bfs_buf, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_extra0_buf, d_extra1_buf, d_extra2_buf, d_extra3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
 }
 
-__kernel void __attribute__((reqd_work_group_size(64, 1, 1))) m09800_s16 (KERN_ATTR_ESALT (oldoffice34_t))
+KERNEL_FQ void m09800_s16 (KERN_ATTR_ESALT (oldoffice34_t))
 {
   /**
    * base
@@ -771,7 +960,7 @@ __kernel void __attribute__((reqd_work_group_size(64, 1, 1))) m09800_s16 (KERN_A
    * main
    */
 
-  __local RC4_KEY rc4_keys[64];
+  LOCAL_VK RC4_KEY rc4_keys[64];
 
-  m09800s (rc4_keys, w0, w1, w2, w3, pw_len, pws, rules_buf, combs_buf, bfs_buf, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_scryptV0_buf, d_scryptV1_buf, d_scryptV2_buf, d_scryptV3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
+  m09800s (rc4_keys, w0, w1, w2, w3, pw_len, pws, rules_buf, combs_buf, bfs_buf, tmps, hooks, bitmaps_buf_s1_a, bitmaps_buf_s1_b, bitmaps_buf_s1_c, bitmaps_buf_s1_d, bitmaps_buf_s2_a, bitmaps_buf_s2_b, bitmaps_buf_s2_c, bitmaps_buf_s2_d, plains_buf, digests_buf, hashes_shown, salt_bufs, esalt_bufs, d_return_buf, d_extra0_buf, d_extra1_buf, d_extra2_buf, d_extra3_buf, bitmap_mask, bitmap_shift1, bitmap_shift2, salt_pos, loop_pos, loop_cnt, il_cnt, digests_cnt, digests_offset, combs_mode, gid_max);
 }

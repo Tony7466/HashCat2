@@ -218,8 +218,8 @@ int generate_random_rule (char rule_buf[RP_RULE_SIZE], const u32 rp_gen_func_min
 #define INCR_POS if (++rule_pos == rule_len) return (-1)
 
 #define SET_NAME(rule,val) (rule)->cmds[rule_cnt]  = ((val) & 0xff) <<  0
-#define SET_P0(rule,val)   INCR_POS; if (is_hex_notation (rule_buf, rule_len, rule_pos) == true) { (rule)->cmds[rule_cnt] |= (hex_convert (rule_buf[rule_pos + 3] & 0xff) <<  8) | (hex_convert (rule_buf[rule_pos + 2] & 0xff) << 12); rule_pos += 3; } else { (rule)->cmds[rule_cnt] |= ((val) & 0xff) <<  8; }
-#define SET_P1(rule,val)   INCR_POS; if (is_hex_notation (rule_buf, rule_len, rule_pos) == true) { (rule)->cmds[rule_cnt] |= (hex_convert (rule_buf[rule_pos + 3] & 0xff) << 16) | (hex_convert (rule_buf[rule_pos + 2] & 0xff) << 20); rule_pos += 3; } else { (rule)->cmds[rule_cnt] |= ((val) & 0xff) <<  16; }
+#define SET_P0(rule,val)   do { INCR_POS; if (is_hex_notation (rule_buf, rule_len, rule_pos) == true) { (rule)->cmds[rule_cnt] |= (hex_convert (rule_buf[rule_pos + 3] & 0xff) <<  8) | (hex_convert (rule_buf[rule_pos + 2] & 0xff) << 12); rule_pos += 3; } else { (rule)->cmds[rule_cnt] |= ((val) & 0xff) <<  8; } } while(0)
+#define SET_P1(rule,val)   do { INCR_POS; if (is_hex_notation (rule_buf, rule_len, rule_pos) == true) { (rule)->cmds[rule_cnt] |= (hex_convert (rule_buf[rule_pos + 3] & 0xff) << 16) | (hex_convert (rule_buf[rule_pos + 2] & 0xff) << 20); rule_pos += 3; } else { (rule)->cmds[rule_cnt] |= ((val) & 0xff) <<  16; } } while(0)
 #define GET_NAME(rule)     rule_cmd = (((rule)->cmds[rule_cnt] >>  0) & 0xff)
 #define GET_P0(rule)       INCR_POS; rule_buf[rule_pos] = (((rule)->cmds[rule_cnt] >>  8) & 0xff)
 #define GET_P1(rule)       INCR_POS; rule_buf[rule_pos] = (((rule)->cmds[rule_cnt] >> 16) & 0xff)
@@ -733,11 +733,11 @@ int kernel_rules_load (hashcat_ctx_t *hashcat_ctx, kernel_rule_t **out_buf, u32 
 
     char *rp_file = user_options->rp_files[i];
 
-    FILE *fp = NULL;
+    HCFILE fp;
 
     u32 rule_line = 0;
 
-    if ((fp = fopen (rp_file, "rb")) == NULL)
+    if (hc_fopen (&fp, rp_file, "rb") == false)
     {
       event_log_error (hashcat_ctx, "%s: %s", rp_file, strerror (errno));
 
@@ -749,9 +749,9 @@ int kernel_rules_load (hashcat_ctx_t *hashcat_ctx, kernel_rule_t **out_buf, u32 
       return -1;
     }
 
-    while (!feof (fp))
+    while (!hc_feof (&fp))
     {
-      rule_len = (u32) fgetl (fp, rule_buf);
+      rule_len = (u32) fgetl (&fp, rule_buf, HCBUFSIZ_LARGE);
 
       rule_line++;
 
@@ -793,7 +793,7 @@ int kernel_rules_load (hashcat_ctx_t *hashcat_ctx, kernel_rule_t **out_buf, u32 
       kernel_rules_cnt++;
     }
 
-    fclose (fp);
+    hc_fclose (&fp);
 
     all_kernel_rules_cnt[i] = kernel_rules_cnt;
     all_kernel_rules_buf[i] = kernel_rules_buf;
@@ -872,7 +872,7 @@ int kernel_rules_generate (hashcat_ctx_t *hashcat_ctx, kernel_rule_t **out_buf, 
   const user_options_t *user_options = hashcat_ctx->user_options;
 
   u32            kernel_rules_cnt = 0;
-  kernel_rule_t *kernel_rules_buf = hccalloc (user_options->rp_gen, sizeof (kernel_rule_t));
+  kernel_rule_t *kernel_rules_buf = (kernel_rule_t *) hccalloc (user_options->rp_gen, sizeof (kernel_rule_t));
 
   char *rule_buf = (char *) hcmalloc (RP_RULE_SIZE);
 

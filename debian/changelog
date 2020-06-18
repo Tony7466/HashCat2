@@ -1,3 +1,28 @@
+hashcat (6.0.0+ds1-1) UNRELEASED; urgency=medium
+
+  * Team Upload.
+
+  * Add dep/zlib in Files-Excluded (already in Debian)
+  * New upstream version 6.0.0+ds1
+  * Update description package
+  * Update dates in debian/copyright
+  * Update URL to https in debian/copyright
+  * Refresh patches
+  * Use Debian package zlib1g-dev for the build
+    - add zlib1g-dev in build-dep
+    - debian/rules: USE_SYSTEM_ZLIB=1
+  * Use debian package libminizip-dev
+    - add libminizip-dev in build-dep
+    - debian/rules: export DEB_LDFLAGS_MAINT_APPEND = -lminizip
+    - add a patch to change path to minizip/ioapi.h
+  * Use upstream installation except for modules/*.so
+    - Use upstream install: no more files listed by dh_missing
+    - Don't install the modules/.*so in /usr/share/hashcat but in
+      /usr/lib/hashcat and add a symlink (see
+      https://github.com/hashcat/hashcat/issues/2462)
+
+ -- Sophie Brun <sophie@offensive-security.com>  Fri, 19 Jun 2020 12:20:24 +0200
+
 hashcat (5.1.0+ds1-2) unstable; urgency=medium
 
   * Team upload.

@@ -1,7 +1,6 @@
-hashcat (6.0.0+ds1-1) UNRELEASED; urgency=medium
+hashcat (6.0.0+ds1-1) unstable; urgency=medium
 
-  * Team Upload.
-
+  * Team upload.
   * Add dep/zlib in Files-Excluded (already in Debian)
   * New upstream version 6.0.0+ds1
   * Update description package

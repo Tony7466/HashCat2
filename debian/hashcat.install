@@ -1,1 +1,2 @@
-hashcat usr/bin/
+usr/share/hashcat/modules usr/lib/hashcat/
+usr/bin

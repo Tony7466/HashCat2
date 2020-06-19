@@ -1,5 +1,6 @@
 #!/usr/bin/make -f
 #export DH_VERBOSE = 1
+
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 export DEB_LDFLAGS_MAINT_APPEND = -lminizip
 
@@ -7,13 +8,16 @@ export DEB_LDFLAGS_MAINT_APPEND = -lminizip
 	dh $@
 
 override_dh_auto_build:
-	dh_auto_build -- PREFIX=/usr DEBUG=1 COMPTIME=$(SOURCE_DATE_EPOCH) USE_SYSTEM_XXHASH=1 USE_SYSTEM_OPENCL=1 USE_SYSTEM_ZLIB=1
+	dh_auto_build -- PREFIX=/usr DEBUG=1 COMPTIME=$(SOURCE_DATE_EPOCH) USE_SYSTEM_XXHASH=1 USE_SYSTEM_OPENCL=1 USE_SYSTEM_ZLIB=1 SHARED=1
 
 override_dh_auto_install:
-	dh_auto_install -- USE_SYSTEM_XXHASH=1 USE_SYSTEM_OPENCL=1 USE_SYSTEM_ZLIB=1
+	dh_auto_install -- PREFIX=/usr USE_SYSTEM_XXHASH=1 USE_SYSTEM_OPENCL=1 USE_SYSTEM_ZLIB=1
 
 override_dh_installchangelogs:
 	dh_installchangelogs docs/changes.txt
+
+override_dh_installdocs:
+	dh_installdocs -Xchanges.txt -Xlicense.txt
 
 override_dh_fixperms-indep:
 	dh_fixperms

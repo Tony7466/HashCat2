@@ -1,0 +1,36 @@
+From: =?utf-8?q?Rapha=C3=ABl_Hertzog?= <raphael@offensive-security.com>
+Date: Fri, 19 Jun 2020 14:58:53 +0200
+Subject: Don't strip executables when DEBUG=0
+
+We want the Debian build system to do the stripping, not the upstream
+build system. And we want to use the default optimization level set by
+dpkg-buildflags.
+---
+ src/Makefile | 7 -------
+ 1 file changed, 7 deletions(-)
+
+diff --git a/src/Makefile b/src/Makefile
+index 2488937..448666d 100644
+--- a/src/Makefile
++++ b/src/Makefile
+@@ -188,12 +188,6 @@ CFLAGS_ZLIB             += -Wno-unused-parameter
+ CFLAGS_ZLIB             += -DIOAPI_NO_64
+ endif
+ 
+-ifeq ($(DEBUG),0)
+-CFLAGS                  += -O2
+-ifneq ($(UNAME),Darwin)
+-LFLAGS                  += -s
+-endif
+-else
+ ifeq ($(DEBUG),1)
+ ifneq ($(UNAME),Darwin)
+ CFLAGS                  += -DDEBUG -Og -ggdb
+@@ -210,7 +204,6 @@ endif
+ CFLAGS                  += -fsanitize=address -fno-omit-frame-pointer
+ endif
+ endif
+-endif
+ 
+ CFLAGS                  += -pipe -std=gnu99 -Iinclude/ -IOpenCL/
+ 

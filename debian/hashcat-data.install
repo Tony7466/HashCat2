@@ -4,3 +4,6 @@ usr/share/hashcat/hashcat.hctune
 usr/share/doc/hashcat/charsets usr/share/hashcat
 usr/share/doc/hashcat/masks usr/share/hashcat
 usr/share/doc/hashcat/rules usr/share/hashcat
+usr/share/doc/hashcat/layouts usr/share/hashcat
+usr/share/doc/hashcat/docs
+usr/share/doc/hashcat/extra

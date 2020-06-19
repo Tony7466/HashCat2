@@ -16,8 +16,8 @@ override_dh_auto_install:
 	dh_auto_install -- $(MAKEFILE_VARIABLES)
 
 override_dh_install:
-	rm -f debian/tmp/usr/share/doc/hashcat/changes.txt
-	rm -f debian/tmp/usr/share/doc/hashcat/license.txt
+	rm -f debian/tmp/usr/share/doc/hashcat/docs/changes.txt
+	rm -f debian/tmp/usr/share/doc/hashcat/docs/license.txt
 	dh_install
 
 override_dh_installchangelogs:

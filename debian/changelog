@@ -23,7 +23,8 @@ hashcat (6.0.0+ds1-1) unstable; urgency=medium
       https://github.com/hashcat/hashcat/issues/2462)
 
   [ Raphaël Hertzog ]
-  * Stop using DEBUG=1 but patch makefile to ensure we don't strip binaries anyway
+  * Stop using DEBUG=1 but patch makefile to ensure we don't strip binaries
+    anyway
 
  -- Sophie Brun <sophie@offensive-security.com>  Fri, 19 Jun 2020 12:20:24 +0200
 

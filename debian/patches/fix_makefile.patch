@@ -11,7 +11,7 @@ Last-Update: 2020-06-18
  1 file changed, 5 insertions(+), 5 deletions(-)
 
 diff --git a/src/Makefile b/src/Makefile
-index af29457..6017364 100644
+index c244145..50a2d9a 100644
 --- a/src/Makefile
 +++ b/src/Makefile
 @@ -245,7 +245,7 @@ endif

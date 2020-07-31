@@ -10,7 +10,7 @@ dpkg-buildflags.
  1 file changed, 7 deletions(-)
 
 diff --git a/src/Makefile b/src/Makefile
-index 2488937..448666d 100644
+index a2e2b6f..3e97ae9 100644
 --- a/src/Makefile
 +++ b/src/Makefile
 @@ -188,12 +188,6 @@ CFLAGS_ZLIB             += -Wno-unused-parameter

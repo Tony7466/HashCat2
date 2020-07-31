@@ -2,7 +2,7 @@ From: Sophie Brun <sophie@offensive-security.com>
 Date: Thu, 18 Jun 2020 11:04:58 +0200
 Subject: Change path for minizip/ioapi.h
 
-Last-Update: 2020-06-18
+Last-Update: 2020-07-30
 Description: We didn't include contrib/minizip/ioapi.h (upstream ships
 it in deps/zlib). We can use the Debian package libminizip-dev: change
 the include accordingly.
@@ -11,15 +11,15 @@ the include accordingly.
  1 file changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/include/ext_lzma.h b/include/ext_lzma.h
-index feaa5d9..e8d0630 100644
+index a346a8e..e8d0630 100644
 --- a/include/ext_lzma.h
 +++ b/include/ext_lzma.h
 @@ -8,8 +8,8 @@
  #include <LzmaDec.h>
  #include <Lzma2Dec.h>
  
--#include "contrib/minizip/ioapi.h"
--#include "contrib/minizip/unzip.h"
+-#include "minizip/ioapi.h"
+-#include "minizip/unzip.h"
 +#include <minizip/ioapi.h>
 +#include <minizip/unzip.h>
  

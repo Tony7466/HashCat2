@@ -1128,9 +1128,10 @@ int hashcat_session_init (hashcat_ctx_t *hashcat_ctx, const char *install_folder
 
 int hashcat_session_execute (hashcat_ctx_t *hashcat_ctx)
 {
-  logfile_ctx_t  *logfile_ctx  = hashcat_ctx->logfile_ctx;
-  status_ctx_t   *status_ctx   = hashcat_ctx->status_ctx;
-  user_options_t *user_options = hashcat_ctx->user_options;
+  folder_config_t *folder_config = hashcat_ctx->folder_config;
+  logfile_ctx_t   *logfile_ctx   = hashcat_ctx->logfile_ctx;
+  status_ctx_t    *status_ctx    = hashcat_ctx->status_ctx;
+  user_options_t  *user_options  = hashcat_ctx->user_options;
 
   // start logfile entry
 
@@ -1139,6 +1140,15 @@ int hashcat_session_execute (hashcat_ctx_t *hashcat_ctx)
   logfile_generate_topid (hashcat_ctx);
 
   logfile_top_msg ("START");
+
+  // capture current working directory in session log
+  // https://github.com/hashcat/hashcat/issues/2453
+
+  logfile_top_string (folder_config->cwd);
+  logfile_top_string (folder_config->install_dir);
+  logfile_top_string (folder_config->profile_dir);
+  logfile_top_string (folder_config->session_dir);
+  logfile_top_string (folder_config->shared_dir);
 
   // add all user options to logfile in case we want to debug some user session
 
@@ -1214,7 +1224,7 @@ int hashcat_session_execute (hashcat_ctx_t *hashcat_ctx)
 
   logfile_top_msg ("STOP");
 
-  // free memory
+  // set final status code
 
   if (rc_final == 0)
   {
@@ -1225,6 +1235,16 @@ int hashcat_session_execute (hashcat_ctx_t *hashcat_ctx)
     if (status_ctx->devices_status == STATUS_EXHAUSTED)           rc_final =  1;
     if (status_ctx->devices_status == STATUS_CRACKED)             rc_final =  0;
     if (status_ctx->devices_status == STATUS_ERROR)               rc_final = -1;
+  }
+
+  // special case for --stdout
+
+  if (user_options->stdout_flag == true)
+  {
+    if (status_ctx->devices_status == STATUS_EXHAUSTED)
+    {
+      rc_final = 0;
+    }
   }
 
   // done

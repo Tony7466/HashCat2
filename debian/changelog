@@ -1,4 +1,4 @@
-hashcat (6.1.1+ds1-1) UNRELEASED; urgency=medium
+hashcat (6.1.1+ds1-1) unstable; urgency=medium
 
   * Team upload.
   * New upstream version 6.1.1+ds1

@@ -17,12 +17,6 @@
 
 #define ROUNDS 0x40000
 
-typedef struct pbkdf2_sha1
-{
-  u32 salt_buf[64];
-
-} pbkdf2_sha1_t;
-
 typedef struct rar3_tmp
 {
   u32 dgst[5];
@@ -43,13 +37,20 @@ DECLSPEC void memcat8c_be (u32 *w0, u32 *w1, u32 *w2, u32 *w3, const u32 len, co
   u32 tmp0;
   u32 tmp1;
 
-  #if defined IS_AMD || defined IS_GENERIC
+  #if ((defined IS_AMD || defined IS_HIP) && HAS_VPERM == 0) || defined IS_GENERIC
   tmp0 = hc_bytealign_be (0, append, func_len);
   tmp1 = hc_bytealign_be (append, 0, func_len);
   #endif
 
-  #ifdef IS_NV
+  #if ((defined IS_AMD || defined IS_HIP) && HAS_VPERM == 1) || defined IS_NV
+
+  #if defined IS_NV
   const int selector = (0x76543210 >> ((func_len & 3) * 4)) & 0xffff;
+  #endif
+
+  #if (defined IS_AMD || defined IS_HIP)
+  const int selector = l32_from_64_S (0x0706050403020100UL >> ((func_len & 3) * 8));
+  #endif
 
   tmp0 = hc_byte_perm (append, 0, selector);
   tmp1 = hc_byte_perm (0, append, selector);
@@ -59,54 +60,22 @@ DECLSPEC void memcat8c_be (u32 *w0, u32 *w1, u32 *w2, u32 *w3, const u32 len, co
 
   switch (div)
   {
-    case  0:  w0[0] |= tmp0;
-              w0[1]  = tmp1;
-              break;
-    case  1:  w0[1] |= tmp0;
-              w0[2]  = tmp1;
-              break;
-    case  2:  w0[2] |= tmp0;
-              w0[3]  = tmp1;
-              break;
-    case  3:  w0[3] |= tmp0;
-              w1[0]  = tmp1;
-              break;
-    case  4:  w1[0] |= tmp0;
-              w1[1]  = tmp1;
-              break;
-    case  5:  w1[1] |= tmp0;
-              w1[2]  = tmp1;
-              break;
-    case  6:  w1[2] |= tmp0;
-              w1[3]  = tmp1;
-              break;
-    case  7:  w1[3] |= tmp0;
-              w2[0]  = tmp1;
-              break;
-    case  8:  w2[0] |= tmp0;
-              w2[1]  = tmp1;
-              break;
-    case  9:  w2[1] |= tmp0;
-              w2[2]  = tmp1;
-              break;
-    case 10:  w2[2] |= tmp0;
-              w2[3]  = tmp1;
-              break;
-    case 11:  w2[3] |= tmp0;
-              w3[0]  = tmp1;
-              break;
-    case 12:  w3[0] |= tmp0;
-              w3[1]  = tmp1;
-              break;
-    case 13:  w3[1] |= tmp0;
-              w3[2]  = tmp1;
-              break;
-    case 14:  w3[2] |= tmp0;
-              w3[3]  = tmp1;
-              break;
-    case 15:  w3[3] |= tmp0;
-              carry  = tmp1;
-              break;
+    case  0:  w0[0] |= tmp0; w0[1]  = tmp1; break;
+    case  1:  w0[1] |= tmp0; w0[2]  = tmp1; break;
+    case  2:  w0[2] |= tmp0; w0[3]  = tmp1; break;
+    case  3:  w0[3] |= tmp0; w1[0]  = tmp1; break;
+    case  4:  w1[0] |= tmp0; w1[1]  = tmp1; break;
+    case  5:  w1[1] |= tmp0; w1[2]  = tmp1; break;
+    case  6:  w1[2] |= tmp0; w1[3]  = tmp1; break;
+    case  7:  w1[3] |= tmp0; w2[0]  = tmp1; break;
+    case  8:  w2[0] |= tmp0; w2[1]  = tmp1; break;
+    case  9:  w2[1] |= tmp0; w2[2]  = tmp1; break;
+    case 10:  w2[2] |= tmp0; w2[3]  = tmp1; break;
+    case 11:  w2[3] |= tmp0; w3[0]  = tmp1; break;
+    case 12:  w3[0] |= tmp0; w3[1]  = tmp1; break;
+    case 13:  w3[1] |= tmp0; w3[2]  = tmp1; break;
+    case 14:  w3[2] |= tmp0; w3[3]  = tmp1; break;
+    default:  w3[3] |= tmp0; carry  = tmp1; break; // this is a bit weird but helps to workaround AMD JiT compiler segfault if set to case 15:
   }
 
   const u32 new_len = func_len + 3;
@@ -488,7 +457,9 @@ DECLSPEC void sha1_transform_rar29 (const u32 *w0, const u32 *w1, const u32 *w2,
 
 DECLSPEC void sha1_update_64_rar29 (sha1_ctx_t *ctx, u32 *w0, u32 *w1, u32 *w2, u32 *w3, const int bytes, u32 *t)
 {
-  MAYBE_VOLATILE const int pos = ctx->len & 63;
+  if (bytes == 0) return;
+
+  const int pos = ctx->len & 63;
 
   int len = 64;
 
@@ -621,7 +592,9 @@ DECLSPEC void sha1_update_rar29 (sha1_ctx_t *ctx, u32 *w, const int len)
   u32 w2[4];
   u32 w3[4];
 
-  MAYBE_VOLATILE const int pos = ctx->len & 63;
+  if (len == 0) return;
+
+  const int pos = ctx->len & 63;
 
   int pos1 = 0;
   int pos4 = 0;
@@ -755,7 +728,7 @@ DECLSPEC void sha1_update_rar29 (sha1_ctx_t *ctx, u32 *w, const int len)
   }
 }
 
-KERNEL_FQ void m12500_init (KERN_ATTR_TMPS_ESALT (rar3_tmp_t, pbkdf2_sha1_t))
+KERNEL_FQ void m12500_init (KERN_ATTR_TMPS (rar3_tmp_t))
 {
   /**
    * base
@@ -775,43 +748,22 @@ KERNEL_FQ void m12500_init (KERN_ATTR_TMPS_ESALT (rar3_tmp_t, pbkdf2_sha1_t))
 
   const u32 pw_len = pws[gid].pw_len;
 
-  // first set the utf16le pass:
-
   u32 w[80] = { 0 };
 
-  for (u32 i = 0, j = 0, k = 0; i < pw_len; i += 16, j += 4, k += 8)
+  for (int i = 0, j = 0; i < pw_len; i += 4, j += 1)
   {
-    u32 a[4];
-
-    a[0] = pws[gid].i[j + 0];
-    a[1] = pws[gid].i[j + 1];
-    a[2] = pws[gid].i[j + 2];
-    a[3] = pws[gid].i[j + 3];
-
-    u32 b[4];
-    u32 c[4];
-
-    make_utf16le (a, b, c);
-
-    w[k + 0] = hc_swap32_S (b[0]);
-    w[k + 1] = hc_swap32_S (b[1]);
-    w[k + 2] = hc_swap32_S (b[2]);
-    w[k + 3] = hc_swap32_S (b[3]);
-    w[k + 4] = hc_swap32_S (c[0]);
-    w[k + 5] = hc_swap32_S (c[1]);
-    w[k + 6] = hc_swap32_S (c[2]);
-    w[k + 7] = hc_swap32_S (c[3]);
+    w[j] = hc_swap32_S (pws[gid].i[j]);
   }
 
   // append salt:
 
-  const u32 salt_idx = (pw_len * 2) / 4;
-  const u32 salt_off = (pw_len * 2) & 3;
+  const u32 salt_idx = pw_len / 4;
+  const u32 salt_off = pw_len & 3;
 
   u32 salt_buf[3];
 
-  salt_buf[0] = hc_swap32_S (salt_bufs[salt_pos].salt_buf[0]); // swap needed due to -O kernel
-  salt_buf[1] = hc_swap32_S (salt_bufs[salt_pos].salt_buf[1]);
+  salt_buf[0] = hc_swap32_S (salt_bufs[SALT_POS].salt_buf[0]); // swap needed due to -O kernel
+  salt_buf[1] = hc_swap32_S (salt_bufs[SALT_POS].salt_buf[1]);
   salt_buf[2] = 0;
 
   // switch buffer by offset (can only be 0 or 2 because of utf16):
@@ -823,10 +775,9 @@ KERNEL_FQ void m12500_init (KERN_ATTR_TMPS_ESALT (rar3_tmp_t, pbkdf2_sha1_t))
     salt_buf[0] = (salt_buf[0] >> 16);
   }
 
-  w[salt_idx] |= salt_buf[0];
-
-  w[salt_idx + 1] = salt_buf[1];
-  w[salt_idx + 2] = salt_buf[2];
+  w[salt_idx + 0] |= salt_buf[0];
+  w[salt_idx + 1]  = salt_buf[1];
+  w[salt_idx + 2]  = salt_buf[2];
 
   // store initial w[] (pass and salt) in tmps:
 
@@ -843,7 +794,7 @@ KERNEL_FQ void m12500_init (KERN_ATTR_TMPS_ESALT (rar3_tmp_t, pbkdf2_sha1_t))
   tmps[gid].iv[3] = 0;
 }
 
-KERNEL_FQ void m12500_loop (KERN_ATTR_TMPS_ESALT (rar3_tmp_t, pbkdf2_sha1_t))
+KERNEL_FQ void m12500_loop (KERN_ATTR_TMPS (rar3_tmp_t))
 {
   const u64 gid = get_global_id (0);
 
@@ -857,13 +808,13 @@ KERNEL_FQ void m12500_loop (KERN_ATTR_TMPS_ESALT (rar3_tmp_t, pbkdf2_sha1_t))
 
   const u32 salt_len = 8;
 
-  const u32 pw_salt_len = (pw_len * 2) + salt_len;
+  const u32 pw_salt_len = pw_len + salt_len;
 
   const u32 p3 = pw_salt_len + 3;
 
-  u32 w[80] = { 0 }; // 64 byte aligned
+  u32 w[80] = { 0 };
 
-  for (u32 i = 0; i < 66; i++) // unroll ?
+  for (u32 i = 0; i < 66; i++)
   {
     w[i] = tmps[gid].w[i];
   }
@@ -889,7 +840,6 @@ KERNEL_FQ void m12500_loop (KERN_ATTR_TMPS_ESALT (rar3_tmp_t, pbkdf2_sha1_t))
   memcat8c_be (ctx_iv.w0, ctx_iv.w1, ctx_iv.w2, ctx_iv.w3, ctx_iv.len, hc_swap32_S (loop_pos), ctx_iv.h);
 
   ctx_iv.len += 3;
-
 
   // copy the context from ctx_iv to ctx:
 
@@ -951,13 +901,13 @@ KERNEL_FQ void m12500_loop (KERN_ATTR_TMPS_ESALT (rar3_tmp_t, pbkdf2_sha1_t))
 
   // only needed if pw_len > 28:
 
-  for (u32 i = 0; i < 66; i++) // unroll ?
+  for (u32 i = 0; i < 66; i++)
   {
     tmps[gid].w[i] = w[i];
   }
 }
 
-KERNEL_FQ void m12500_comp (KERN_ATTR_TMPS_ESALT (rar3_tmp_t, pbkdf2_sha1_t))
+KERNEL_FQ void m12500_comp (KERN_ATTR_TMPS (rar3_tmp_t))
 {
   const u64 gid = get_global_id (0);
   const u64 lid = get_local_id (0);
@@ -1024,7 +974,7 @@ KERNEL_FQ void m12500_comp (KERN_ATTR_TMPS_ESALT (rar3_tmp_t, pbkdf2_sha1_t))
 
   const u32 salt_len = 8;
 
-  const u32 pw_salt_len = (pw_len * 2) + salt_len;
+  const u32 pw_salt_len = pw_len + salt_len;
 
   const u32 p3 = pw_salt_len + 3;
 
@@ -1073,10 +1023,10 @@ KERNEL_FQ void m12500_comp (KERN_ATTR_TMPS_ESALT (rar3_tmp_t, pbkdf2_sha1_t))
 
   u32 data[4];
 
-  data[0] = salt_bufs[salt_pos].salt_buf[2];
-  data[1] = salt_bufs[salt_pos].salt_buf[3];
-  data[2] = salt_bufs[salt_pos].salt_buf[4];
-  data[3] = salt_bufs[salt_pos].salt_buf[5];
+  data[0] = salt_bufs[SALT_POS].salt_buf[2];
+  data[1] = salt_bufs[SALT_POS].salt_buf[3];
+  data[2] = salt_bufs[SALT_POS].salt_buf[4];
+  data[3] = salt_bufs[SALT_POS].salt_buf[5];
 
   u32 out[4];
 

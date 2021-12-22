@@ -14,12 +14,13 @@
 #include "hwmon.h"
 #include "interface.h"
 #include "hashcat.h"
+#include "timer.h"
 #include "terminal.h"
 
 static const size_t TERMINAL_LINE_LENGTH = 79;
 
-static const char *PROMPT_ACTIVE = "[s]tatus [p]ause [b]ypass [c]heckpoint [q]uit => ";
-static const char *PROMPT_PAUSED = "[s]tatus [r]esume [b]ypass [c]heckpoint [q]uit => ";
+static const char *const PROMPT_ACTIVE = "[s]tatus [p]ause [b]ypass [c]heckpoint [f]inish [q]uit => ";
+static const char *const PROMPT_PAUSED = "[s]tatus [r]esume [b]ypass [c]heckpoint [f]inish [q]uit => ";
 
 void welcome_screen (hashcat_ctx_t *hashcat_ctx, const char *version_tag)
 {
@@ -30,12 +31,18 @@ void welcome_screen (hashcat_ctx_t *hashcat_ctx, const char *version_tag)
   if (user_options->stdout_flag == true) return;
   if (user_options->show        == true) return;
   if (user_options->left        == true) return;
+  if (user_options->identify    == true) return;
 
-  if (user_options->benchmark == true)
+  if (user_options->usage == true)
+  {
+    event_log_info (hashcat_ctx, "%s (%s) starting in help mode", PROGNAME, version_tag);
+    event_log_info (hashcat_ctx, NULL);
+  }
+  else if (user_options->benchmark == true)
   {
     if (user_options->machine_readable == false)
     {
-      event_log_info (hashcat_ctx, "%s (%s) starting in benchmark mode...", PROGNAME, version_tag);
+      event_log_info (hashcat_ctx, "%s (%s) starting in benchmark mode", PROGNAME, version_tag);
 
       event_log_info (hashcat_ctx, NULL);
 
@@ -55,22 +62,37 @@ void welcome_screen (hashcat_ctx_t *hashcat_ctx, const char *version_tag)
   }
   else if (user_options->restore == true)
   {
-    event_log_info (hashcat_ctx, "%s (%s) starting in restore mode...", PROGNAME, version_tag);
+    event_log_info (hashcat_ctx, "%s (%s) starting in restore mode", PROGNAME, version_tag);
     event_log_info (hashcat_ctx, NULL);
   }
   else if (user_options->speed_only == true)
   {
-    event_log_info (hashcat_ctx, "%s (%s) starting in speed-only mode...", PROGNAME, version_tag);
+    event_log_info (hashcat_ctx, "%s (%s) starting in speed-only mode", PROGNAME, version_tag);
     event_log_info (hashcat_ctx, NULL);
   }
   else if (user_options->progress_only == true)
   {
-    event_log_info (hashcat_ctx, "%s (%s) starting in progress-only mode...", PROGNAME, version_tag);
+    event_log_info (hashcat_ctx, "%s (%s) starting in progress-only mode", PROGNAME, version_tag);
+    event_log_info (hashcat_ctx, NULL);
+  }
+  else if (user_options->backend_info == true)
+  {
+    event_log_info (hashcat_ctx, "%s (%s) starting in backend information mode", PROGNAME, version_tag);
+    event_log_info (hashcat_ctx, NULL);
+  }
+  else if (user_options->hash_mode_chgd == false)
+  {
+    event_log_info (hashcat_ctx, "%s (%s) starting in autodetect mode", PROGNAME, version_tag);
+    event_log_info (hashcat_ctx, NULL);
+  }
+  else if (user_options->hash_info == true)
+  {
+    event_log_info (hashcat_ctx, "%s (%s) starting in hash-info mode", PROGNAME, version_tag);
     event_log_info (hashcat_ctx, NULL);
   }
   else
   {
-    event_log_info (hashcat_ctx, "%s (%s) starting...", PROGNAME, version_tag);
+    event_log_info (hashcat_ctx, "%s (%s) starting", PROGNAME, version_tag);
     event_log_info (hashcat_ctx, NULL);
   }
 
@@ -79,6 +101,7 @@ void welcome_screen (hashcat_ctx_t *hashcat_ctx, const char *version_tag)
     event_log_warning (hashcat_ctx, "You have enabled --force to bypass dangerous warnings and errors!");
     event_log_warning (hashcat_ctx, "This can hide serious problems and should only be done when debugging.");
     event_log_warning (hashcat_ctx, "Do not report hashcat issues encountered when using --force.");
+    event_log_warning (hashcat_ctx, NULL);
   }
 }
 
@@ -91,9 +114,10 @@ void goodbye_screen (hashcat_ctx_t *hashcat_ctx, const time_t proc_start, const 
   if (user_options->stdout_flag == true) return;
   if (user_options->show        == true) return;
   if (user_options->left        == true) return;
+  if (user_options->identify    == true) return;
 
   char start_buf[32]; memset (start_buf, 0, sizeof (start_buf));
-  char stop_buf[32];  memset (start_buf, 0, sizeof (stop_buf));
+  char stop_buf[32];  memset (stop_buf,  0, sizeof (stop_buf));
 
   event_log_info_nn (hashcat_ctx, "Started: %s", ctime_r (&proc_start, start_buf));
   event_log_info_nn (hashcat_ctx, "Stopped: %s", ctime_r (&proc_stop,  stop_buf));
@@ -237,11 +261,24 @@ static void keypress (hashcat_ctx_t *hashcat_ctx)
         {
           event_log_info (hashcat_ctx, NULL);
 
+          time_t now;
+
+          time (&now);
+
           SuspendThreads (hashcat_ctx);
 
           if (status_ctx->devices_status == STATUS_PAUSED)
           {
-            event_log_info (hashcat_ctx, "Paused");
+            char buf[32] = { 0 };
+
+            char *pause_time = ctime_r (&now, buf);
+
+            const size_t pause_time_len = strlen (pause_time);
+
+            if (pause_time[pause_time_len - 1] == '\n') pause_time[pause_time_len - 1] = 0;
+            if (pause_time[pause_time_len - 2] == '\r') pause_time[pause_time_len - 2] = 0;
+
+            event_log_info (hashcat_ctx, "Paused at %s", pause_time);
           }
 
           event_log_info (hashcat_ctx, NULL);
@@ -257,11 +294,39 @@ static void keypress (hashcat_ctx_t *hashcat_ctx)
         {
           event_log_info (hashcat_ctx, NULL);
 
+          time_t now;
+
+          time (&now);
+
+          const double msec_paused = hc_timer_get (status_ctx->timer_paused);
+
           ResumeThreads (hashcat_ctx);
 
           if (status_ctx->devices_status != STATUS_PAUSED)
           {
-            event_log_info (hashcat_ctx, "Resumed");
+            char buf[32] = { 0 };
+
+            char *resume_time = ctime_r (&now, buf);
+
+            const size_t resume_time_len = strlen (resume_time);
+
+            if (resume_time[resume_time_len - 1] == '\n') resume_time[resume_time_len - 1] = 0;
+            if (resume_time[resume_time_len - 2] == '\r') resume_time[resume_time_len - 2] = 0;
+
+            struct tm *tmp;
+            struct tm  tm;
+
+            time_t sec_run = msec_paused / 1000;
+
+            tmp = gmtime_r (&sec_run, &tm);
+
+            char *display_pause = (char *) hcmalloc (HCBUFSIZ_TINY);
+
+            format_timer_display (tmp, display_pause, HCBUFSIZ_TINY);
+
+            event_log_info (hashcat_ctx, "Resumed at %s (paused for %s)", resume_time, display_pause);
+
+            hcfree (display_pause);
           }
 
           event_log_info (hashcat_ctx, NULL);
@@ -284,6 +349,27 @@ static void keypress (hashcat_ctx_t *hashcat_ctx)
         else
         {
           event_log_info (hashcat_ctx, "Checkpoint disabled. Restore-point updates will no longer be monitored.");
+        }
+
+        event_log_info (hashcat_ctx, NULL);
+
+        if (quiet == false) send_prompt (hashcat_ctx);
+
+        break;
+
+      case 'f':
+
+        event_log_info (hashcat_ctx, NULL);
+
+        finish_after_attack (hashcat_ctx);
+
+        if (status_ctx->finish_shutdown == true)
+        {
+          event_log_info (hashcat_ctx, "Finish enabled. Will quit after this attack.");
+        }
+        else
+        {
+          event_log_info (hashcat_ctx, "Finish disabled. Will continue after this attack.");
         }
 
         event_log_info (hashcat_ctx, NULL);
@@ -537,67 +623,122 @@ void compress_terminal_line_length (char *out_buf, const size_t keep_from_beginn
   *ptr1 = 0;
 }
 
-void example_hashes (hashcat_ctx_t *hashcat_ctx)
+void hash_info_single (hashcat_ctx_t *hashcat_ctx, user_options_extra_t *user_options_extra)
 {
-  folder_config_t *folder_config = hashcat_ctx->folder_config;
-  user_options_t  *user_options  = hashcat_ctx->user_options;
-
-  if (user_options->hash_mode_chgd == true)
+  if (hashconfig_init (hashcat_ctx) == 0)
   {
-    if (hashconfig_init (hashcat_ctx) == 0)
+    hashconfig_t *hashconfig = hashcat_ctx->hashconfig;
+
+    event_log_info (hashcat_ctx, "Hash mode #%u", hashconfig->hash_mode);
+    event_log_info (hashcat_ctx, "  Name................: %s", hashconfig->hash_name);
+    event_log_info (hashcat_ctx, "  Category............: %s", strhashcategory (hashconfig->hash_category));
+    event_log_info (hashcat_ctx, "  Slow.Hash...........: %s", (hashconfig->attack_exec == ATTACK_EXEC_INSIDE_KERNEL) ? "No" : "Yes");
+
+    event_log_info (hashcat_ctx, "  Password.Len.Min....: %d", hashconfig->pw_min);
+    event_log_info (hashcat_ctx, "  Password.Len.Max....: %d", hashconfig->pw_max);
+
+    if (hashconfig->is_salted == true)
     {
-      hashconfig_t *hashconfig = hashcat_ctx->hashconfig;
+      u32 t = hashconfig->salt_type;
+      const char *t_desc = (t == SALT_TYPE_EMBEDDED) ? "Embedded\0" : (t == SALT_TYPE_GENERIC) ? "Generic\0" : "Virtual\0";
+      event_log_info (hashcat_ctx, "  Salt.Type...........: %s", t_desc);
+      event_log_info (hashcat_ctx, "  Salt.Len.Min........: %d", hashconfig->salt_min);
+      event_log_info (hashcat_ctx, "  Salt.Len.Max........: %d", hashconfig->salt_max);
+    }
 
-      event_log_info (hashcat_ctx, "MODE: %u", hashconfig->hash_mode);
-      event_log_info (hashcat_ctx, "TYPE: %s", hashconfig->hash_name);
+    // almost always 1 and -1
+    //event_log_info (hashcat_ctx, "  Hashes.Count.Min....: %d", hashconfig->hashes_count_min);
+    //event_log_info (hashcat_ctx, "  Hashes.Count.Max....: %u", hashconfig->hashes_count_max);
 
-      if ((hashconfig->st_hash != NULL) && (hashconfig->st_pass != NULL))
+    if ((hashconfig->has_pure_kernel) && (hashconfig->has_optimized_kernel))
+    {
+      event_log_info (hashcat_ctx, "  Kernel.Type(s)......: pure, optimized");
+    }
+    else if (hashconfig->has_pure_kernel)
+    {
+      event_log_info (hashcat_ctx, "  Kernel.Type(s)......: pure");
+    }
+    else if (hashconfig->has_optimized_kernel)
+    {
+      event_log_info (hashcat_ctx, "  Kernel.Type(s)......: optimized");
+    }
+
+    if ((hashconfig->st_hash != NULL) && (hashconfig->st_pass != NULL))
+    {
+      if (hashconfig->opts_type & OPTS_TYPE_BINARY_HASHFILE)
       {
-        if (hashconfig->opts_type & OPTS_TYPE_BINARY_HASHFILE)
-        {
-          event_log_info (hashcat_ctx, "HASH (hex-encoded): %s", hashconfig->st_hash);
-        }
-        else
-        {
-          event_log_info (hashcat_ctx, "HASH: %s", hashconfig->st_hash);
-        }
-
-        if (need_hexify ((const u8 *) hashconfig->st_pass, strlen (hashconfig->st_pass), user_options->separator, false))
-        {
-          char tmp_buf[HCBUFSIZ_LARGE] = { 0 };
-
-          int tmp_len = 0;
-
-          tmp_buf[tmp_len++] = '$';
-          tmp_buf[tmp_len++] = 'H';
-          tmp_buf[tmp_len++] = 'E';
-          tmp_buf[tmp_len++] = 'X';
-          tmp_buf[tmp_len++] = '[';
-
-          exec_hexify ((const u8 *) hashconfig->st_pass, strlen (hashconfig->st_pass), (u8 *) tmp_buf + tmp_len);
-
-          tmp_len += strlen (hashconfig->st_pass) * 2;
-
-          tmp_buf[tmp_len++] = ']';
-          tmp_buf[tmp_len++] = 0;
-
-          event_log_info (hashcat_ctx, "PASS: %s", tmp_buf);
-        }
-        else
-        {
-          event_log_info (hashcat_ctx, "PASS: %s", hashconfig->st_pass);
-        }
+        event_log_info (hashcat_ctx, "  Example.Hash.Format.: hex-encoded");
+        event_log_info (hashcat_ctx, "  Example.Hash........: %s", hashconfig->st_hash);
       }
       else
       {
-        event_log_info (hashcat_ctx, "HASH: not stored");
-        event_log_info (hashcat_ctx, "PASS: not stored");
+        event_log_info (hashcat_ctx, "  Example.Hash.Format.: plain");
+        event_log_info (hashcat_ctx, "  Example.Hash........: %s", hashconfig->st_hash);
       }
 
-      event_log_info (hashcat_ctx, NULL);
+      if (need_hexify ((const u8 *) hashconfig->st_pass, strlen (hashconfig->st_pass), user_options_extra->separator, false))
+      {
+        char *tmp_buf = (char *) hcmalloc (HCBUFSIZ_LARGE);
+
+        int tmp_len = 0;
+
+        tmp_buf[tmp_len++] = '$';
+        tmp_buf[tmp_len++] = 'H';
+        tmp_buf[tmp_len++] = 'E';
+        tmp_buf[tmp_len++] = 'X';
+        tmp_buf[tmp_len++] = '[';
+
+        exec_hexify ((const u8 *) hashconfig->st_pass, strlen (hashconfig->st_pass), (u8 *) tmp_buf + tmp_len);
+
+        tmp_len += strlen (hashconfig->st_pass) * 2;
+
+        tmp_buf[tmp_len++] = ']';
+        tmp_buf[tmp_len++] = 0;
+
+        event_log_info (hashcat_ctx, "  Example.Pass........: %s", tmp_buf);
+
+        hcfree (tmp_buf);
+      }
+      else
+      {
+        event_log_info (hashcat_ctx, "  Example.Pass........: %s", hashconfig->st_pass);
+      }
+    }
+    else
+    {
+      event_log_info (hashcat_ctx, "  Example.Hash.Format.: N/A");
+      event_log_info (hashcat_ctx, "  Example.Hash........: N/A");
+      event_log_info (hashcat_ctx, "  Example.Pass........: N/A");
     }
 
-    hashconfig_destroy (hashcat_ctx);
+    if (hashconfig->benchmark_mask != NULL)
+    {
+      event_log_info (hashcat_ctx, "  Benchmark.Mask......: %s", hashconfig->benchmark_mask);
+    }
+    else
+    {
+      event_log_info (hashcat_ctx, "  Benchmark.Mask......: N/A");
+    }
+
+    event_log_info (hashcat_ctx, NULL);
+  }
+
+  hashconfig_destroy (hashcat_ctx);
+}
+
+void hash_info (hashcat_ctx_t *hashcat_ctx)
+{
+  folder_config_t      *folder_config      = hashcat_ctx->folder_config;
+  user_options_t       *user_options       = hashcat_ctx->user_options;
+  user_options_extra_t *user_options_extra = hashcat_ctx->user_options_extra;
+
+  event_log_info (hashcat_ctx, "Hash Info:");
+  event_log_info (hashcat_ctx, "==========");
+  event_log_info (hashcat_ctx, NULL);
+
+  if (user_options->hash_mode_chgd == true)
+  {
+    hash_info_single (hashcat_ctx, user_options_extra);
   }
   else
   {
@@ -611,53 +752,7 @@ void example_hashes (hashcat_ctx_t *hashcat_ctx)
 
       if (hc_path_exist (modulefile) == false) continue;
 
-      if (hashconfig_init (hashcat_ctx) == 0)
-      {
-        hashconfig_t *hashconfig = hashcat_ctx->hashconfig;
-
-        event_log_info (hashcat_ctx, "MODE: %u", hashconfig->hash_mode);
-        event_log_info (hashcat_ctx, "TYPE: %s", hashconfig->hash_name);
-
-        if ((hashconfig->st_hash != NULL) && (hashconfig->st_pass != NULL))
-        {
-          event_log_info (hashcat_ctx, "HASH: %s", hashconfig->st_hash);
-
-          if (need_hexify ((const u8 *) hashconfig->st_pass, strlen (hashconfig->st_pass), user_options->separator, false))
-          {
-            char tmp_buf[HCBUFSIZ_LARGE] = { 0 };
-
-            int tmp_len = 0;
-
-            tmp_buf[tmp_len++] = '$';
-            tmp_buf[tmp_len++] = 'H';
-            tmp_buf[tmp_len++] = 'E';
-            tmp_buf[tmp_len++] = 'X';
-            tmp_buf[tmp_len++] = '[';
-
-            exec_hexify ((const u8 *) hashconfig->st_pass, strlen (hashconfig->st_pass), (u8 *) tmp_buf + tmp_len);
-
-            tmp_len += strlen (hashconfig->st_pass) * 2;
-
-            tmp_buf[tmp_len++] = ']';
-            tmp_buf[tmp_len++] = 0;
-
-            event_log_info (hashcat_ctx, "PASS: %s", tmp_buf);
-          }
-          else
-          {
-            event_log_info (hashcat_ctx, "PASS: %s", hashconfig->st_pass);
-          }
-        }
-        else
-        {
-          event_log_info (hashcat_ctx, "HASH: not stored");
-          event_log_info (hashcat_ctx, "PASS: not stored");
-        }
-
-        event_log_info (hashcat_ctx, NULL);
-      }
-
-      hashconfig_destroy (hashcat_ctx);
+      hash_info_single (hashcat_ctx, user_options_extra);
     }
 
     hcfree (modulefile);
@@ -692,6 +787,10 @@ void backend_info (hashcat_ctx_t *hashcat_ctx)
       u32   device_maxclock_frequency = device_param->device_maxclock_frequency;
       u64   device_available_mem      = device_param->device_available_mem;
       u64   device_global_mem         = device_param->device_global_mem;
+      u8    pcie_domain               = device_param->pcie_domain;
+      u8    pcie_bus                  = device_param->pcie_bus;
+      u8    pcie_device               = device_param->pcie_device;
+      u8    pcie_function             = device_param->pcie_function;
 
       if (device_param->device_id_alias_cnt)
       {
@@ -707,6 +806,67 @@ void backend_info (hashcat_ctx_t *hashcat_ctx)
       event_log_info (hashcat_ctx, "  Clock..........: %u", device_maxclock_frequency);
       event_log_info (hashcat_ctx, "  Memory.Total...: %" PRIu64 " MB", device_global_mem / 1024 / 1024);
       event_log_info (hashcat_ctx, "  Memory.Free....: %" PRIu64 " MB", device_available_mem / 1024 / 1024);
+      event_log_info (hashcat_ctx, "  PCI.Addr.BDFe..: %04x:%02x:%02x.%d", (u16) pcie_domain, pcie_bus, pcie_device, pcie_function);
+      event_log_info (hashcat_ctx, NULL);
+    }
+  }
+
+  if (backend_ctx->hip)
+  {
+    event_log_info (hashcat_ctx, "HIP Info:");
+    event_log_info (hashcat_ctx, "=========");
+    event_log_info (hashcat_ctx, NULL);
+
+    int hip_devices_cnt    = backend_ctx->hip_devices_cnt;
+    int hip_runtimeVersion = backend_ctx->hip_runtimeVersion;
+
+    if (hip_runtimeVersion > 1000)
+    {
+      int hip_version_major = (hip_runtimeVersion - 0) / 10000000;
+      int hip_version_minor = (hip_runtimeVersion - (hip_version_major * 10000000)) / 100000;
+      int hip_version_patch = (hip_runtimeVersion - (hip_version_major * 10000000) - (hip_version_minor * 100000));
+
+      event_log_info (hashcat_ctx, "HIP.Version.: %d.%d.%d", hip_version_major, hip_version_minor, hip_version_patch);
+      event_log_info (hashcat_ctx, NULL);
+    }
+    else
+    {
+      event_log_info (hashcat_ctx, "HIP.Version.: %d.%d", hip_runtimeVersion / 100, hip_runtimeVersion % 10);
+      event_log_info (hashcat_ctx, NULL);
+    }
+
+    for (int hip_devices_idx = 0; hip_devices_idx < hip_devices_cnt; hip_devices_idx++)
+    {
+      const int backend_devices_idx = backend_ctx->backend_device_from_hip[hip_devices_idx];
+
+      const hc_device_param_t *device_param = backend_ctx->devices_param + backend_devices_idx;
+
+      int   device_id                 = device_param->device_id;
+      char *device_name               = device_param->device_name;
+      u32   device_processors         = device_param->device_processors;
+      u32   device_maxclock_frequency = device_param->device_maxclock_frequency;
+      u64   device_available_mem      = device_param->device_available_mem;
+      u64   device_global_mem         = device_param->device_global_mem;
+      u8    pcie_domain               = device_param->pcie_domain;
+      u8    pcie_bus                  = device_param->pcie_bus;
+      u8    pcie_device               = device_param->pcie_device;
+      u8    pcie_function             = device_param->pcie_function;
+
+      if (device_param->device_id_alias_cnt)
+      {
+        event_log_info (hashcat_ctx, "Backend Device ID #%d (Alias: #%d)", device_id + 1, device_param->device_id_alias_buf[0] + 1);
+      }
+      else
+      {
+        event_log_info (hashcat_ctx, "Backend Device ID #%d", device_id + 1);
+      }
+
+      event_log_info (hashcat_ctx, "  Name...........: %s", device_name);
+      event_log_info (hashcat_ctx, "  Processor(s)...: %u", device_processors);
+      event_log_info (hashcat_ctx, "  Clock..........: %u", device_maxclock_frequency);
+      event_log_info (hashcat_ctx, "  Memory.Total...: %" PRIu64 " MB", device_global_mem / 1024 / 1024);
+      event_log_info (hashcat_ctx, "  Memory.Free....: %" PRIu64 " MB", device_available_mem / 1024 / 1024);
+      event_log_info (hashcat_ctx, "  PCI.Addr.BDFe..: %04x:%02x:%02x.%d", (u16) pcie_domain, pcie_bus, pcie_device, pcie_function);
       event_log_info (hashcat_ctx, NULL);
     }
   }
@@ -776,6 +936,24 @@ void backend_info (hashcat_ctx_t *hashcat_ctx)
         event_log_info (hashcat_ctx, "    Memory.Free....: %" PRIu64 " MB", device_available_mem / 1024 / 1024);
         event_log_info (hashcat_ctx, "    OpenCL.Version.: %s", opencl_device_c_version);
         event_log_info (hashcat_ctx, "    Driver.Version.: %s", opencl_driver_version);
+
+        if (device_param->opencl_device_type & CL_DEVICE_TYPE_GPU)
+        {
+          u8 pcie_bus      = device_param->pcie_bus;
+          u8 pcie_device   = device_param->pcie_device;
+          u8 pcie_function = device_param->pcie_function;
+
+          if ((device_param->opencl_platform_vendor_id == VENDOR_ID_AMD) && (device_param->opencl_device_vendor_id == VENDOR_ID_AMD))
+          {
+            event_log_info (hashcat_ctx, "    PCI.Addr.BDF...: %02x:%02x.%d", pcie_bus, pcie_device, pcie_function);
+          }
+
+          if ((device_param->opencl_platform_vendor_id == VENDOR_ID_NV) && (device_param->opencl_device_vendor_id == VENDOR_ID_NV))
+          {
+            event_log_info (hashcat_ctx, "    PCI.Addr.BDF...: %02x:%02x.%d", pcie_bus, pcie_device, pcie_function);
+          }
+        }
+
         event_log_info (hashcat_ctx, NULL);
       }
     }
@@ -790,6 +968,10 @@ void backend_info_compact (hashcat_ctx_t *hashcat_ctx)
   if (user_options->quiet            == true) return;
   if (user_options->machine_readable == true) return;
   if (user_options->status_json      == true) return;
+
+  /**
+   * CUDA
+   */
 
   if (backend_ctx->cuda)
   {
@@ -837,6 +1019,74 @@ void backend_info_compact (hashcat_ctx_t *hashcat_ctx)
 
     event_log_info (hashcat_ctx, NULL);
   }
+
+  /**
+   * HIP
+   */
+
+  if (backend_ctx->hip)
+  {
+    int hip_devices_cnt    = backend_ctx->hip_devices_cnt;
+    int hip_runtimeVersion = backend_ctx->hip_runtimeVersion;
+
+    size_t len;
+
+    if (hip_runtimeVersion > 1000)
+    {
+      int hip_version_major = (hip_runtimeVersion - 0) / 10000000;
+      int hip_version_minor = (hip_runtimeVersion - (hip_version_major * 10000000)) / 100000;
+      int hip_version_patch = (hip_runtimeVersion - (hip_version_major * 10000000) - (hip_version_minor * 100000));
+
+      len = event_log_info (hashcat_ctx, "HIP API (HIP %d.%d.%d)", hip_version_major, hip_version_minor, hip_version_patch);
+    }
+    else
+    {
+      len = event_log_info (hashcat_ctx, "HIP API (HIP %d.%d)", hip_runtimeVersion / 100, hip_runtimeVersion % 10);
+    }
+
+    char line[HCBUFSIZ_TINY] = { 0 };
+
+    memset (line, '=', len);
+
+    line[len] = 0;
+
+    event_log_info (hashcat_ctx, "%s", line);
+
+    for (int hip_devices_idx = 0; hip_devices_idx < hip_devices_cnt; hip_devices_idx++)
+    {
+      const int backend_devices_idx = backend_ctx->backend_device_from_hip[hip_devices_idx];
+
+      const hc_device_param_t *device_param = backend_ctx->devices_param + backend_devices_idx;
+
+      int   device_id            = device_param->device_id;
+      char *device_name          = device_param->device_name;
+      u32   device_processors    = device_param->device_processors;
+      u64   device_global_mem    = device_param->device_global_mem;
+      u64   device_available_mem = device_param->device_available_mem;
+
+      if ((device_param->skipped == false) && (device_param->skipped_warning == false))
+      {
+        event_log_info (hashcat_ctx, "* Device #%u: %s, %" PRIu64 "/%" PRIu64 " MB, %uMCU",
+                  device_id + 1,
+                  device_name,
+                  device_available_mem / 1024 / 1024,
+                  device_global_mem    / 1024 / 1024,
+                  device_processors);
+      }
+      else
+      {
+        event_log_info (hashcat_ctx, "* Device #%u: %s, skipped",
+                  device_id + 1,
+                  device_name);
+      }
+    }
+
+    event_log_info (hashcat_ctx, NULL);
+  }
+
+  /**
+   * OpenCL
+   */
 
   if (backend_ctx->ocl)
   {
@@ -1173,7 +1423,8 @@ void status_display (hashcat_ctx_t *hashcat_ctx)
     hashcat_status->status_string);
 
   event_log_info (hashcat_ctx,
-    "Hash.Name........: %s",
+    "Hash.Mode........: %d (%s)",
+    hashconfig->hash_mode,
     hashcat_status->hash_name);
 
   event_log_info (hashcat_ctx,
@@ -1208,6 +1459,15 @@ void status_display (hashcat_ctx_t *hashcat_ctx)
     "Time.Estimated...: %s (%s)",
     hashcat_status->time_estimated_absolute,
     hashcat_status->time_estimated_relative);
+  }
+
+  if (hashconfig->opti_type & OPTI_TYPE_OPTIMIZED_KERNEL)
+  {
+    event_log_info (hashcat_ctx, "Kernel.Feature...: Optimized Kernel");
+  }
+  else
+  {
+    event_log_info (hashcat_ctx, "Kernel.Feature...: Pure Kernel");
   }
 
   switch (hashcat_status->guess_mode)
@@ -1706,6 +1966,16 @@ void status_display (hashcat_ctx_t *hashcat_ctx)
       device_info->iteration_pos_dev + device_info->iteration_left_dev);
   }
 
+  //if (hashconfig->opts_type & OPTS_TYPE_SLOW_CANDIDATES)
+  if (user_options->slow_candidates == true)
+  {
+    event_log_info (hashcat_ctx, "Candidate.Engine.: Host Generator + PCIe");
+  }
+  else
+  {
+    event_log_info (hashcat_ctx, "Candidate.Engine.: Device Generator");
+  }
+
   for (int device_id = 0; device_id < hashcat_status->device_info_cnt; device_id++)
   {
     const device_info_t *device_info = hashcat_status->device_info_buf + device_id;
@@ -1723,6 +1993,10 @@ void status_display (hashcat_ctx_t *hashcat_ctx)
 
   if (hwmon_ctx->enabled == true)
   {
+    #if defined(__APPLE__)
+    bool first_dev = true;
+    #endif
+
     for (int device_id = 0; device_id < hashcat_status->device_info_cnt; device_id++)
     {
       const device_info_t *device_info = hashcat_status->device_info_buf + device_id;
@@ -1732,6 +2006,14 @@ void status_display (hashcat_ctx_t *hashcat_ctx)
       if (device_info->skipped_warning_dev == true) continue;
 
       if (device_info->hwmon_dev == NULL) continue;
+
+      #if defined(__APPLE__)
+      if (first_dev && strlen (device_info->hwmon_fan_dev) > 0)
+      {
+        event_log_info (hashcat_ctx, "Hardware.Mon.SMC.: %s", device_info->hwmon_fan_dev);
+        first_dev = false;
+      }
+      #endif
 
       event_log_info (hashcat_ctx,
         "Hardware.Mon.#%d..: %s", device_id + 1,

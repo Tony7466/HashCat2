@@ -10,6 +10,8 @@
 #define IS_NATIVE
 #elif defined __CUDACC__
 #define IS_CUDA
+#elif defined __HIPCC__
+#define IS_HIP
 #else
 #define IS_OPENCL
 #endif
@@ -28,6 +30,13 @@
 #define LOCAL_VK    __shared__
 #define LOCAL_AS
 #define KERNEL_FQ   extern "C" __global__
+#elif defined IS_HIP
+#define CONSTANT_VK __constant__
+#define CONSTANT_AS
+#define GLOBAL_AS
+#define LOCAL_VK    __shared__
+#define LOCAL_AS
+#define KERNEL_FQ   extern "C" __global__
 #elif defined IS_OPENCL
 #define CONSTANT_VK __constant
 #define CONSTANT_AS __constant
@@ -35,10 +44,6 @@
 #define LOCAL_VK    __local
 #define LOCAL_AS    __local
 #define KERNEL_FQ   __kernel
-#endif
-
-#ifndef MAYBE_VOLATILE
-#define MAYBE_VOLATILE
 #endif
 
 #ifndef MAYBE_UNUSED
@@ -84,6 +89,8 @@
 #elif VENDOR_ID == (1 << 6)
 #define IS_POCL
 #define IS_GENERIC
+#elif VENDOR_ID == (1 << 8)
+#define IS_AMD_USE_HIP
 #else
 #define IS_GENERIC
 #endif
@@ -117,9 +124,14 @@
 
 #if defined IS_AMD && defined IS_GPU
 #define DECLSPEC inline static
+#elif defined IS_HIP
+#define DECLSPEC __device__
 #else
 #define DECLSPEC
 #endif
+
+#define INLINE0 __attribute__ ((noinline))
+#define INLINE1 __attribute__ ((inline))
 
 /**
  * AMD specific
@@ -138,6 +150,11 @@
 // This could create more stable kernels on systems with bad OpenCL drivers
 
 #ifdef IS_CUDA
+#define USE_BITSELECT
+#define USE_ROTATE
+#endif
+
+#ifdef IS_HIP
 #define USE_BITSELECT
 #define USE_ROTATE
 #endif

@@ -19,7 +19,7 @@
 #define KXX_DECL
 #endif
 
-#ifdef IS_AMD
+#if (defined IS_AMD || defined IS_HIP)
 #define KXX_DECL
 #endif
 
@@ -896,7 +896,7 @@ DECLSPEC void s8 (const u32 a1, const u32 a2, const u32 a3, const u32 a4, const 
 #endif
 #endif
 
-#if defined IS_AMD || defined IS_GENERIC
+#if (defined IS_AMD || defined IS_HIP) || defined IS_GENERIC
 
 /*
  * Bitslice DES S-boxes for x86 with MMX/SSE2/AVX and for typical RISC
@@ -1744,13 +1744,13 @@ KERNEL_FQ void m14000_tm (GLOBAL_AS u32 *mod, GLOBAL_AS bs_word_t *words_buf_b)
   #endif
   for (int i = 0, j = 0; i < 32; i += 8, j += 7)
   {
-    atomic_or (&words_buf_b[block].b[j + 0], (((w0 >> (i + 7)) & 1) << slice));
-    atomic_or (&words_buf_b[block].b[j + 1], (((w0 >> (i + 6)) & 1) << slice));
-    atomic_or (&words_buf_b[block].b[j + 2], (((w0 >> (i + 5)) & 1) << slice));
-    atomic_or (&words_buf_b[block].b[j + 3], (((w0 >> (i + 4)) & 1) << slice));
-    atomic_or (&words_buf_b[block].b[j + 4], (((w0 >> (i + 3)) & 1) << slice));
-    atomic_or (&words_buf_b[block].b[j + 5], (((w0 >> (i + 2)) & 1) << slice));
-    atomic_or (&words_buf_b[block].b[j + 6], (((w0 >> (i + 1)) & 1) << slice));
+    hc_atomic_or (&words_buf_b[block].b[j + 0], (((w0 >> (i + 7)) & 1) << slice));
+    hc_atomic_or (&words_buf_b[block].b[j + 1], (((w0 >> (i + 6)) & 1) << slice));
+    hc_atomic_or (&words_buf_b[block].b[j + 2], (((w0 >> (i + 5)) & 1) << slice));
+    hc_atomic_or (&words_buf_b[block].b[j + 3], (((w0 >> (i + 4)) & 1) << slice));
+    hc_atomic_or (&words_buf_b[block].b[j + 4], (((w0 >> (i + 3)) & 1) << slice));
+    hc_atomic_or (&words_buf_b[block].b[j + 5], (((w0 >> (i + 2)) & 1) << slice));
+    hc_atomic_or (&words_buf_b[block].b[j + 6], (((w0 >> (i + 1)) & 1) << slice));
   }
 }
 
@@ -1767,8 +1767,8 @@ KERNEL_FQ void m14000_mxx (KERN_ATTR_BITSLICE ())
    * salt
    */
 
-  const u32 salt0 = salt_bufs[salt_pos].salt_buf_pc[0];
-  const u32 salt1 = salt_bufs[salt_pos].salt_buf_pc[1];
+  const u32 salt0 = salt_bufs[SALT_POS].salt_buf_pc[0];
+  const u32 salt1 = salt_bufs[SALT_POS].salt_buf_pc[1];
 
   // salt1 first, because this is a 64 bit value actually
 
@@ -2124,7 +2124,7 @@ KERNEL_FQ void m14000_mxx (KERN_ATTR_BITSLICE ())
     {
       for (u32 d = 0; d < digests_cnt; d++)
       {
-        const u32 final_hash_pos = digests_offset + d;
+        const u32 final_hash_pos = DIGESTS_OFFSET + d;
 
         if (hashes_shown[final_hash_pos]) continue;
 
@@ -2209,8 +2209,8 @@ KERNEL_FQ void m14000_sxx (KERN_ATTR_BITSLICE ())
    * salt
    */
 
-  const u32 salt0 = salt_bufs[salt_pos].salt_buf_pc[0];
-  const u32 salt1 = salt_bufs[salt_pos].salt_buf_pc[1];
+  const u32 salt0 = salt_bufs[SALT_POS].salt_buf_pc[0];
+  const u32 salt1 = salt_bufs[SALT_POS].salt_buf_pc[1];
 
   // salt1 first, because this is a 64 bit value actually
 

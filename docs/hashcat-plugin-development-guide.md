@@ -383,6 +383,8 @@ This configuration item is a bitmask field. There are a few switches which you c
 * OPTI_TYPE_SLOW_HASH_SIMD_INIT: This flag tells the hashcat host binary to divide the number of work items with the size of the vector being used. The *_init kernel needs to be written using vector data types. Vector data types have a strong impact on CPU performance, since they will be translated from the OpenCL JiT into SSE2/AVX/AVX2/XOP instructions. Modern GPUs use scalar data types thus there is no benefit from using vector data types. This is not recommended for *_init kernels because it makes the kernel much more complicated while at the same time the _init kernel is called only once per password guess.
 * OPTI_TYPE_SLOW_HASH_SIMD_LOOP: see OPTI_TYPE_SLOW_HASH_SIMD_INIT but for *_loop kernels. If it is possible for your *_loop kernel to be written in vector data types, this is highly recommended. You will typically find this option being used if the _loop kernel does not do any data-dependent branching.
 * OPTI_TYPE_SLOW_HASH_SIMD_COMP: see OPTI_TYPE_SLOW_HASH_SIMD_INIT but for *_comp kernels.
+* OPTI_TYPE_SLOW_HASH_SIMD_INIT2: see OPTI_TYPE_SLOW_HASH_SIMD_INIT but for *_init2 kernels.
+* OPTI_TYPE_SLOW_HASH_SIMD_LOOP2: see OPTI_TYPE_SLOW_HASH_SIMD_LOOP but for *_loop2 kernels.
 * OPTI_TYPE_USES_BITS_8: This flag is passed to the JiT and helps optimize some of the GPU library functions at compile time. The configuration defines the bitsize of the underlying crypto primitive.
 * OPTI_TYPE_USES_BITS_16: see OPTI_TYPE_USES_BITS_8
 * OPTI_TYPE_USES_BITS_32: see OPTI_TYPE_USES_BITS_8. This is the default in case no OPTI_TYPE_USES_BITS_* flag is being used. Almost all traditional crypto primitives use 32 bits: MD4, MD5, SHA1, SHA256, RipeMD160, etc.
@@ -482,7 +484,10 @@ This configuration item is a bitmask field and is very similar to the module_opt
 * OPTS_TYPE_COPY_TMPS: This option tells the hashcat host binary to copy the `tmps` data structure from the compute device to the host in case a hash was cracked. In order to access this data, you need to implement and register the module function module_build_plain_postprocess(). There are several scenarios in which this can be useful. For instance, if you have a weak algorithm that could be exploited to leak portions of the password and you use this leaked data to speed up your attacks, you still need to know the leaked data on the host to copy it to the password buffer before printing it to the user. A good example for this is PKZIP `src/modules/module_20510.c` which leaks the first 6 bytes of the password. Another scenario is the PIM brute force in VeraCrypt. The PIM in this case can be seen as an additional numeric password. In case we crack it, the user needs to know both the password and the PIM in order to mount the volume.
 * OPTS_TYPE_POTFILE_NOPASS: This option simply prevents the hashcat host binary from adding a cracked hash to the potfile. For instance, if a specific hashing algorithm is implemented with several hash formats and therefore your plugins hash format shares the same format with a different plugin hash format (think of it like a format clash where the potfile parser could not really decide if it is the correct hash format to accept). A good example is the WPA PMK, which cannot be used to login to a specific WPA network directly. There could be other reasons for not printing the cracked hashes to the potfile.
 * OPTS_TYPE_DYNAMIC_SHARED: This is a very special option which tells the hashcat host binary to query the real available shared memory on a device for a particular kernel. In addition it will also register the queried amount of shared memory from the host. On NVIDIA, this allows us to use the full available shared memory (regions in the post 48k range), though we still need to prepare the kernel in order to make use of the dynamic allocated shared memory. A good example is the bcrypt kernel `OpenCL/m03200-pure.cl`.
-* OPTS_TYPE_SELF_TEST_DISABLE: This option can be used if you want to disable the self-test functionality for your hash-mode. Valid reasons to disable this feature are: Your OpenCL kernel is using compile time optimizations such as fixed salts (like in DESCrypt), the hash primitive to be used has to be derived first from the target hash (like in JWT) or the hash-mode is so slow that it hurts startup time of hashcat (like in 	Ethereum Wallet SCRYPT). For the first two cases the problem is that hashcat would create a cached optimized OpenCL kernel with a configuration which is valid only for the self-test hash, but very likely the wrong ones for the real target hash. The real target hash would never crack.
+* OPTS_TYPE_SELF_TEST_DISABLE: This option can be used if you want to disable the self-test functionality for your hash-mode. Valid reasons to disable this feature are: Your OpenCL kernel is using compile time optimizations such as fixed salts (like in DESCrypt), the hash primitive to be used has to be derived first from the target hash (like in JWT) or the hash-mode is so slow that it hurts startup time of hashcat (like in Ethereum Wallet SCRYPT). For the first two cases the problem is that hashcat would create a cached optimized OpenCL kernel with a configuration which is valid only for the self-test hash, but very likely the wrong ones for the real target hash. The real target hash would never crack.
+* OPTS_TYPE_MP_MULTI_DISABLE: Do not multiply the kernel-accel with the multiprocessor count per device to allow more fine-tuned workload settings.
+* OPTS_TYPE_NATIVE_THREADS: Forces "native" thread count: CPU=1, GPU-Intel=8, GPU-AMD=64 (wavefront), GPU-NV=32 (warps). Does not override user-defined -u value.
+* OPTS_TYPE_POST_AMP_UTF16LE: Run the true UTF8 to UTF16LE conversion kernel after they have been processed from amplifiers. Works only for slow-hash kernels.
 
 ### module_salt_type() ###
 
@@ -504,6 +509,16 @@ The --example-hashes command line argument together with a specific hash mode (-
 ### module_st_pass() ###
 
 This is the password to crack the hash given in module_st_hash() for the self-test functionality.
+
+### module_hook_extra_param_init() and module_hook_extra_param_term() ###
+
+These two functions were added to hashcat beginning with version 6.2.0 when it was required for a module to use a 3rd party library from inside a hook function. However, the module developer is free to decide how to use this buffer (it doesn't have to be a library handle). Generally, it is a buffer that the module developer would use for something that they need to initialize and terminate only once on startup and shutdown for performance reasons.
+
+It is unclear to hashcat if this buffer will be handled in a thread-safe fashion or not, but since hooks are multi-threaded, hashcat will allocate multiple buffers (as many as there are hook threads) of this type for the module developer. This enables the module developer to load 3rd party libraries where they have no control over and which are known to not be thread-safe.
+
+The module developer does not have to care about managing the multiple instances but has to provide the size of the buffer to be allocated. For this, they have to use the module_hook_extra_param_size() function. The buffer in *hook_extra_param is zeroed and ready to be written when module_hook_extra_param_init() is called. On startup, hashcat will call module_hook_extra_param_init() that many times as there are hook threads each time providing the module function with a new buffer. The same logic applies to module_hook_extra_param_term() on shutdown. Hashcat will also free the memory on shutdown.
+
+A good example for this is: `src/modules/module_11600.c` and `src/modules/module_23800.c`
 
 ## Kernel ##
 
@@ -537,14 +552,22 @@ Additionally there is a couple of command line parameters that you want to use:
 Typically a developer command line for hashcat looks the following:
 
 ```
-$ rm -rf kernels $HOME/.nv; ./hashcat -m XXXXX hash.txt word.txt --potfile-disable --self-test-disable -n 1 -u 1 -T 1 --quiet --backend-vector-width 1 -d 1
+$ rm -rf kernels $HOME/.nv; ./hashcat -m XXXXX hash.txt word.txt --potfile-disable --self-test-disable -n 1 -u 1 -T 1 --quiet --backend-vector-width 1 -d 1 --force
 ```
 
-If you need to printf from without a _loop kernel, keep in mind that you need to add a branching manually for a specific loop position.
+When adding print statements keep in mind that you need to manually add a conditional to branch on a specific loop position, otherwise every parallel execution of the kernel will execute the printf(), flooding your terminal. So you can use either:
 
 ```
 if ((loop_pos + i) == 0) printf ("%08x\n", a);
 ```
+
+from a _loop kernel, or
+
+```
+if ((gid == 0) && (lid == 0)) printf ("%08x\n", a);
+```
+
+from a kernel without _loop.
 
 Some last recommendations about printf() itself. Printing a string %s is not recommended. Missing zero bytes or big endian byte order can be very confusing. Instead try to use only the %08x template for everything. Especially for strings this makes a lot of sense, if for example you want to find unexpected non zero bytes. This can be done by calling printf() multiple times. Get used to this and it will simplify a lot of things for you.
 
@@ -633,6 +656,8 @@ Each fast hash kernel source in optimized mode has to provide the following kern
 
 As always, the XXXXX is the hash mode with leading zeros. The `m` or `s` defines the multi-hash and single-hash implementation. In single hashes, often we can store the target hash on the register which makes the final test much faster compared to checking it on GPU memory. The `m` and `s` therefore often look almost the same. The only difference is that in the `s` kernel at some point you will store the target hash in a register. The final comparison function macro for `m` is COMPARE_M_SIMD() and for `s` is COMPARE_S_SIMD().
 For single-hash this will add code to do on-register comparison. For multi-hash this will add the code to run the bloom filter and a binary tree search. For both cases, the macros expect you to provide 4 times 32 bit values in the same order as you have configured in the module functions module_dgst_pos0() - module_dgst_pos3(). Note that it always has to be 4 times 32 bit values, also for hashes which provide much more or much less bits output size. See the sections about `module_dgst_pos0()` - `module_dgst_pos3()` for details.
+
+The `[04|08|16]` from the function name denotes the maximum password candidate length in 4-byte words. The `04` function limits the candidates to 16 bytes, `08` limits to 32 bytes, and `16` to 64 bytes. Only the brute-force `a3` set of kernels need to implement all of the `04`, `08`, and `16` length variants. The `a0` and `a1` sets of kernels should only implement the `04` function and create the `08` and `16` variants as empty stubs. The candidate generation for the fast `a0` and `a1` kernels are proportionally slow enough that the length optimizations of the `08` and `16` variants simply don't provide significant benefit over the "pure" variant.
 
 There are some kernels where using vector data types are beneficial even if they are executed on compute devices which have no native support for vector data types. A good example is NTLM running on a high end GPU. The performance gain comes from how the algorithm works and that there is in total 60 instructions that can be precomputed based only on the scalar base password. The base password never changes. The vectorization is done only in the inner loop, but from there it can access the precomputed (scalar) values from the outer loop. It saves both, instructions and resources. This is done automatically by the compiler because the structure of hashcat kernels allows the compiler to optimize it.
 

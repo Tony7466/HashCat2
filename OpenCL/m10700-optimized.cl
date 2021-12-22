@@ -17,6 +17,14 @@
 #define COMPARE_S "inc_comp_single.cl"
 #define COMPARE_M "inc_comp_multi.cl"
 
+#if defined IS_AMD && defined IS_GPU
+#define INLINE
+#elif defined IS_HIP
+#define INLINE INLINE0
+#else
+#define INLINE
+#endif
+
 typedef struct pdf
 {
   int  V;
@@ -211,7 +219,7 @@ DECLSPEC void orig_sha512_transform (const u64 *w0, const u64 *w1, const u64 *w2
 #define WORDMAXSZ4  (WORDMAXSZ  / 4)
 #define AESSZ4      (AESSZ      / 4)
 
-DECLSPEC void make_sc (u32 *sc, const u32 *pw, const u32 pw_len, const u32 *bl, const u32 bl_len)
+DECLSPEC void make_sc (LOCAL_AS u32 *sc, const u32 *pw, const u32 pw_len, const u32 *bl, const u32 bl_len)
 {
   const u32 bd = bl_len / 4;
 
@@ -232,7 +240,7 @@ DECLSPEC void make_sc (u32 *sc, const u32 *pw, const u32 pw_len, const u32 *bl, 
 
     u32 i;
 
-    #if defined IS_AMD || defined IS_GENERIC
+    #if ((defined IS_AMD || defined IS_HIP) && HAS_VPERM == 0) || defined IS_GENERIC
     for (i = 0; i < pd; i++) sc[idx++] = pw[i];
                              sc[idx++] = pw[i]
                                        | hc_bytealign_be (bl[0],         0, pm4);
@@ -242,8 +250,15 @@ DECLSPEC void make_sc (u32 *sc, const u32 *pw, const u32 pw_len, const u32 *bl, 
                              sc[idx++] = hc_bytealign_be (    0, sc[i - 1], pm4);
     #endif
 
-    #ifdef IS_NV
-    int selector = (0x76543210 >> (pm4 * 4)) & 0xffff;
+    #if ((defined IS_AMD || defined IS_HIP) && HAS_VPERM == 1) || defined IS_NV
+
+    #if defined IS_NV
+    const int selector = (0x76543210 >> ((pm4 & 3) * 4)) & 0xffff;
+    #endif
+
+    #if (defined IS_AMD || defined IS_HIP)
+    const int selector = l32_from_64_S (0x0706050403020100UL >> ((pm4 & 3) * 8));
+    #endif
 
     for (i = 0; i < pd; i++) sc[idx++] = pw[i];
                              sc[idx++] = pw[i]
@@ -256,23 +271,29 @@ DECLSPEC void make_sc (u32 *sc, const u32 *pw, const u32 pw_len, const u32 *bl, 
   }
 }
 
-DECLSPEC void make_pt_with_offset (u32 *pt, const u32 offset, const u32 *sc, const u32 pwbl_len)
+DECLSPEC void make_pt_with_offset (u32 *pt, const u32 offset, LOCAL_AS const u32 *sc, const u32 pwbl_len)
 {
   const u32 m = offset % pwbl_len;
 
   const u32 om = m % 4;
   const u32 od = m / 4;
 
-  #if defined IS_AMD || defined IS_GENERIC
+  #if ((defined IS_AMD || defined IS_HIP) && HAS_VPERM == 0) || defined IS_GENERIC
   pt[0] = hc_bytealign_be (sc[od + 1], sc[od + 0], om);
   pt[1] = hc_bytealign_be (sc[od + 2], sc[od + 1], om);
   pt[2] = hc_bytealign_be (sc[od + 3], sc[od + 2], om);
   pt[3] = hc_bytealign_be (sc[od + 4], sc[od + 3], om);
   #endif
 
-  #ifdef IS_NV
-  int selector = (0x76543210 >> (om * 4)) & 0xffff;
+  #if ((defined IS_AMD || defined IS_HIP) && HAS_VPERM == 1) || defined IS_NV
 
+  #if defined IS_NV
+  const int selector = (0x76543210 >> ((om & 3) * 4)) & 0xffff;
+  #endif
+
+  #if (defined IS_AMD || defined IS_HIP)
+  const int selector = l32_from_64_S (0x0706050403020100UL >> ((om & 3) * 8));
+  #endif
   pt[0] = hc_byte_perm (sc[od + 0], sc[od + 1], selector);
   pt[1] = hc_byte_perm (sc[od + 1], sc[od + 2], selector);
   pt[2] = hc_byte_perm (sc[od + 2], sc[od + 3], selector);
@@ -280,7 +301,7 @@ DECLSPEC void make_pt_with_offset (u32 *pt, const u32 offset, const u32 *sc, con
   #endif
 }
 
-DECLSPEC void make_w_with_offset (ctx_t *ctx, const u32 W_len, const u32 offset, const u32 *sc, const u32 pwbl_len, u32 *iv, const u32 *ks, SHM_TYPE u32 *s_te0, SHM_TYPE u32 *s_te1, SHM_TYPE u32 *s_te2, SHM_TYPE u32 *s_te3, SHM_TYPE u32 *s_te4)
+DECLSPEC void make_w_with_offset (ctx_t *ctx, const u32 W_len, const u32 offset, LOCAL_AS const u32 *sc, const u32 pwbl_len, u32 *iv, const u32 *ks, SHM_TYPE u32 *s_te0, SHM_TYPE u32 *s_te1, SHM_TYPE u32 *s_te2, SHM_TYPE u32 *s_te3, SHM_TYPE u32 *s_te4)
 {
   for (u32 k = 0, wk = 0; k < W_len; k += AESSZ, wk += AESSZ4)
   {
@@ -302,11 +323,9 @@ DECLSPEC void make_w_with_offset (ctx_t *ctx, const u32 W_len, const u32 offset,
   }
 }
 
-DECLSPEC u32 do_round (const u32 *pw, const u32 pw_len, ctx_t *ctx, SHM_TYPE u32 *s_te0, SHM_TYPE u32 *s_te1, SHM_TYPE u32 *s_te2, SHM_TYPE u32 *s_te3, SHM_TYPE u32 *s_te4)
+DECLSPEC INLINE u32 do_round (LOCAL_AS u32 *sc, const u32 *pw, const u32 pw_len, ctx_t *ctx, SHM_TYPE u32 *s_te0, SHM_TYPE u32 *s_te1, SHM_TYPE u32 *s_te2, SHM_TYPE u32 *s_te3, SHM_TYPE u32 *s_te4)
 {
   // make scratch buffer
-
-  u32 sc[PWMAXSZ4 + BLMAXSZ4 + AESSZ4];
 
   make_sc (sc, pw, pw_len, ctx->dgst32, ctx->dgst_len);
 
@@ -566,7 +585,7 @@ KERNEL_FQ void m10700_init (KERN_ATTR_TMPS_ESALT (pdf17l8_tmp_t, pdf_t))
 
   sha256_update_global_swap (&ctx, pws[gid].i, pws[gid].pw_len);
 
-  sha256_update_global_swap (&ctx, salt_bufs[salt_pos].salt_buf, salt_bufs[salt_pos].salt_len);
+  sha256_update_global_swap (&ctx, salt_bufs[SALT_POS].salt_buf, salt_bufs[SALT_POS].salt_len);
 
   sha256_final (&ctx);
 
@@ -655,18 +674,20 @@ KERNEL_FQ void m10700_loop (KERN_ATTR_TMPS_ESALT (pdf17l8_tmp_t, pdf_t))
   ctx.dgst_len  = tmps[gid].dgst_len;
   ctx.W_len     = tmps[gid].W_len;
 
+  LOCAL_VK u32 s_sc[256][PWMAXSZ4 + BLMAXSZ4 + AESSZ4];
+
   u32 ex = 0;
 
   for (u32 i = 0, j = loop_pos; i < loop_cnt; i++, j++)
   {
-    ex = do_round (w0, pw_len, &ctx, s_te0, s_te1, s_te2, s_te3, s_te4);
+    ex = do_round (s_sc[lid], w0, pw_len, &ctx, s_te0, s_te1, s_te2, s_te3, s_te4);
   }
 
   if ((loop_pos + loop_cnt) == 64)
   {
     for (u32 i = 64; i < (ex & 0xff) + 32; i++)
     {
-      ex = do_round (w0, pw_len, &ctx, s_te0, s_te1, s_te2, s_te3, s_te4);
+      ex = do_round (s_sc[lid], w0, pw_len, &ctx, s_te0, s_te1, s_te2, s_te3, s_te4);
     }
   }
 

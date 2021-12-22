@@ -10,11 +10,11 @@ dpkg-buildflags.
  1 file changed, 7 deletions(-)
 
 diff --git a/src/Makefile b/src/Makefile
-index a2e2b6f..3e97ae9 100644
+index 569d054..44ce20d 100644
 --- a/src/Makefile
 +++ b/src/Makefile
-@@ -188,12 +188,6 @@ CFLAGS_ZLIB             += -Wno-unused-parameter
- CFLAGS_ZLIB             += -DIOAPI_NO_64
+@@ -230,12 +230,6 @@ CFLAGS_UNRAR            += -Wno-unknown-pragmas
+ endif
  endif
  
 -ifeq ($(DEBUG),0)
@@ -26,11 +26,11 @@ index a2e2b6f..3e97ae9 100644
  ifeq ($(DEBUG),1)
  ifneq ($(UNAME),Darwin)
  CFLAGS                  += -DDEBUG -Og -ggdb
-@@ -210,7 +204,6 @@ endif
+@@ -252,7 +246,6 @@ endif
  CFLAGS                  += -fsanitize=address -fno-omit-frame-pointer
  endif
  endif
 -endif
  
- CFLAGS                  += -pipe -std=gnu99 -Iinclude/ -IOpenCL/
+ CFLAGS                  += -pipe -Iinclude/ -IOpenCL/
  

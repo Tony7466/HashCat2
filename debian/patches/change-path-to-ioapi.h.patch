@@ -11,10 +11,10 @@ the include accordingly.
  1 file changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/include/ext_lzma.h b/include/ext_lzma.h
-index a346a8e..e8d0630 100644
+index 194067b..ab0ca60 100644
 --- a/include/ext_lzma.h
 +++ b/include/ext_lzma.h
-@@ -8,8 +8,8 @@
+@@ -9,8 +9,8 @@
  #include <LzmaDec.h>
  #include <Lzma2Dec.h>
  

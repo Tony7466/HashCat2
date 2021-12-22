@@ -42,13 +42,20 @@ DECLSPEC void memcat8c_be (u32 *w0, u32 *w1, u32 *w2, u32 *w3, const u32 len, co
   u32 tmp0;
   u32 tmp1;
 
-  #if defined IS_AMD || defined IS_GENERIC
+  #if ((defined IS_AMD || defined IS_HIP) && HAS_VPERM == 0) || defined IS_GENERIC
   tmp0 = hc_bytealign_be (0, append, func_len);
   tmp1 = hc_bytealign_be (append, 0, func_len);
   #endif
 
-  #ifdef IS_NV
+  #if ((defined IS_AMD || defined IS_HIP) && HAS_VPERM == 1) || defined IS_NV
+
+  #if defined IS_NV
   const int selector = (0x76543210 >> ((func_len & 3) * 4)) & 0xffff;
+  #endif
+
+  #if (defined IS_AMD || defined IS_HIP)
+  const int selector = l32_from_64_S (0x0706050403020100UL >> ((func_len & 3) * 8));
+  #endif
 
   tmp0 = hc_byte_perm (append, 0, selector);
   tmp1 = hc_byte_perm (0, append, selector);
@@ -346,9 +353,9 @@ KERNEL_FQ void m11600_comp (KERN_ATTR_TMPS_HOOKS (seven_zip_tmp_t, seven_zip_hoo
 
   if (hooks[gid].hook_success == 1)
   {
-    if (atomic_inc (&hashes_shown[digests_offset]) == 0)
+    if (hc_atomic_inc (&hashes_shown[DIGESTS_OFFSET]) == 0)
     {
-      mark_hash (plains_buf, d_return_buf, salt_pos, digests_cnt, 0, digests_offset + 0, gid, 0, 0, 0);
+      mark_hash (plains_buf, d_return_buf, SALT_POS, digests_cnt, 0, DIGESTS_OFFSET + 0, gid, 0, 0, 0);
     }
 
     return;

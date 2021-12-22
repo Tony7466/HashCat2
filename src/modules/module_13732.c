@@ -27,7 +27,9 @@ static const u32   OPTI_TYPE      = OPTI_TYPE_ZERO_BYTE
 static const u64   OPTS_TYPE      = OPTS_TYPE_PT_GENERATE_LE
                                   | OPTS_TYPE_BINARY_HASHFILE
                                   | OPTS_TYPE_LOOP_EXTENDED
-                                  | OPTS_TYPE_COPY_TMPS;
+                                  | OPTS_TYPE_MP_MULTI_DISABLE
+                                  | OPTS_TYPE_COPY_TMPS
+                                  | OPTS_TYPE_MAXIMUM_THREADS;
 static const u32   SALT_TYPE      = SALT_TYPE_EMBEDDED;
 static const char *ST_PASS        = "hashcat";
 static const char *ST_HASH        = "1b721942019ebe8cedddbed7744a0702c0e053281a467e0ed69bf875c7406407d72eb8f2aea21270e41898c0a2c14382f86e04c15e7bc019d1d9dd813eabee0ae5173e3cb1d927859d3e6de1006335a5184ae12b4c8dc2db2b1cd785063152a776f4dc5cacc1856a919b880d704b7450f5a0e0c9521bc9b4d67213c36a50e6664a1cbcea33f997b858e654111c7e9fca74f361528e85a28880381ec2600e3c1cd508c3833dd21cc91978185cba53caefd7b3c82d219d49f0b41e536d32e8d3ce194ad7923ca742213e19dcebdbd9687979d5a594654a5c611e8b829c4019e90a3cfb14e5fd7f8ed91e0fc79eed182399f02a3e3e202d4becaa6730e1f05f99ce06ce16dba7777ccddac72e85f2d3be5ecc9c808ac273f10ceb71cad666166abc327c4061a5f47424a5b6d9d093782f34b49924342a2e8cea663446ed4232a9a415ee2dfde988fa827b06d7438fec20ad0689543c3ee4602ce3ec3806fc7d668ef7e34330edd1e077b329a7627fa3ae5c89308258a17ecefbee114c80c2ab06f8271f14de8f2d13d1d6e5a119b71a6bae88ab151f76cdb2442284bc481d0df7e2163c3acfe763d3968195450d275af9034a00184a30cefed163e636626bffe6a35df3472508a49cb2b9b4c4a95d11c5d17e4e0539e9f13112125515778bcd1c2813c62a02673663062ad60583ec6a02c8a572865829e5b8c767b285728bea4907";
@@ -65,7 +67,9 @@ typedef struct vc
 {
   u32 salt_buf[32];
   u32 data_buf[112];
-  u32 keyfile_buf[16];
+  u32 keyfile_buf16[16];
+  u32 keyfile_buf32[32];
+  u32 keyfile_enabled;
   u32 signature;
 
   keyboard_layout_mapping_t keyboard_layout_mapping_buf[256];
@@ -134,7 +138,7 @@ u32 module_pw_max (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED con
   // this overrides the reductions of PW_MAX in case optimized kernel is selected
   // IOW, even in optimized kernel mode it support length 64
 
-  const u32 pw_max = 64;
+  const u32 pw_max = 128;
 
   return pw_max;
 }
@@ -203,13 +207,16 @@ int module_hash_binary_parse (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE
     {
       if (hc_path_read (keyfile))
       {
-        cpu_crc32 (keyfile, (u8 *) vc->keyfile_buf);
+        cpu_crc32 (keyfile, (u8 *) vc->keyfile_buf16,  64);
+        cpu_crc32 (keyfile, (u8 *) vc->keyfile_buf32, 128);
       }
 
       keyfile = strtok_r ((char *) NULL, ",", &saveptr);
     }
 
     hcfree (keyfiles);
+
+    vc->keyfile_enabled = 1;
   }
 
   // keyboard layout mapping
@@ -282,6 +289,7 @@ void module_init (module_ctx_t *module_ctx)
   module_ctx->module_benchmark_salt           = MODULE_DEFAULT;
   module_ctx->module_build_plain_postprocess  = module_build_plain_postprocess;
   module_ctx->module_deep_comp_kernel         = MODULE_DEFAULT;
+  module_ctx->module_deprecated_notice        = MODULE_DEFAULT;
   module_ctx->module_dgst_pos0                = module_dgst_pos0;
   module_ctx->module_dgst_pos1                = module_dgst_pos1;
   module_ctx->module_dgst_pos2                = module_dgst_pos2;
@@ -291,6 +299,7 @@ void module_init (module_ctx_t *module_ctx)
   module_ctx->module_esalt_size               = module_esalt_size;
   module_ctx->module_extra_buffer_size        = MODULE_DEFAULT;
   module_ctx->module_extra_tmp_size           = MODULE_DEFAULT;
+  module_ctx->module_extra_tuningdb_block     = MODULE_DEFAULT;
   module_ctx->module_forced_outfile_format    = MODULE_DEFAULT;
   module_ctx->module_hash_binary_count        = MODULE_DEFAULT;
   module_ctx->module_hash_binary_parse        = module_hash_binary_parse;
@@ -308,6 +317,9 @@ void module_init (module_ctx_t *module_ctx)
   module_ctx->module_hashes_count_min         = MODULE_DEFAULT;
   module_ctx->module_hashes_count_max         = MODULE_DEFAULT;
   module_ctx->module_hlfmt_disable            = MODULE_DEFAULT;
+  module_ctx->module_hook_extra_param_size    = MODULE_DEFAULT;
+  module_ctx->module_hook_extra_param_init    = MODULE_DEFAULT;
+  module_ctx->module_hook_extra_param_term    = MODULE_DEFAULT;
   module_ctx->module_hook12                   = MODULE_DEFAULT;
   module_ctx->module_hook23                   = MODULE_DEFAULT;
   module_ctx->module_hook_salt_size           = MODULE_DEFAULT;

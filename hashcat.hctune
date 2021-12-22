@@ -73,9 +73,6 @@ Quadro_K6000                                    ALIAS_nv_real_simd
 Quadro_K600                                     ALIAS_nv_real_simd
 Quadro_Plex_7000                                ALIAS_nv_real_simd
 
-NVIDIA_NVS_310                                  ALIAS_nv_real_simd
-NVIDIA_NVS_315                                  ALIAS_nv_real_simd
-NVIDIA_NVS_510                                  ALIAS_nv_real_simd
 NVS_310                                         ALIAS_nv_real_simd
 NVS_315                                         ALIAS_nv_real_simd
 NVS_4200M                                       ALIAS_nv_real_simd
@@ -197,7 +194,7 @@ Quadro_M500M                                    ALIAS_nv_sm50_or_higher
 Quadro_M5500M                                   ALIAS_nv_sm50_or_higher
 Quadro_M600M                                    ALIAS_nv_sm50_or_higher
 
-NVIDIA_NVS_810                                  ALIAS_nv_sm50_or_higher
+NVS_810                                         ALIAS_nv_sm50_or_higher
 
 GeForce_GTX_750                                 ALIAS_nv_sm50_or_higher
 GeForce_GTX_750_Ti                              ALIAS_nv_sm50_or_higher
@@ -228,7 +225,7 @@ TITAN_Xp                                        ALIAS_nv_sm50_or_higher
 TITAN_V                                         ALIAS_nv_sm50_or_higher
 TITAN_RTX                                       ALIAS_nv_sm50_or_higher
 
-NVIDIA_Tegra_X1                                 ALIAS_nv_sm50_or_higher
+Tegra_X1                                        ALIAS_nv_sm50_or_higher
 
 GeForce_910M                                    ALIAS_nv_sm50_or_higher
 GeForce_920M                                    ALIAS_nv_sm50_or_higher
@@ -264,9 +261,39 @@ GeForce_MX130                                   ALIAS_nv_sm50_or_higher
 GeForce_MX150                                   ALIAS_nv_sm50_or_higher
 
 GeForce_RTX_2060                                ALIAS_nv_sm50_or_higher
+GeForce_RTX_2060_SUPER                          ALIAS_nv_sm50_or_higher
 GeForce_RTX_2070                                ALIAS_nv_sm50_or_higher
+GeForce_RTX_2070_SUPER                          ALIAS_nv_sm50_or_higher
 GeForce_RTX_2080                                ALIAS_nv_sm50_or_higher
+GeForce_RTX_2080_SUPER                          ALIAS_nv_sm50_or_higher
 GeForce_RTX_2080_Ti                             ALIAS_nv_sm50_or_higher
+
+GeForce_RTX_3060                                ALIAS_nv_sm50_or_higher
+GeForce_RTX_3060_Ti                             ALIAS_nv_sm50_or_higher
+GeForce_RTX_3070                                ALIAS_nv_sm50_or_higher
+GeForce_RTX_3070_Ti                             ALIAS_nv_sm50_or_higher
+GeForce_RTX_3080                                ALIAS_nv_sm50_or_higher
+GeForce_RTX_3090                                ALIAS_nv_sm50_or_higher
+
+##
+## Unmapped GPU
+##
+
+Radeon_(TM)_RX_480_Graphics                     ALIAS_AMD_RX480
+
+gfx900                                          ALIAS_AMD_Vega64
+gfx900:xnack-                                   ALIAS_AMD_Vega64
+Vega_10_XL/XT_[Radeon_RX_Vega_56/64]            ALIAS_AMD_Vega64
+Radeon_Vega_64                                  ALIAS_AMD_Vega64
+Radeon_RX_Vega                                  ALIAS_AMD_Vega64
+
+Device_738c                                     ALIAS_AMD_MI100
+gfx908                                          ALIAS_AMD_MI100
+gfx908:sramecc+:xnack-                          ALIAS_AMD_MI100
+
+Device_73bf                                     ALIAS_AMD_RX6900XT
+gfx1030                                         ALIAS_AMD_RX6900XT
+Radeon_RX_6900_XT                               ALIAS_AMD_RX6900XT
 
 #############
 ## ENTRIES ##
@@ -359,11 +386,22 @@ GeForce_GTX_TITAN                               3       2410    2       A       
 GeForce_GTX_TITAN                               3       5500    1       A       A
 GeForce_GTX_TITAN                               3       9900    2       A       A
 
-###########
-## SCRYPT #
-###########
+##
+## BCRYPT
+##
 
-DEVICE_TYPE_CPU                                 *       15700   1       1       1
-DEVICE_TYPE_GPU                                 *       15700   1       1       1
-DEVICE_TYPE_CPU                                 *       22700   1       1       1
-DEVICE_TYPE_GPU                                 *       22700   1       1       1
+DEVICE_TYPE_CPU                                 *       3200    1       N       A
+DEVICE_TYPE_CPU                                 *      25600    1       N       A
+DEVICE_TYPE_CPU                                 *      25800    1       N       A
+
+##
+## SCRYPT: Tunings for SCRYPT based hash-modes can be found inside the plugin source
+##         See function module_extra_tuningdb_block()
+##
+
+##
+## CryptoAPI
+##
+
+DEVICE_TYPE_CPU                                 *       14500   1       A       A
+DEVICE_TYPE_GPU                                 *       14500   1       A       A

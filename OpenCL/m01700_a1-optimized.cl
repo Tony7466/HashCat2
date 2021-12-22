@@ -84,7 +84,7 @@ DECLSPEC void sha512_transform_intern (const u32x *w0, const u32x *w1, const u32
 
   ROUND_STEP (0);
 
-  #ifdef IS_CUDA
+  #if defined IS_CUDA
   ROUND_EXPAND (); ROUND_STEP (16);
   ROUND_EXPAND (); ROUND_STEP (32);
   ROUND_EXPAND (); ROUND_STEP (48);
@@ -315,10 +315,10 @@ KERNEL_FQ void m01700_s04 (KERN_ATTR_BASIC ())
 
   const u32 search[4] =
   {
-    digests_buf[digests_offset].digest_buf[DGST_R0],
-    digests_buf[digests_offset].digest_buf[DGST_R1],
-    digests_buf[digests_offset].digest_buf[DGST_R2],
-    digests_buf[digests_offset].digest_buf[DGST_R3]
+    digests_buf[DIGESTS_OFFSET].digest_buf[DGST_R0],
+    digests_buf[DIGESTS_OFFSET].digest_buf[DGST_R1],
+    digests_buf[DIGESTS_OFFSET].digest_buf[DGST_R2],
+    digests_buf[DIGESTS_OFFSET].digest_buf[DGST_R3]
   };
 
   /**

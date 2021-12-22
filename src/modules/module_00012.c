@@ -147,6 +147,7 @@ void module_init (module_ctx_t *module_ctx)
   module_ctx->module_benchmark_salt           = MODULE_DEFAULT;
   module_ctx->module_build_plain_postprocess  = MODULE_DEFAULT;
   module_ctx->module_deep_comp_kernel         = MODULE_DEFAULT;
+  module_ctx->module_deprecated_notice        = MODULE_DEFAULT;
   module_ctx->module_dgst_pos0                = module_dgst_pos0;
   module_ctx->module_dgst_pos1                = module_dgst_pos1;
   module_ctx->module_dgst_pos2                = module_dgst_pos2;
@@ -156,6 +157,7 @@ void module_init (module_ctx_t *module_ctx)
   module_ctx->module_esalt_size               = MODULE_DEFAULT;
   module_ctx->module_extra_buffer_size        = MODULE_DEFAULT;
   module_ctx->module_extra_tmp_size           = MODULE_DEFAULT;
+  module_ctx->module_extra_tuningdb_block     = MODULE_DEFAULT;
   module_ctx->module_forced_outfile_format    = MODULE_DEFAULT;
   module_ctx->module_hash_binary_count        = MODULE_DEFAULT;
   module_ctx->module_hash_binary_parse        = MODULE_DEFAULT;
@@ -173,6 +175,9 @@ void module_init (module_ctx_t *module_ctx)
   module_ctx->module_hashes_count_min         = MODULE_DEFAULT;
   module_ctx->module_hashes_count_max         = MODULE_DEFAULT;
   module_ctx->module_hlfmt_disable            = MODULE_DEFAULT;
+  module_ctx->module_hook_extra_param_size    = MODULE_DEFAULT;
+  module_ctx->module_hook_extra_param_init    = MODULE_DEFAULT;
+  module_ctx->module_hook_extra_param_term    = MODULE_DEFAULT;
   module_ctx->module_hook12                   = MODULE_DEFAULT;
   module_ctx->module_hook23                   = MODULE_DEFAULT;
   module_ctx->module_hook_salt_size           = MODULE_DEFAULT;

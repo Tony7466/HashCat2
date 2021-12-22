@@ -28,7 +28,9 @@ static const u32   OPTI_TYPE      = OPTI_TYPE_ZERO_BYTE
 static const u64   OPTS_TYPE      = OPTS_TYPE_PT_GENERATE_LE
                                   | OPTS_TYPE_BINARY_HASHFILE
                                   | OPTS_TYPE_LOOP_EXTENDED
-                                  | OPTS_TYPE_COPY_TMPS;
+                                  | OPTS_TYPE_MP_MULTI_DISABLE
+                                  | OPTS_TYPE_COPY_TMPS
+                                  | OPTS_TYPE_MAXIMUM_THREADS;
 static const u32   SALT_TYPE      = SALT_TYPE_EMBEDDED;
 static const char *ST_PASS        = "hashcat";
 static const char *ST_HASH        = "0f5da0b17c60edcd392058752ec29c389b140b54cd1f94de43dccea703b1fd37936e75a500b7f9d4e94e7f214c4696c051be9697792a856ebf9c0f5a598cf8ba5621e49c7505eba3b4738acdc860b6ed648f52e5b673ae06bb04616de438a090ab19abea11c30984ead06859de9b7aec8e436c40816f67a56cb53d5f125e58c42225315a4bf494da8128f0df924bcf6ad4b91c9efc5cb0be67cb0cd753c392388d780f57aba39197513a191cc684e9ebee41bc901dd99e9a625141cf98e55e8f74d838baea3bf8f411b85c14eff8cddd1720c2539eef7a38a72c4ed9745a05476b6a16bcda2a5391c94b6f499e3bea64ff412d03d060741e938ed3dc905d8bd6dbb2420e9277251ebe3421be389ea8b02782baeb258b9ec7e0732b3817ee6da58209871aee4e16d57a132c6215782364570238157d8a7fdcd29f54ab2295f68d027dc9f2e0c951afad7500cafe3219e6530699918ac55f4fa1141bc3596155b05bae2fdc8b0a5438edeb5bb0cfac592565b20645be90b406a1fd59846957e7539fd8423bfd4c7ae7d608aacb084ae887baa1a83b14afff8d2063565086c66e293234a8667af39642b90a38c3a5bd4fa8a787c60f73882535c9b34cb7b243465dcc32aff29cee0e741ff059c6acd8ddcbdb3cfafecdcd0f45c84dd871be4fbffd5ac2ab9e01898009adcf7d932c37d6568ad875e4d6ea15db29a1e8ba5a4e86bd";
@@ -69,7 +71,9 @@ typedef struct vc
 {
   u32 salt_buf[32];
   u32 data_buf[112];
-  u32 keyfile_buf[16];
+  u32 keyfile_buf16[16];
+  u32 keyfile_buf32[32];
+  u32 keyfile_enabled;
   u32 signature;
 
   keyboard_layout_mapping_t keyboard_layout_mapping_buf[256];
@@ -86,6 +90,12 @@ static const float MIN_SUFFICIENT_ENTROPY_FILE = 7.0f;
 
 bool module_unstable_warning (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra, MAYBE_UNUSED const hc_device_param_t *device_param)
 {
+  // AMD Radeon Pro W5700X Compute Engine; 1.2 (Apr 22 2021 21:54:44); 11.3.1; 20E241
+  if ((device_param->opencl_platform_vendor_id == VENDOR_ID_APPLE) && (device_param->opencl_device_type & CL_DEVICE_TYPE_GPU))
+  {
+    return true;
+  }
+
   if (device_param->opencl_platform_vendor_id == VENDOR_ID_APPLE)
   {
     // self-test failed
@@ -152,7 +162,7 @@ u32 module_pw_max (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED con
   // this overrides the reductions of PW_MAX in case optimized kernel is selected
   // IOW, even in optimized kernel mode it support length 64
 
-  const u32 pw_max = 64;
+  const u32 pw_max = 128;
 
   return pw_max;
 }
@@ -221,13 +231,16 @@ int module_hash_binary_parse (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE
     {
       if (hc_path_read (keyfile))
       {
-        cpu_crc32 (keyfile, (u8 *) vc->keyfile_buf);
+        cpu_crc32 (keyfile, (u8 *) vc->keyfile_buf16,  64);
+        cpu_crc32 (keyfile, (u8 *) vc->keyfile_buf32, 128);
       }
 
       keyfile = strtok_r ((char *) NULL, ",", &saveptr);
     }
 
     hcfree (keyfiles);
+
+    vc->keyfile_enabled = 1;
   }
 
   // keyboard layout mapping
@@ -300,6 +313,7 @@ void module_init (module_ctx_t *module_ctx)
   module_ctx->module_benchmark_salt           = MODULE_DEFAULT;
   module_ctx->module_build_plain_postprocess  = module_build_plain_postprocess;
   module_ctx->module_deep_comp_kernel         = MODULE_DEFAULT;
+  module_ctx->module_deprecated_notice        = MODULE_DEFAULT;
   module_ctx->module_dgst_pos0                = module_dgst_pos0;
   module_ctx->module_dgst_pos1                = module_dgst_pos1;
   module_ctx->module_dgst_pos2                = module_dgst_pos2;
@@ -309,6 +323,7 @@ void module_init (module_ctx_t *module_ctx)
   module_ctx->module_esalt_size               = module_esalt_size;
   module_ctx->module_extra_buffer_size        = MODULE_DEFAULT;
   module_ctx->module_extra_tmp_size           = MODULE_DEFAULT;
+  module_ctx->module_extra_tuningdb_block     = MODULE_DEFAULT;
   module_ctx->module_forced_outfile_format    = MODULE_DEFAULT;
   module_ctx->module_hash_binary_count        = MODULE_DEFAULT;
   module_ctx->module_hash_binary_parse        = module_hash_binary_parse;
@@ -326,6 +341,9 @@ void module_init (module_ctx_t *module_ctx)
   module_ctx->module_hashes_count_min         = MODULE_DEFAULT;
   module_ctx->module_hashes_count_max         = MODULE_DEFAULT;
   module_ctx->module_hlfmt_disable            = MODULE_DEFAULT;
+  module_ctx->module_hook_extra_param_size    = MODULE_DEFAULT;
+  module_ctx->module_hook_extra_param_init    = MODULE_DEFAULT;
+  module_ctx->module_hook_extra_param_term    = MODULE_DEFAULT;
   module_ctx->module_hook12                   = MODULE_DEFAULT;
   module_ctx->module_hook23                   = MODULE_DEFAULT;
   module_ctx->module_hook_salt_size           = MODULE_DEFAULT;

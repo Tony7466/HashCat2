@@ -43,6 +43,27 @@ u32         module_salt_type      (MAYBE_UNUSED const hashconfig_t *hashconfig, 
 const char *module_st_hash        (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra) { return ST_HASH;         }
 const char *module_st_pass        (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra) { return ST_PASS;         }
 
+bool module_unstable_warning (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra, MAYBE_UNUSED const hc_device_param_t *device_param)
+{
+  // Intel(R) Xeon(R) W-3223 CPU @ 3.50GHz; OpenCL C 1.2; 11.3.1; 20E241
+  if ((device_param->opencl_platform_vendor_id == VENDOR_ID_APPLE) && (device_param->opencl_device_type & CL_DEVICE_TYPE_CPU))
+  {
+    return true;
+  }
+
+  // amdgpu-pro-20.50-1234664-ubuntu-20.04 (legacy)
+  // test_1619943729/test_report.log:! unhandled return code 255, cmdline : cat test_1619943729/1500_passwords.txt | ./hashcat --quiet --potfile-disable --runtime 400 --hwmon-disable -O -D 2 --backend-vector-width 1 -a 0 -m 1500 test_1619943729/1500_hashes.txt
+  // test_1619950656/test_report.log:! unhandled return code 255, cmdline : ./hashcat --quiet --potfile-disable --runtime 400 --hwmon-disable -O -D 2 --backend-vector-width 4 -a 3 -m 1500 --increment --increment-min 1 --increment-max 8 test_1619950656/1500_multihash_bruteforce.txt ?d?d?d?d?d?d?d?d
+  // test_1619955152/test_report.log:! unhandled return code 255, cmdline : cat test_1619955152/1500_passwords.txt | ./hashcat --quiet --potfile-disable --runtime 400 --hwmon-disable -D 2 --backend-vector-width 4 -a 0 -m 1500 test_1619955152/1500_hashes.txt
+  // test_1619967069/test_report.log:! unhandled return code 255, cmdline : ./hashcat --quiet --potfile-disable --runtime 400 --hwmon-disable -D 2 --backend-vector-width 4 -a 3 -m 1500 --increment --increment-min 1 --increment-max 8 test_1619967069/1500_multihash_bruteforce.txt ?d?d?d?d?d?d?d?d
+  if ((device_param->opencl_device_vendor_id == VENDOR_ID_AMD) && (device_param->has_vperm == false))
+  {
+    return true;
+  }
+
+  return false;
+}
+
 int module_build_plain_postprocess (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const hashes_t *hashes, MAYBE_UNUSED const void *tmps, const u32 *src_buf, MAYBE_UNUSED const size_t src_sz, MAYBE_UNUSED const int src_len, u32 *dst_buf, MAYBE_UNUSED const size_t dst_sz)
 {
   u8 *ptr_src = (u8 *) src_buf;
@@ -72,13 +93,6 @@ int module_build_plain_postprocess (MAYBE_UNUSED const hashconfig_t *hashconfig,
   }
 
   return src_len;
-}
-
-u32 module_kernel_threads_max (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra)
-{
-  const u32 kernel_threads_max = 64; // performance only optimization
-
-  return kernel_threads_max;
 }
 
 u32 module_kernel_loops_max (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra)
@@ -156,6 +170,18 @@ char *module_jit_build_options (MAYBE_UNUSED const hashconfig_t *hashconfig, MAY
     if ((user_options->attack_mode == ATTACK_MODE_BF) && (hashes->salts_cnt == 1) && (user_options->slow_candidates == false))
     {
       hc_asprintf (&jit_build_options, "-DDESCRYPT_SALT=%u -D _unroll", hashes->salts_buf[0].salt_buf[0] & 0xfff);
+    }
+  }
+  // ROCM
+  else if (device_param->opencl_device_vendor_id == VENDOR_ID_AMD_USE_HIP)
+  {
+    if ((user_options->attack_mode == ATTACK_MODE_BF) && (hashes->salts_cnt == 1) && (user_options->slow_candidates == false))
+    {
+      hc_asprintf (&jit_build_options, "-DDESCRYPT_SALT=%u -D _unroll -fno-experimental-new-pass-manager", hashes->salts_buf[0].salt_buf[0] & 0xfff);
+    }
+    else
+    {
+      hc_asprintf (&jit_build_options, "-D _unroll -fno-experimental-new-pass-manager");
     }
   }
   else
@@ -273,6 +299,7 @@ void module_init (module_ctx_t *module_ctx)
   module_ctx->module_benchmark_salt           = MODULE_DEFAULT;
   module_ctx->module_build_plain_postprocess  = module_build_plain_postprocess;
   module_ctx->module_deep_comp_kernel         = MODULE_DEFAULT;
+  module_ctx->module_deprecated_notice        = MODULE_DEFAULT;
   module_ctx->module_dgst_pos0                = module_dgst_pos0;
   module_ctx->module_dgst_pos1                = module_dgst_pos1;
   module_ctx->module_dgst_pos2                = module_dgst_pos2;
@@ -282,6 +309,7 @@ void module_init (module_ctx_t *module_ctx)
   module_ctx->module_esalt_size               = MODULE_DEFAULT;
   module_ctx->module_extra_buffer_size        = MODULE_DEFAULT;
   module_ctx->module_extra_tmp_size           = MODULE_DEFAULT;
+  module_ctx->module_extra_tuningdb_block     = MODULE_DEFAULT;
   module_ctx->module_forced_outfile_format    = MODULE_DEFAULT;
   module_ctx->module_hash_binary_count        = MODULE_DEFAULT;
   module_ctx->module_hash_binary_parse        = MODULE_DEFAULT;
@@ -299,6 +327,9 @@ void module_init (module_ctx_t *module_ctx)
   module_ctx->module_hashes_count_min         = MODULE_DEFAULT;
   module_ctx->module_hashes_count_max         = MODULE_DEFAULT;
   module_ctx->module_hlfmt_disable            = MODULE_DEFAULT;
+  module_ctx->module_hook_extra_param_size    = MODULE_DEFAULT;
+  module_ctx->module_hook_extra_param_init    = MODULE_DEFAULT;
+  module_ctx->module_hook_extra_param_term    = MODULE_DEFAULT;
   module_ctx->module_hook12                   = MODULE_DEFAULT;
   module_ctx->module_hook23                   = MODULE_DEFAULT;
   module_ctx->module_hook_salt_size           = MODULE_DEFAULT;
@@ -309,7 +340,7 @@ void module_init (module_ctx_t *module_ctx)
   module_ctx->module_kernel_accel_min         = MODULE_DEFAULT;
   module_ctx->module_kernel_loops_max         = module_kernel_loops_max;
   module_ctx->module_kernel_loops_min         = module_kernel_loops_min;
-  module_ctx->module_kernel_threads_max       = module_kernel_threads_max;
+  module_ctx->module_kernel_threads_max       = MODULE_DEFAULT;
   module_ctx->module_kernel_threads_min       = MODULE_DEFAULT;
   module_ctx->module_kern_type                = module_kern_type;
   module_ctx->module_kern_type_dynamic        = MODULE_DEFAULT;
@@ -330,6 +361,6 @@ void module_init (module_ctx_t *module_ctx)
   module_ctx->module_st_hash                  = module_st_hash;
   module_ctx->module_st_pass                  = module_st_pass;
   module_ctx->module_tmp_size                 = MODULE_DEFAULT;
-  module_ctx->module_unstable_warning         = MODULE_DEFAULT;
+  module_ctx->module_unstable_warning         = module_unstable_warning;
   module_ctx->module_warmup_disable           = MODULE_DEFAULT;
 }

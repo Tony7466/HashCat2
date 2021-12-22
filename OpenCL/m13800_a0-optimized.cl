@@ -51,7 +51,7 @@ DECLSPEC void memcat64c_be (u32x *block, const u32 offset, u32x *carry)
   u32x tmp15;
   u32x tmp16;
 
-  #if defined IS_AMD || defined IS_GENERIC
+  #if ((defined IS_AMD || defined IS_HIP) && HAS_VPERM == 0) || defined IS_GENERIC
   tmp00 = hc_bytealign_be (        0, carry[ 0], offset);
   tmp01 = hc_bytealign_be (carry[ 0], carry[ 1], offset);
   tmp02 = hc_bytealign_be (carry[ 1], carry[ 2], offset);
@@ -71,8 +71,15 @@ DECLSPEC void memcat64c_be (u32x *block, const u32 offset, u32x *carry)
   tmp16 = hc_bytealign_be (carry[15],         0, offset);
   #endif
 
-  #ifdef IS_NV
+  #if ((defined IS_AMD || defined IS_HIP) && HAS_VPERM == 1) || defined IS_NV
+
+  #if defined IS_NV
   const int selector = (0x76543210 >> ((offset & 3) * 4)) & 0xffff;
+  #endif
+
+  #if (defined IS_AMD || defined IS_HIP)
+  const int selector = l32_from_64_S (0x0706050403020100UL >> ((offset & 3) * 8));
+  #endif
 
   tmp00 = hc_byte_perm (carry[ 0],         0, selector);
   tmp01 = hc_byte_perm (carry[ 1], carry[ 0], selector);
@@ -439,7 +446,7 @@ KERNEL_FQ void m13800_m04 (KERN_ATTR_RULES_ESALT (win8phone_t))
 
   for (u32 i = lid; i < 32; i += lsz)
   {
-    s_esalt[i] = esalt_bufs[digests_offset].salt_buf[i];
+    s_esalt[i] = esalt_bufs[DIGESTS_OFFSET].salt_buf[i];
   }
 
   SYNC_THREADS ();
@@ -635,7 +642,7 @@ KERNEL_FQ void m13800_s04 (KERN_ATTR_RULES_ESALT (win8phone_t))
 
   for (u32 i = lid; i < 32; i += lsz)
   {
-    s_esalt[i] = esalt_bufs[digests_offset].salt_buf[i];
+    s_esalt[i] = esalt_bufs[DIGESTS_OFFSET].salt_buf[i];
   }
 
   SYNC_THREADS ();
@@ -648,10 +655,10 @@ KERNEL_FQ void m13800_s04 (KERN_ATTR_RULES_ESALT (win8phone_t))
 
   const u32 search[4] =
   {
-    digests_buf[digests_offset].digest_buf[DGST_R0],
-    digests_buf[digests_offset].digest_buf[DGST_R1],
-    digests_buf[digests_offset].digest_buf[DGST_R2],
-    digests_buf[digests_offset].digest_buf[DGST_R3]
+    digests_buf[DIGESTS_OFFSET].digest_buf[DGST_R0],
+    digests_buf[DIGESTS_OFFSET].digest_buf[DGST_R1],
+    digests_buf[DIGESTS_OFFSET].digest_buf[DGST_R2],
+    digests_buf[DIGESTS_OFFSET].digest_buf[DGST_R3]
   };
 
   /**

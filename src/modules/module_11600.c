@@ -80,7 +80,7 @@ typedef struct seven_zip_hook_salt
 
   u8  data_type;
 
-  u32 data_buf[81882];
+  u32 data_buf[0x200000];
   u32 data_len;
 
   u32 unpack_size;
@@ -91,6 +91,13 @@ typedef struct seven_zip_hook_salt
   int aes_len; // pre-computed length of the maximal (subset of) data we need for AES-CBC
 
 } seven_zip_hook_salt_t;
+
+typedef struct seven_zip_hook_extra
+{
+  void **aes;
+  void **unp;
+
+} seven_zip_hook_extra_t;
 
 static const char *SIGNATURE_SEVEN_ZIP = "$7z$";
 
@@ -104,6 +111,12 @@ char *module_jit_build_options (MAYBE_UNUSED const hashconfig_t *hashconfig, MAY
     return jit_build_options;
   }
 
+  // HIP
+  if (device_param->opencl_device_vendor_id == VENDOR_ID_AMD_USE_HIP)
+  {
+    hc_asprintf (&jit_build_options, "-D _unroll");
+  }
+
   // ROCM
   if ((device_param->opencl_device_vendor_id == VENDOR_ID_AMD) && (device_param->has_vperm == true))
   {
@@ -113,13 +126,67 @@ char *module_jit_build_options (MAYBE_UNUSED const hashconfig_t *hashconfig, MAY
   return jit_build_options;
 }
 
+bool module_hook_extra_param_init (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra, MAYBE_UNUSED const folder_config_t *folder_config, MAYBE_UNUSED const backend_ctx_t *backend_ctx, void *hook_extra_param)
+{
+  seven_zip_hook_extra_t *seven_zip_hook_extra = (seven_zip_hook_extra_t *) hook_extra_param;
 
-void module_hook23 (hc_device_param_t *device_param, const void *hook_salts_buf, const u32 salt_pos, const u64 pw_pos)
+  #define AESSIZE 8 * 1024 * 1024
+  #define UNPSIZE 9999999
+
+  seven_zip_hook_extra->aes = hccalloc (backend_ctx->backend_devices_cnt, sizeof (void *));
+
+  if (seven_zip_hook_extra->aes == NULL) return false;
+
+  seven_zip_hook_extra->unp = hccalloc (backend_ctx->backend_devices_cnt, sizeof (void *));
+
+  if (seven_zip_hook_extra->unp == NULL) return false;
+
+  for (int backend_devices_idx = 0; backend_devices_idx < backend_ctx->backend_devices_cnt; backend_devices_idx++)
+  {
+    hc_device_param_t *device_param = &backend_ctx->devices_param[backend_devices_idx];
+
+    if (device_param->skipped == true) continue;
+
+    seven_zip_hook_extra->aes[backend_devices_idx] = hcmalloc (AESSIZE);
+
+    if (seven_zip_hook_extra->aes[backend_devices_idx] == NULL) return false;
+
+    seven_zip_hook_extra->unp[backend_devices_idx] = hcmalloc (UNPSIZE);
+
+    if (seven_zip_hook_extra->unp[backend_devices_idx] == NULL) return false;
+  }
+
+  return true;
+}
+
+bool module_hook_extra_param_term (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra, MAYBE_UNUSED const folder_config_t *folder_config, MAYBE_UNUSED const backend_ctx_t *backend_ctx, void *hook_extra_param)
+{
+  seven_zip_hook_extra_t *seven_zip_hook_extra = (seven_zip_hook_extra_t *) hook_extra_param;
+
+  for (int backend_devices_idx = 0; backend_devices_idx < backend_ctx->backend_devices_cnt; backend_devices_idx++)
+  {
+    hc_device_param_t *device_param = &backend_ctx->devices_param[backend_devices_idx];
+
+    if (device_param->skipped == true) continue;
+
+    hcfree (seven_zip_hook_extra->aes[backend_devices_idx]);
+    hcfree (seven_zip_hook_extra->unp[backend_devices_idx]);
+  }
+
+  hcfree (seven_zip_hook_extra->aes);
+  hcfree (seven_zip_hook_extra->unp);
+
+  return true;
+}
+
+void module_hook23 (hc_device_param_t *device_param, MAYBE_UNUSED const void *hook_extra_param, const void *hook_salts_buf, const u32 salt_pos, const u64 pw_pos)
 {
   seven_zip_hook_t *hook_items = (seven_zip_hook_t *) device_param->hooks_buf;
 
   seven_zip_hook_salt_t *seven_zips = (seven_zip_hook_salt_t *) hook_salts_buf;
   seven_zip_hook_salt_t *seven_zip  = &seven_zips[salt_pos];
+
+  seven_zip_hook_extra_t *seven_zip_hook_extra = (seven_zip_hook_extra_t *) hook_extra_param;
 
   u8   data_type   = seven_zip->data_type;
   u32 *data_buf    = seven_zip->data_buf;
@@ -150,7 +217,7 @@ void module_hook23 (hc_device_param_t *device_param, const void *hook_salts_buf,
   iv[2] = seven_zip->iv_buf[2];
   iv[3] = seven_zip->iv_buf[3];
 
-  u32 out_full[81882];
+  u32 *out_full = (u32 *) seven_zip_hook_extra->aes[device_param->device_id];
 
   // if aes_len > 16 we need to loop
 
@@ -227,9 +294,7 @@ void module_hook23 (hc_device_param_t *device_param, const void *hook_salts_buf,
 
     // output buffers and length
 
-    unsigned char *decompressed_data;
-
-    decompressed_data = (unsigned char *) hcmalloc (crc_len);
+    unsigned char *decompressed_data = (unsigned char *) seven_zip_hook_extra->unp[device_param->device_id];
 
     SizeT decompressed_data_len = crc_len;
 
@@ -277,14 +342,10 @@ void module_hook23 (hc_device_param_t *device_param, const void *hook_salts_buf,
     {
       hook_item->hook_success = 0;
 
-      hcfree (decompressed_data);
-
       return;
     }
 
     crc = cpu_crc32_buffer (decompressed_data, crc_len);
-
-    hcfree (decompressed_data);
   }
 
   if (crc == seven_zip_crc)
@@ -309,6 +370,13 @@ u64 module_hook_salt_size (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UN
   const u64 hook_salt_size = (const u64) sizeof (seven_zip_hook_salt_t);
 
   return hook_salt_size;
+}
+
+u64 module_hook_extra_param_size (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra)
+{
+  const u64 hook_extra_param_size = (const u64) sizeof (seven_zip_hook_extra_t);
+
+  return hook_extra_param_size;
 }
 
 u64 module_tmp_size (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra)
@@ -420,19 +488,19 @@ int module_hash_decode (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSE
 
   token.sep[8]      = '$';
   token.len_min[8]  = 1;
-  token.len_max[8]  = 6;
+  token.len_max[8]  = 8;
   token.attr[8]     = TOKEN_ATTR_VERIFY_LENGTH
                     | TOKEN_ATTR_VERIFY_DIGIT;
 
   token.sep[9]      = '$';
   token.len_min[9]  = 1;
-  token.len_max[9]  = 6;
+  token.len_max[9]  = 8;
   token.attr[9]     = TOKEN_ATTR_VERIFY_LENGTH
                     | TOKEN_ATTR_VERIFY_DIGIT;
 
   token.sep[10]     = '$';
   token.len_min[10] = 2;
-  token.len_max[10] = 655056;
+  token.len_max[10] = 0x200000 * 4 * 2;
   token.attr[10]    = TOKEN_ATTR_VERIFY_LENGTH;
 
   const int rc_tokenizer = input_tokenizer ((const u8 *) line_buf, line_len, &token);
@@ -524,7 +592,7 @@ int module_hash_decode (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSE
 
   if ((data_len * 2) != data_buf_len) return (PARSER_SALT_VALUE);
 
-  if (data_len > 327528) return (PARSER_SALT_VALUE);
+  if (data_len > 0x200000 * 4) return (PARSER_SALT_VALUE);
 
   if (unpack_size > data_len) return (PARSER_SALT_VALUE);
 
@@ -723,6 +791,7 @@ void module_init (module_ctx_t *module_ctx)
   module_ctx->module_benchmark_salt           = MODULE_DEFAULT;
   module_ctx->module_build_plain_postprocess  = MODULE_DEFAULT;
   module_ctx->module_deep_comp_kernel         = MODULE_DEFAULT;
+  module_ctx->module_deprecated_notice        = MODULE_DEFAULT;
   module_ctx->module_dgst_pos0                = module_dgst_pos0;
   module_ctx->module_dgst_pos1                = module_dgst_pos1;
   module_ctx->module_dgst_pos2                = module_dgst_pos2;
@@ -732,6 +801,7 @@ void module_init (module_ctx_t *module_ctx)
   module_ctx->module_esalt_size               = MODULE_DEFAULT;
   module_ctx->module_extra_buffer_size        = MODULE_DEFAULT;
   module_ctx->module_extra_tmp_size           = MODULE_DEFAULT;
+  module_ctx->module_extra_tuningdb_block     = MODULE_DEFAULT;
   module_ctx->module_forced_outfile_format    = MODULE_DEFAULT;
   module_ctx->module_hash_binary_count        = MODULE_DEFAULT;
   module_ctx->module_hash_binary_parse        = MODULE_DEFAULT;
@@ -749,6 +819,9 @@ void module_init (module_ctx_t *module_ctx)
   module_ctx->module_hashes_count_min         = MODULE_DEFAULT;
   module_ctx->module_hashes_count_max         = MODULE_DEFAULT;
   module_ctx->module_hlfmt_disable            = MODULE_DEFAULT;
+  module_ctx->module_hook_extra_param_size    = module_hook_extra_param_size;
+  module_ctx->module_hook_extra_param_init    = module_hook_extra_param_init;
+  module_ctx->module_hook_extra_param_term    = module_hook_extra_param_term;
   module_ctx->module_hook12                   = MODULE_DEFAULT;
   module_ctx->module_hook23                   = module_hook23;
   module_ctx->module_hook_salt_size           = module_hook_salt_size;

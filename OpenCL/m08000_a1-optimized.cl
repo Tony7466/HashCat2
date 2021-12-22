@@ -84,7 +84,7 @@ DECLSPEC void sha256_transform_m (u32x *digest, const u32x *w)
 
   ROUND_STEP (0);
 
-  #ifdef IS_CUDA
+  #if defined IS_CUDA
   ROUND_EXPAND (); ROUND_STEP (16);
   ROUND_EXPAND (); ROUND_STEP (32);
   ROUND_EXPAND (); ROUND_STEP (48);
@@ -141,7 +141,7 @@ DECLSPEC void sha256_transform_z (u32x *digest)
 
   ROUND_STEP_Z (0);
 
-  #ifdef IS_CUDA
+  #if defined IS_CUDA
   ROUND_STEP_Z (16);
   ROUND_STEP_Z (32);
   ROUND_STEP_Z (48);
@@ -230,9 +230,9 @@ KERNEL_FQ void m08000_m04 (KERN_ATTR_BASIC ())
    * salt
    */
 
-  const u32 salt_buf0 = hc_swap32_S (salt_bufs[salt_pos].salt_buf[ 0]);
-  const u32 salt_buf1 = hc_swap32_S (salt_bufs[salt_pos].salt_buf[ 1]);
-  const u32 salt_buf2 = hc_swap32_S (salt_bufs[salt_pos].salt_buf[ 2]); // 0x80
+  const u32 salt_buf0 = hc_swap32_S (salt_bufs[SALT_POS].salt_buf[ 0]);
+  const u32 salt_buf1 = hc_swap32_S (salt_bufs[SALT_POS].salt_buf[ 1]);
+  const u32 salt_buf2 = hc_swap32_S (salt_bufs[SALT_POS].salt_buf[ 2]); // 0x80
 
   /**
    * precompute final msg blocks
@@ -455,9 +455,9 @@ KERNEL_FQ void m08000_s04 (KERN_ATTR_BASIC ())
    * salt
    */
 
-  const u32 salt_buf0 = hc_swap32_S (salt_bufs[salt_pos].salt_buf[ 0]);
-  const u32 salt_buf1 = hc_swap32_S (salt_bufs[salt_pos].salt_buf[ 1]);
-  const u32 salt_buf2 = hc_swap32_S (salt_bufs[salt_pos].salt_buf[ 2]); // 0x80
+  const u32 salt_buf0 = hc_swap32_S (salt_bufs[SALT_POS].salt_buf[ 0]);
+  const u32 salt_buf1 = hc_swap32_S (salt_bufs[SALT_POS].salt_buf[ 1]);
+  const u32 salt_buf2 = hc_swap32_S (salt_bufs[SALT_POS].salt_buf[ 2]); // 0x80
 
   /**
    * precompute final msg blocks
@@ -528,10 +528,10 @@ KERNEL_FQ void m08000_s04 (KERN_ATTR_BASIC ())
 
   const u32 search[4] =
   {
-    digests_buf[digests_offset].digest_buf[DGST_R0],
-    digests_buf[digests_offset].digest_buf[DGST_R1],
-    digests_buf[digests_offset].digest_buf[DGST_R2],
-    digests_buf[digests_offset].digest_buf[DGST_R3]
+    digests_buf[DIGESTS_OFFSET].digest_buf[DGST_R0],
+    digests_buf[DIGESTS_OFFSET].digest_buf[DGST_R1],
+    digests_buf[DIGESTS_OFFSET].digest_buf[DGST_R2],
+    digests_buf[DIGESTS_OFFSET].digest_buf[DGST_R3]
   };
 
   /**

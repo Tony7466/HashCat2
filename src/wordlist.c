@@ -343,7 +343,7 @@ int count_words (hashcat_ctx_t *hashcat_ctx, HCFILE *fp, const char *dictfile, u
 
   memset (&d, 0, sizeof (d));
 
-  if (fstat (hc_fileno (fp), &d.stat))
+  if (hc_fstat (fp, &d.stat))
   {
     *result = 0;
 
@@ -588,7 +588,7 @@ int wl_data_init (hashcat_ctx_t *hashcat_ctx)
   wl_data->enabled = false;
 
   if (user_options->benchmark      == true) return 0;
-  if (user_options->example_hashes == true) return 0;
+  if (user_options->hash_info      == true) return 0;
   if (user_options->left           == true) return 0;
   if (user_options->backend_info   == true) return 0;
   if (user_options->usage          == true) return 0;

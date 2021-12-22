@@ -45,7 +45,7 @@ DECLSPEC u32 memcat16 (u32 *block, const u32 offset, const u32 *append, const u3
   u32 in2 = append[2];
   u32 in3 = append[3];
 
-  #if defined IS_AMD || defined IS_GENERIC
+  #if ((defined IS_AMD || defined IS_HIP) && HAS_VPERM == 0) || defined IS_GENERIC
   const u32 tmp0 = hc_bytealign_be (  0, in0, offset);
   const u32 tmp1 = hc_bytealign_be (in0, in1, offset);
   const u32 tmp2 = hc_bytealign_be (in1, in2, offset);
@@ -53,8 +53,15 @@ DECLSPEC u32 memcat16 (u32 *block, const u32 offset, const u32 *append, const u3
   const u32 tmp4 = hc_bytealign_be (in3,   0, offset);
   #endif
 
-  #ifdef IS_NV
+  #if ((defined IS_AMD || defined IS_HIP) && HAS_VPERM == 1) || defined IS_NV
+
+  #if defined IS_NV
   const int selector = (0x76543210 >> ((offset & 3) * 4)) & 0xffff;
+  #endif
+
+  #if (defined IS_AMD || defined IS_HIP)
+  const int selector = l32_from_64_S (0x0706050403020100UL >> ((offset & 3) * 8));
+  #endif
 
   const u32 tmp0 = hc_byte_perm_S (in0,   0, selector);
   const u32 tmp1 = hc_byte_perm_S (in1, in0, selector);
@@ -165,7 +172,7 @@ DECLSPEC u32 memcat16c (u32 *block, const u32 offset, const u32 *append, const u
   u32 in2 = append[2];
   u32 in3 = append[3];
 
-  #if defined IS_AMD || defined IS_GENERIC
+  #if ((defined IS_AMD || defined IS_HIP) && HAS_VPERM == 0) || defined IS_GENERIC
   const u32 tmp0 = hc_bytealign_be (  0, in0, offset);
   const u32 tmp1 = hc_bytealign_be (in0, in1, offset);
   const u32 tmp2 = hc_bytealign_be (in1, in2, offset);
@@ -173,8 +180,15 @@ DECLSPEC u32 memcat16c (u32 *block, const u32 offset, const u32 *append, const u
   const u32 tmp4 = hc_bytealign_be (in3,   0, offset);
   #endif
 
-  #ifdef IS_NV
+  #if ((defined IS_AMD || defined IS_HIP) && HAS_VPERM == 1) || defined IS_NV
+
+  #if defined IS_NV
   const int selector = (0x76543210 >> ((offset & 3) * 4)) & 0xffff;
+  #endif
+
+  #if (defined IS_AMD || defined IS_HIP)
+  const int selector = l32_from_64_S (0x0706050403020100UL >> ((offset & 3) * 8));
+  #endif
 
   const u32 tmp0 = hc_byte_perm_S (in0,   0, selector);
   const u32 tmp1 = hc_byte_perm_S (in1, in0, selector);
@@ -322,7 +336,7 @@ DECLSPEC u32 memcat16s (u32 *block, const u32 offset, const u32 *append, const u
   u32 in3 = append[3];
   u32 in4 = append[4];
 
-  #if defined IS_AMD || defined IS_GENERIC
+  #if ((defined IS_AMD || defined IS_HIP) && HAS_VPERM == 0) || defined IS_GENERIC
   const u32 tmp0 = hc_bytealign_be (  0, in0, offset);
   const u32 tmp1 = hc_bytealign_be (in0, in1, offset);
   const u32 tmp2 = hc_bytealign_be (in1, in2, offset);
@@ -331,8 +345,15 @@ DECLSPEC u32 memcat16s (u32 *block, const u32 offset, const u32 *append, const u
   const u32 tmp5 = hc_bytealign_be (in4,   0, offset);
   #endif
 
-  #ifdef IS_NV
+  #if ((defined IS_AMD || defined IS_HIP) && HAS_VPERM == 1) || defined IS_NV
+
+  #if defined IS_NV
   const int selector = (0x76543210 >> ((offset & 3) * 4)) & 0xffff;
+  #endif
+
+  #if (defined IS_AMD || defined IS_HIP)
+  const int selector = l32_from_64_S (0x0706050403020100UL >> ((offset & 3) * 8));
+  #endif
 
   const u32 tmp0 = hc_byte_perm_S (in0,   0, selector);
   const u32 tmp1 = hc_byte_perm_S (in1, in0, selector);
@@ -456,7 +477,7 @@ DECLSPEC u32 memcat16sc (u32 *block, const u32 offset, const u32 *append, const 
   u32 in3 = append[3];
   u32 in4 = append[4];
 
-  #if defined IS_AMD || defined IS_GENERIC
+  #if ((defined IS_AMD || defined IS_HIP) && HAS_VPERM == 0) || defined IS_GENERIC
   const u32 tmp0 = hc_bytealign_be (  0, in0, offset);
   const u32 tmp1 = hc_bytealign_be (in0, in1, offset);
   const u32 tmp2 = hc_bytealign_be (in1, in2, offset);
@@ -465,8 +486,15 @@ DECLSPEC u32 memcat16sc (u32 *block, const u32 offset, const u32 *append, const 
   const u32 tmp5 = hc_bytealign_be (in4,   0, offset);
   #endif
 
-  #ifdef IS_NV
+  #if ((defined IS_AMD || defined IS_HIP) && HAS_VPERM == 1) || defined IS_NV
+
+  #if defined IS_NV
   const int selector = (0x76543210 >> ((offset & 3) * 4)) & 0xffff;
+  #endif
+
+  #if (defined IS_AMD || defined IS_HIP)
+  const int selector = l32_from_64_S (0x0706050403020100UL >> ((offset & 3) * 8));
+  #endif
 
   const u32 tmp0 = hc_byte_perm_S (in0,   0, selector);
   const u32 tmp1 = hc_byte_perm_S (in1, in0, selector);
@@ -756,7 +784,7 @@ DECLSPEC u32 memcat20 (u32 *block, const u32 offset, const u32 *append, const u3
   u32 in2 = append[2];
   u32 in3 = append[3];
 
-  #if defined IS_AMD || defined IS_GENERIC
+  #if ((defined IS_AMD || defined IS_HIP) && HAS_VPERM == 0) || defined IS_GENERIC
   const u32 tmp0 = hc_bytealign_be_S (  0, in0, offset);
   const u32 tmp1 = hc_bytealign_be_S (in0, in1, offset);
   const u32 tmp2 = hc_bytealign_be_S (in1, in2, offset);
@@ -764,8 +792,15 @@ DECLSPEC u32 memcat20 (u32 *block, const u32 offset, const u32 *append, const u3
   const u32 tmp4 = hc_bytealign_be_S (in3,   0, offset);
   #endif
 
-  #ifdef IS_NV
+  #if ((defined IS_AMD || defined IS_HIP) && HAS_VPERM == 1) || defined IS_NV
+
+  #if defined IS_NV
   const int selector = (0x76543210 >> ((offset & 3) * 4)) & 0xffff;
+  #endif
+
+  #if (defined IS_AMD || defined IS_HIP)
+  const int selector = l32_from_64_S (0x0706050403020100UL >> ((offset & 3) * 8));
+  #endif
 
   const u32 tmp0 = hc_byte_perm_S (in0,   0, selector);
   const u32 tmp1 = hc_byte_perm_S (in1, in0, selector);
@@ -915,7 +950,7 @@ DECLSPEC u32 memcat20_x80 (u32 *block, const u32 offset, const u32 *append, cons
   u32 in3 = append[3];
   u32 in4 = 0x80000000;
 
-  #if defined IS_AMD || defined IS_GENERIC
+  #if ((defined IS_AMD || defined IS_HIP) && HAS_VPERM == 0) || defined IS_GENERIC
   const u32 tmp0 = hc_bytealign_be_S (  0, in0, offset);
   const u32 tmp1 = hc_bytealign_be_S (in0, in1, offset);
   const u32 tmp2 = hc_bytealign_be_S (in1, in2, offset);
@@ -923,8 +958,15 @@ DECLSPEC u32 memcat20_x80 (u32 *block, const u32 offset, const u32 *append, cons
   const u32 tmp4 = hc_bytealign_be_S (in3, in4, offset);
   #endif
 
-  #ifdef IS_NV
+  #if ((defined IS_AMD || defined IS_HIP) && HAS_VPERM == 1) || defined IS_NV
+
+  #if defined IS_NV
   const int selector = (0x76543210 >> ((offset & 3) * 4)) & 0xffff;
+  #endif
+
+  #if (defined IS_AMD || defined IS_HIP)
+  const int selector = l32_from_64_S (0x0706050403020100UL >> ((offset & 3) * 8));
+  #endif
 
   const u32 tmp0 = hc_byte_perm_S (in0,   0, selector);
   const u32 tmp1 = hc_byte_perm_S (in1, in0, selector);
@@ -1074,7 +1116,7 @@ DECLSPEC u32 memcat24 (u32 *block, const u32 offset, const u32 *append, const u3
   u32 in3 = append[3];
   u32 in4 = append[4];
 
-  #if defined IS_AMD || defined IS_GENERIC
+  #if ((defined IS_AMD || defined IS_HIP) && HAS_VPERM == 0) || defined IS_GENERIC
   const u32 tmp0 = hc_bytealign_be_S (  0, in0, offset);
   const u32 tmp1 = hc_bytealign_be_S (in0, in1, offset);
   const u32 tmp2 = hc_bytealign_be_S (in1, in2, offset);
@@ -1083,8 +1125,15 @@ DECLSPEC u32 memcat24 (u32 *block, const u32 offset, const u32 *append, const u3
   const u32 tmp5 = hc_bytealign_be_S (in4,   0, offset);
   #endif
 
-  #ifdef IS_NV
+  #if ((defined IS_AMD || defined IS_HIP) && HAS_VPERM == 1) || defined IS_NV
+
+  #if defined IS_NV
   const int selector = (0x76543210 >> ((offset & 3) * 4)) & 0xffff;
+  #endif
+
+  #if (defined IS_AMD || defined IS_HIP)
+  const int selector = l32_from_64_S (0x0706050403020100UL >> ((offset & 3) * 8));
+  #endif
 
   const u32 tmp0 = hc_byte_perm_S (in0,   0, selector);
   const u32 tmp1 = hc_byte_perm_S (in1, in0, selector);
@@ -1154,13 +1203,13 @@ KERNEL_FQ void m07400_init (KERN_ATTR_TMPS (sha256crypt_tmp_t))
 
   u32 salt_buf[5];
 
-  salt_buf[0] = hc_swap32_S (salt_bufs[salt_pos].salt_buf[0]);
-  salt_buf[1] = hc_swap32_S (salt_bufs[salt_pos].salt_buf[1]);
-  salt_buf[2] = hc_swap32_S (salt_bufs[salt_pos].salt_buf[2]);
-  salt_buf[3] = hc_swap32_S (salt_bufs[salt_pos].salt_buf[3]);
-  salt_buf[4] = hc_swap32_S (salt_bufs[salt_pos].salt_buf[4]);
+  salt_buf[0] = hc_swap32_S (salt_bufs[SALT_POS].salt_buf[0]);
+  salt_buf[1] = hc_swap32_S (salt_bufs[SALT_POS].salt_buf[1]);
+  salt_buf[2] = hc_swap32_S (salt_bufs[SALT_POS].salt_buf[2]);
+  salt_buf[3] = hc_swap32_S (salt_bufs[SALT_POS].salt_buf[3]);
+  salt_buf[4] = hc_swap32_S (salt_bufs[SALT_POS].salt_buf[4]);
 
-  const u32 salt_len = MIN (salt_bufs[salt_pos].salt_len, 20);
+  const u32 salt_len = MIN (salt_bufs[SALT_POS].salt_len, 20);
 
   /**
    * buffers
@@ -1519,7 +1568,7 @@ KERNEL_FQ void m07400_loop (KERN_ATTR_TMPS (sha256crypt_tmp_t))
   alt_result[6] = tmps[gid].alt_result[6];
   alt_result[7] = tmps[gid].alt_result[7];
 
-  const u32 salt_len = MIN (salt_bufs[salt_pos].salt_len, 20);
+  const u32 salt_len = MIN (salt_bufs[SALT_POS].salt_len, 20);
 
   // just an optimization
 

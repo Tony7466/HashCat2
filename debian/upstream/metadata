@@ -1,2 +1,5 @@
+---
 Bug-Database: https://github.com/hashcat/hashcat/issues
 Bug-Submit: https://github.com/hashcat/hashcat/issues/new
+Repository: https://github.com/hashcat/hashcat.git
+Repository-Browse: https://github.com/hashcat/hashcat

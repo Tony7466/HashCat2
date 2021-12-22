@@ -8,6 +8,10 @@ Files: *
 Copyright: 2015-2020 Jens Steube <jens.steube@gmail.com>
 License: Expat
 
+Files: tools/virtualbox2hashcat.py tools/vmwarevmx2hashcat.py
+Copyright: Gabriele 'matrix' Gristina
+License: Expat
+
 Files: debian/*
 Copyright: 2016 Daniel Echeverry <epsilon77@gmail.com>
            2016-2020 Sophie Brun <sophie@offensive-security.com>

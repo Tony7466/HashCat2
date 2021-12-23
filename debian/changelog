@@ -1,3 +1,10 @@
+hashcat (6.2.5+ds1-2) unstable; urgency=medium
+
+  * Team Upload.
+  * Fix the build on armhf ("selected architecture lacks an FPU")
+
+ -- Sophie Brun <sophie@offensive-security.com>  Thu, 23 Dec 2021 14:53:02 +0100
+
 hashcat (6.2.5+ds1-1) unstable; urgency=medium
 
   * Team Upload.

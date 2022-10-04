@@ -22,8 +22,8 @@ static const u64   KERN_TYPE      = 26200;
 static const u32   OPTI_TYPE      = OPTI_TYPE_ZERO_BYTE
                                   | OPTI_TYPE_NOT_ITERATED
                                   | OPTI_TYPE_NOT_SALTED;
-static const u64   OPTS_TYPE      = OPTS_TYPE_PT_GENERATE_LE
-                                  | OPTS_TYPE_HASH_COPY;
+static const u64   OPTS_TYPE      = OPTS_TYPE_STOCK_MODULE
+                                  | OPTS_TYPE_PT_GENERATE_LE;
 static const u32   SALT_TYPE      = SALT_TYPE_NONE;
 static const char *ST_PASS        = "hashcat";
 static const char *ST_HASH        = "lebVZteiEsdpkncc";
@@ -93,7 +93,7 @@ int module_hash_decode (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSE
 {
   u32 *digest = (u32 *) digest_buf;
 
-  token_t token;
+  hc_token_t token;
 
   token.token_cnt  = 1;
 
@@ -108,14 +108,42 @@ int module_hash_decode (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSE
   const u8 *hash_pos = (u8 *) token.buf[0];
   const u32 hash_len = token.len[0];
 
-  memcpy ((u8 *)digest, hash_pos, hash_len);
+  /*
+   * Check encoding:
+   */
+
+  for (u32 i = 0; i < hash_len; i++)
+  {
+    // chars used (alphabet):
+    // ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
+
+    const u8 c = hash_pos[i];
+
+    if (           c < 'A') return (PARSER_HASH_ENCODING);
+    if (c > 'Z' && c < 'a') return (PARSER_HASH_ENCODING);
+    if (c > 'z'           ) return (PARSER_HASH_ENCODING);
+  }
+
+  /*
+   * digest:
+   */
+
+  memcpy ((u8 *) digest, hash_pos, hash_len);
 
   return (PARSER_OK);
 }
 
 int module_hash_encode (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const void *digest_buf, MAYBE_UNUSED const salt_t *salt, MAYBE_UNUSED const void *esalt_buf, MAYBE_UNUSED const void *hook_salt_buf, MAYBE_UNUSED const hashinfo_t *hash_info, char *line_buf, MAYBE_UNUSED const int line_size)
 {
-  const int line_len = snprintf (line_buf, line_size, "%s", hash_info->orighash);
+  char *digest = (char *) digest_buf;
+
+  char buf[16 + 1] = { 0 };
+
+  memcpy (buf, digest, 16);
+
+  buf[16] = 0;
+
+  const int line_len = snprintf (line_buf, line_size, "%s", buf);
 
   return line_len;
 }
@@ -129,6 +157,7 @@ void module_init (module_ctx_t *module_ctx)
   module_ctx->module_benchmark_esalt          = MODULE_DEFAULT;
   module_ctx->module_benchmark_hook_salt      = MODULE_DEFAULT;
   module_ctx->module_benchmark_mask           = MODULE_DEFAULT;
+  module_ctx->module_benchmark_charset        = MODULE_DEFAULT;
   module_ctx->module_benchmark_salt           = MODULE_DEFAULT;
   module_ctx->module_build_plain_postprocess  = MODULE_DEFAULT;
   module_ctx->module_deep_comp_kernel         = MODULE_DEFAULT;
@@ -147,6 +176,7 @@ void module_init (module_ctx_t *module_ctx)
   module_ctx->module_hash_binary_count        = MODULE_DEFAULT;
   module_ctx->module_hash_binary_parse        = MODULE_DEFAULT;
   module_ctx->module_hash_binary_save         = MODULE_DEFAULT;
+  module_ctx->module_hash_decode_postprocess  = MODULE_DEFAULT;
   module_ctx->module_hash_decode_potfile      = MODULE_DEFAULT;
   module_ctx->module_hash_decode_zero_hash    = MODULE_DEFAULT;
   module_ctx->module_hash_decode              = module_hash_decode;

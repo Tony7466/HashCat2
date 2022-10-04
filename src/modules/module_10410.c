@@ -21,8 +21,10 @@ static const char *HASH_NAME      = "PDF 1.1 - 1.3 (Acrobat 2 - 4), collider #1"
 static const u64   KERN_TYPE      = 10410;
 static const u32   OPTI_TYPE      = OPTI_TYPE_ZERO_BYTE
                                   | OPTI_TYPE_NOT_ITERATED;
-static const u64   OPTS_TYPE      = OPTS_TYPE_PT_GENERATE_LE
-                                  | OPTS_TYPE_PT_ALWAYS_HEXIFY;
+static const u64   OPTS_TYPE      = OPTS_TYPE_STOCK_MODULE
+                                  | OPTS_TYPE_PT_GENERATE_LE
+                                  | OPTS_TYPE_PT_ALWAYS_HEXIFY
+                                  | OPTS_TYPE_AUTODETECT_DISABLE;
 static const u32   SALT_TYPE      = SALT_TYPE_EMBEDDED;
 static const char *ST_PASS        = "\x6a\x8a\xed\xcc\xb7";
 static const char *ST_HASH        = "$pdf$1*2*40*-1*0*16*01221086741440841668371056103222*32*27c3fecef6d46a78eb61b8b4dbc690f5f8a2912bbb9afc842c12d79481568b74*32*0000000000000000000000000000000000000000000000000000000000000000";
@@ -77,6 +79,12 @@ char *module_jit_build_options (MAYBE_UNUSED const hashconfig_t *hashconfig, MAY
   }
   else if (device_param->opencl_device_type & CL_DEVICE_TYPE_GPU)
   {
+    #if defined (__APPLE__)
+
+    native_threads = 32;
+
+    #else
+
     if (device_param->device_local_mem_size < 49152)
     {
       native_threads = MIN (device_param->kernel_preferred_wgs_multiple, 32); // We can't just set 32, because Intel GPU need 8
@@ -85,6 +93,8 @@ char *module_jit_build_options (MAYBE_UNUSED const hashconfig_t *hashconfig, MAY
     {
       native_threads = device_param->kernel_preferred_wgs_multiple;
     }
+
+    #endif
   }
 
   hc_asprintf (&jit_build_options, "-D FIXED_LOCAL_SIZE=%u -D _unroll", native_threads);
@@ -131,7 +141,7 @@ int module_hash_decode (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSE
 
   pdf_t *pdf = (pdf_t *) esalt_buf;
 
-  token_t token;
+  hc_token_t token;
 
   token.token_cnt  = 12;
 
@@ -345,6 +355,7 @@ void module_init (module_ctx_t *module_ctx)
   module_ctx->module_benchmark_esalt          = MODULE_DEFAULT;
   module_ctx->module_benchmark_hook_salt      = MODULE_DEFAULT;
   module_ctx->module_benchmark_mask           = module_benchmark_mask;
+  module_ctx->module_benchmark_charset        = MODULE_DEFAULT;
   module_ctx->module_benchmark_salt           = MODULE_DEFAULT;
   module_ctx->module_build_plain_postprocess  = MODULE_DEFAULT;
   module_ctx->module_deep_comp_kernel         = MODULE_DEFAULT;
@@ -363,6 +374,7 @@ void module_init (module_ctx_t *module_ctx)
   module_ctx->module_hash_binary_count        = MODULE_DEFAULT;
   module_ctx->module_hash_binary_parse        = MODULE_DEFAULT;
   module_ctx->module_hash_binary_save         = MODULE_DEFAULT;
+  module_ctx->module_hash_decode_postprocess  = MODULE_DEFAULT;
   module_ctx->module_hash_decode_potfile      = MODULE_DEFAULT;
   module_ctx->module_hash_decode_zero_hash    = MODULE_DEFAULT;
   module_ctx->module_hash_decode              = module_hash_decode;

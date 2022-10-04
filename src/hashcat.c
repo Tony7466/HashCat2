@@ -211,6 +211,66 @@ static int inner2_loop (hashcat_ctx_t *hashcat_ctx)
 
   hc_thread_wait (backend_ctx->backend_devices_cnt, c_threads);
 
+  // check for any autotune failures
+  // by default, skipping device on error
+  // using --force, accel/loops/threads min values are used instead of skipping
+
+  int at_err = 0;
+
+  for (int backend_devices_idx = 0; backend_devices_idx < backend_ctx->backend_devices_cnt; backend_devices_idx++)
+  {
+    if (backend_ctx->enabled == false) continue;
+
+    hc_device_param_t *device_param = backend_ctx->devices_param + backend_devices_idx;
+
+    if (device_param->skipped == true) continue;
+
+    if (device_param->skipped_warning == true) continue;
+
+    if (device_param->at_status == AT_STATUS_FAILED)
+    {
+      at_err++;
+
+      if (user_options->force == false)
+      {
+        event_log_warning (hashcat_ctx, "* Device #%u: skipped, due to kernel autotune failure (%d).", device_param->device_id + 1, device_param->at_rc);
+
+        device_param->skipped = true;
+
+        // update counters
+
+        if (device_param->is_hip == true)    backend_ctx->hip_devices_active--;
+        if (device_param->is_cuda == true)   backend_ctx->cuda_devices_active--;
+        if (device_param->is_opencl == true) backend_ctx->opencl_devices_active--;
+
+        backend_ctx->backend_devices_active--;
+      }
+      else
+      {
+        event_log_warning (hashcat_ctx, "* Device #%u: detected kernel autotune failure (%d), min values will be used", device_param->device_id + 1, device_param->at_rc);
+      }
+    }
+  }
+
+  if (at_err > 0)
+  {
+    event_log_warning (hashcat_ctx, NULL);
+
+    if (user_options->force == false)
+    {
+      // if all enabled devices fail, abort session
+      if (backend_ctx->backend_devices_active <= 0)
+      {
+        event_log_error (hashcat_ctx, "Aborting session due to kernel autotune failures, for all active devices.");
+
+        event_log_warning (hashcat_ctx, "You can use --force to override this, but do not report related errors.");
+        event_log_warning (hashcat_ctx, NULL);
+
+        return -10;
+      }
+    }
+  }
+
   EVENT (EVENT_AUTOTUNE_FINISHED);
 
   /**
@@ -334,6 +394,10 @@ static int inner2_loop (hashcat_ctx_t *hashcat_ctx)
   }
 
   status_ctx->accessible = false;
+
+  // update newly cracked hashes per session
+
+  logfile_sub_uint (hashes->digests_done_new);
 
   EVENT (EVENT_CRACKER_FINISHED);
 
@@ -767,7 +831,38 @@ static int outer_loop (hashcat_ctx_t *hashcat_ctx)
 
   EVENT (EVENT_BACKEND_SESSION_PRE);
 
-  if (backend_session_begin (hashcat_ctx) == -1) return -1;
+  if (backend_session_begin (hashcat_ctx) == -1)
+  {
+    if (user_options->benchmark == true)
+    {
+      if (user_options->hash_mode_chgd == false)
+      {
+        // finalize backend session
+
+        backend_session_destroy (hashcat_ctx);
+
+        // clean up
+
+        #ifdef WITH_BRAIN
+        brain_ctx_destroy       (hashcat_ctx);
+        #endif
+
+        bitmap_ctx_destroy      (hashcat_ctx);
+        combinator_ctx_destroy  (hashcat_ctx);
+        cpt_ctx_destroy         (hashcat_ctx);
+        hashconfig_destroy      (hashcat_ctx);
+        hashes_destroy          (hashcat_ctx);
+        mask_ctx_destroy        (hashcat_ctx);
+        status_progress_destroy (hashcat_ctx);
+        straight_ctx_destroy    (hashcat_ctx);
+        wl_data_destroy         (hashcat_ctx);
+
+        return 0;
+      }
+    }
+
+    return -1;
+  }
 
   EVENT (EVENT_BACKEND_SESSION_POST);
 
@@ -1296,12 +1391,18 @@ bool autodetect_hashmode_test (hashcat_ctx_t *hashcat_ctx)
   hash_info->orighash = (char *) hcmalloc (256);
   hash_info->split = (split_t *) hcmalloc (sizeof (split_t));
 
-  hash_t *hashes_buf = (hash_t *) hcmalloc (sizeof (hash_t));
+  // this is required for multi hash iterations in binary files, for instance used in -m 14600
+  #define HASHES_IN_BINARY 10
 
-  hashes_buf->digest    = digest;
-  hashes_buf->salt      = salt;
-  hashes_buf->esalt     = esalt;
-  hashes_buf->hook_salt = hook_salt;
+  hash_t *hashes_buf = (hash_t *) hccalloc (HASHES_IN_BINARY, sizeof (hash_t));
+
+  for (int i = 0; i < HASHES_IN_BINARY; i++)
+  {
+    hashes_buf[i].digest    = digest;
+    hashes_buf[i].salt      = salt;
+    hashes_buf[i].esalt     = esalt;
+    hashes_buf[i].hook_salt = hook_salt;
+  }
 
   hashes->hashes_buf     = hashes_buf;
   hashes->digests_buf    = digest;
@@ -1500,6 +1601,7 @@ int hashcat_session_execute (hashcat_ctx_t *hashcat_ctx)
   logfile_ctx_t   *logfile_ctx   = hashcat_ctx->logfile_ctx;
   status_ctx_t    *status_ctx    = hashcat_ctx->status_ctx;
   user_options_t  *user_options  = hashcat_ctx->user_options;
+  backend_ctx_t   *backend_ctx   = hashcat_ctx->backend_ctx;
 
   // start logfile entry
 
@@ -1551,15 +1653,15 @@ int hashcat_session_execute (hashcat_ctx_t *hashcat_ctx)
       {
         event_log_info (hashcat_ctx, "The following %d hash-modes match the structure of your input hash:", modes_cnt);
         event_log_info (hashcat_ctx, NULL);
-        event_log_info (hashcat_ctx, "      # | Name                                                | Category");
-        event_log_info (hashcat_ctx, "  ======+=====================================================+======================================");
+        event_log_info (hashcat_ctx, "      # | Name                                                       | Category");
+        event_log_info (hashcat_ctx, "  ======+============================================================+======================================");
       }
 
       for (int i = 0; i < modes_cnt; i++)
       {
         if (user_options->machine_readable == false)
         {
-          event_log_info (hashcat_ctx, "%7u | %-51s | %s", usage_sort_buf[i].hash_mode, usage_sort_buf[i].hash_name, strhashcategory (usage_sort_buf[i].hash_category));
+          event_log_info (hashcat_ctx, "%7u | %-58s | %s", usage_sort_buf[i].hash_mode, usage_sort_buf[i].hash_name, strhashcategory (usage_sort_buf[i].hash_category));
         }
         else
         {
@@ -1601,9 +1703,9 @@ int hashcat_session_execute (hashcat_ctx_t *hashcat_ctx)
       {
         event_log_info (hashcat_ctx, "The following hash-mode match the structure of your input hash:");
         event_log_info (hashcat_ctx, NULL);
-        event_log_info (hashcat_ctx, "      # | Name                                                | Category");
-        event_log_info (hashcat_ctx, "  ======+=====================================================+======================================");
-        event_log_info (hashcat_ctx, "%7u | %-51s | %s", usage_sort_buf[0].hash_mode, usage_sort_buf[0].hash_name, strhashcategory (usage_sort_buf[0].hash_category));
+        event_log_info (hashcat_ctx, "      # | Name                                                       | Category");
+        event_log_info (hashcat_ctx, "  ======+============================================================+======================================");
+        event_log_info (hashcat_ctx, "%7u | %-58s | %s", usage_sort_buf[0].hash_mode, usage_sort_buf[0].hash_name, strhashcategory (usage_sort_buf[0].hash_category));
         event_log_info (hashcat_ctx, NULL);
       }
     }
@@ -1711,6 +1813,18 @@ int hashcat_session_execute (hashcat_ctx_t *hashcat_ctx)
     if (status_ctx->devices_status == STATUS_EXHAUSTED)           rc_final =  1;
     if (status_ctx->devices_status == STATUS_CRACKED)             rc_final =  0;
     if (status_ctx->devices_status == STATUS_ERROR)               rc_final = -1;
+  }
+  else if (rc_final == -1)
+  {
+    // setup the new negative status code, usefull in test.sh
+    // -2 is marked as used in status_codes.txt
+    if (backend_ctx->runtime_skip_warning  == true)               rc_final = -3;
+    if (backend_ctx->memory_hit_warning    == true)               rc_final = -4;
+    if (backend_ctx->kernel_build_warning  == true)               rc_final = -5;
+    if (backend_ctx->kernel_create_warning == true)               rc_final = -6;
+    if (backend_ctx->kernel_accel_warnings == true)               rc_final = -7;
+    if (backend_ctx->extra_size_warning    == true)               rc_final = -8;
+    if (backend_ctx->mixed_warnings        == true)               rc_final = -9;
   }
 
   // special case for --stdout
@@ -1823,7 +1937,11 @@ int hashcat_get_status (hashcat_ctx_t *hashcat_ctx, hashcat_status_t *hashcat_st
 
   hashcat_status->digests_cnt                 = status_get_digests_cnt                (hashcat_ctx);
   hashcat_status->digests_done                = status_get_digests_done               (hashcat_ctx);
+  hashcat_status->digests_done_pot            = status_get_digests_done_pot           (hashcat_ctx);
+  hashcat_status->digests_done_zero           = status_get_digests_done_zero          (hashcat_ctx);
+  hashcat_status->digests_done_new            = status_get_digests_done_new           (hashcat_ctx);
   hashcat_status->digests_percent             = status_get_digests_percent            (hashcat_ctx);
+  hashcat_status->digests_percent_new         = status_get_digests_percent_new        (hashcat_ctx);
   hashcat_status->hash_target                 = status_get_hash_target                (hashcat_ctx);
   hashcat_status->hash_name                   = status_get_hash_name                  (hashcat_ctx);
   hashcat_status->guess_base                  = status_get_guess_base                 (hashcat_ctx);
@@ -1912,6 +2030,8 @@ int hashcat_get_status (hashcat_ctx_t *hashcat_ctx, hashcat_status_t *hashcat_st
     device_info->innerloop_left_dev             = status_get_innerloop_left_dev             (hashcat_ctx, device_id);
     device_info->iteration_pos_dev              = status_get_iteration_pos_dev              (hashcat_ctx, device_id);
     device_info->iteration_left_dev             = status_get_iteration_left_dev             (hashcat_ctx, device_id);
+    device_info->device_name                    = status_get_device_name                    (hashcat_ctx, device_id);
+    device_info->device_type                    = status_get_device_type                    (hashcat_ctx, device_id);
     #ifdef WITH_BRAIN
     device_info->brain_link_client_id_dev       = status_get_brain_link_client_id_dev       (hashcat_ctx, device_id);
     device_info->brain_link_status_dev          = status_get_brain_link_status_dev          (hashcat_ctx, device_id);

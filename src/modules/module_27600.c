@@ -24,7 +24,8 @@ static const u64   KERN_TYPE      = 27600;
 static const u32   OPTI_TYPE      = OPTI_TYPE_ZERO_BYTE
                                   | OPTI_TYPE_SLOW_HASH_SIMD_LOOP
                                   | OPTI_TYPE_SLOW_HASH_SIMD_LOOP2;
-static const u64   OPTS_TYPE      = OPTS_TYPE_PT_GENERATE_LE
+static const u64   OPTS_TYPE      = OPTS_TYPE_STOCK_MODULE
+                                  | OPTS_TYPE_PT_GENERATE_LE
                                   | OPTS_TYPE_ST_HEX
                                   | OPTS_TYPE_INIT2
                                   | OPTS_TYPE_LOOP2;
@@ -111,7 +112,7 @@ int module_hash_decode (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSE
 
   vbox_t *vbox = (vbox_t *) esalt_buf;
 
-  token_t token;
+  hc_token_t token;
 
   token.token_cnt = 8;
 
@@ -380,6 +381,7 @@ void module_init (module_ctx_t *module_ctx)
   module_ctx->module_benchmark_esalt          = MODULE_DEFAULT;
   module_ctx->module_benchmark_hook_salt      = MODULE_DEFAULT;
   module_ctx->module_benchmark_mask           = MODULE_DEFAULT;
+  module_ctx->module_benchmark_charset        = MODULE_DEFAULT;
   module_ctx->module_benchmark_salt           = module_benchmark_salt;
   module_ctx->module_build_plain_postprocess  = MODULE_DEFAULT;
   module_ctx->module_deep_comp_kernel         = MODULE_DEFAULT;
@@ -398,6 +400,7 @@ void module_init (module_ctx_t *module_ctx)
   module_ctx->module_hash_binary_count        = MODULE_DEFAULT;
   module_ctx->module_hash_binary_parse        = MODULE_DEFAULT;
   module_ctx->module_hash_binary_save         = MODULE_DEFAULT;
+  module_ctx->module_hash_decode_postprocess  = MODULE_DEFAULT;
   module_ctx->module_hash_decode_potfile      = MODULE_DEFAULT;
   module_ctx->module_hash_decode_zero_hash    = MODULE_DEFAULT;
   module_ctx->module_hash_decode              = module_hash_decode;

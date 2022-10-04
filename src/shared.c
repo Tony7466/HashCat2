@@ -15,6 +15,10 @@
 #include <sys/cygwin.h>
 #endif
 
+#if defined (__APPLE__)
+#include <sys/sysctl.h>
+#endif
+
 static const char *const PA_000 = "OK";
 static const char *const PA_001 = "Ignored due to comment";
 static const char *const PA_002 = "Ignored due to zero length";
@@ -74,6 +78,7 @@ static const char *const OPTI_STR_SINGLE_HASH          = "Single-Hash";
 static const char *const OPTI_STR_SINGLE_SALT          = "Single-Salt";
 static const char *const OPTI_STR_BRUTE_FORCE          = "Brute-Force";
 static const char *const OPTI_STR_RAW_HASH             = "Raw-Hash";
+static const char *const OPTI_STR_REGISTER_LIMIT       = "Register-Limit";
 static const char *const OPTI_STR_SLOW_HASH_SIMD_INIT  = "Slow-Hash-SIMD-INIT";
 static const char *const OPTI_STR_SLOW_HASH_SIMD_LOOP  = "Slow-Hash-SIMD-LOOP";
 static const char *const OPTI_STR_SLOW_HASH_SIMD_COMP  = "Slow-Hash-SIMD-COMP";
@@ -1002,6 +1007,7 @@ const char *stroptitype (const u32 opti_type)
     case OPTI_TYPE_SINGLE_SALT:         return OPTI_STR_SINGLE_SALT;
     case OPTI_TYPE_BRUTE_FORCE:         return OPTI_STR_BRUTE_FORCE;
     case OPTI_TYPE_RAW_HASH:            return OPTI_STR_RAW_HASH;
+    case OPTI_TYPE_REGISTER_LIMIT:      return OPTI_STR_REGISTER_LIMIT;
     case OPTI_TYPE_SLOW_HASH_SIMD_INIT: return OPTI_STR_SLOW_HASH_SIMD_INIT;
     case OPTI_TYPE_SLOW_HASH_SIMD_LOOP: return OPTI_STR_SLOW_HASH_SIMD_LOOP;
     case OPTI_TYPE_SLOW_HASH_SIMD_COMP: return OPTI_STR_SLOW_HASH_SIMD_COMP;
@@ -1108,7 +1114,7 @@ const u8 *hc_strchr_last (const u8 *input_buf, const int input_len, const u8 sep
   return NULL;
 }
 
-int input_tokenizer (const u8 *input_buf, const int input_len, token_t *token)
+int input_tokenizer (const u8 *input_buf, const int input_len, hc_token_t *token)
 {
   int len_left = input_len;
 
@@ -1230,6 +1236,14 @@ int input_tokenizer (const u8 *input_buf, const int input_len, token_t *token)
     if (token->attr[token_idx] & TOKEN_ATTR_VERIFY_BASE64C)
     {
       if (is_valid_base64c_string (token->buf[token_idx], token->len[token_idx]) == false) return (PARSER_TOKEN_ENCODING);
+    }
+    if (token->attr[token_idx] & TOKEN_ATTR_VERIFY_BASE58)
+    {
+      if (is_valid_base58_string (token->buf[token_idx], token->len[token_idx]) == false) return (PARSER_TOKEN_ENCODING);
+    }
+    if (token->attr[token_idx] & TOKEN_ATTR_VERIFY_BECH32)
+    {
+      if (is_valid_bech32_string (token->buf[token_idx], token->len[token_idx]) == false) return (PARSER_TOKEN_ENCODING);
     }
   }
 
@@ -1368,4 +1382,49 @@ int generic_salt_encode (MAYBE_UNUSED const hashconfig_t *hashconfig, const u8 *
   memcpy (out_buf, tmp_u8, tmp_len);
 
   return tmp_len;
+}
+
+#if defined (__APPLE__)
+
+bool is_apple_silicon (void)
+{
+  size_t size;
+  cpu_type_t cpu_type = 0;
+  size = sizeof (cpu_type);
+  sysctlbyname ("hw.cputype", &cpu_type, &size, NULL, 0);
+
+  return (cpu_type == 0x100000c);
+}
+
+#endif // __APPLE__
+
+char *file_to_buffer (const char *filename)
+{
+  HCFILE fp;
+
+  if (hc_fopen (&fp, filename, "r") == true)
+  {
+    struct stat st;
+
+    memset (&st, 0, sizeof (st));
+
+    if (hc_fstat (&fp, &st))
+    {
+      hc_fclose (&fp);
+
+      return NULL;
+    }
+
+    char *buffer = malloc (st.st_size + 1);
+
+    const size_t nread = hc_fread (buffer, 1, st.st_size, &fp);
+
+    hc_fclose (&fp);
+
+    buffer[nread] = 0;
+
+    return buffer;
+  }
+
+  return NULL;
 }

@@ -24,7 +24,11 @@ static const char *HASH_NAME      = "PDF 1.4 - 1.6 (Acrobat 5 - 8) - user and ow
 static const u64   KERN_TYPE      = 25400;
 static const u32   OPTI_TYPE      = OPTI_TYPE_ZERO_BYTE
                                   | OPTI_TYPE_NOT_ITERATED;
-static const u64   OPTS_TYPE      = OPTS_TYPE_PT_GENERATE_LE | OPTS_TYPE_COPY_TMPS | OPTS_TYPE_PT_ALWAYS_ASCII;
+static const u64   OPTS_TYPE      = OPTS_TYPE_STOCK_MODULE
+                                  | OPTS_TYPE_PT_GENERATE_LE
+                                  | OPTS_TYPE_COPY_TMPS
+                                  | OPTS_TYPE_PT_ALWAYS_ASCII
+                                  | OPTS_TYPE_AUTODETECT_DISABLE;
 static const u32   SALT_TYPE      = SALT_TYPE_EMBEDDED;
 static const char *ST_PASS        = "hashcat";
 static const char *ST_HASH        = "$pdf$2*3*128*-3904*1*16*631ed33746e50fba5caf56bcc39e09c6*32*5f9d0e4f0b39835dace0d306c40cd6b700000000000000000000000000000000*32*842103b0a0dc886db9223b94afe2d7cd63389079b61986a4fcf70095ad630c24";
@@ -104,6 +108,12 @@ char *module_jit_build_options (MAYBE_UNUSED const hashconfig_t *hashconfig, MAY
   }
   else if (device_param->opencl_device_type & CL_DEVICE_TYPE_GPU)
   {
+    #if defined (__APPLE__)
+
+    native_threads = 32;
+
+    #else
+
     if (device_param->device_local_mem_size < 49152)
     {
       native_threads = MIN (device_param->kernel_preferred_wgs_multiple, 32); // We can't just set 32, because Intel GPU need 8
@@ -112,6 +122,8 @@ char *module_jit_build_options (MAYBE_UNUSED const hashconfig_t *hashconfig, MAY
     {
       native_threads = device_param->kernel_preferred_wgs_multiple;
     }
+
+    #endif
   }
 
   hc_asprintf (&jit_build_options, "-D FIXED_LOCAL_SIZE=%u -D _unroll", native_threads);
@@ -149,7 +161,7 @@ int module_hash_decode (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSE
 
   pdf_t *pdf = (pdf_t *) esalt_buf;
 
-  token_t token;
+  hc_token_t token;
 
   token.token_cnt  = 12;
 
@@ -379,7 +391,7 @@ int module_hash_decode (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSE
   pdf->P = P;
 
   memcpy ( pdf->u_pass_buf, u_pass_buf_pos, 32);
-  pdf->u_pass_len = strlen((char *) pdf->u_pass_buf);
+  pdf->u_pass_len = strlen ((char *) pdf->u_pass_buf);
 
   pdf->enc_md = enc_md;
 
@@ -485,7 +497,11 @@ int module_build_plain_postprocess (MAYBE_UNUSED const hashconfig_t *hashconfig,
   pdf_t *pdf = (pdf_t *) hashes->esalts_buf;
 
   // if the password in tmp->out is equal to the padding, then we recovered just the owner-password
-  if(pdf_tmp->out[0]==padding[0] && pdf_tmp->out[1]==padding[1] && pdf_tmp->out[2]==padding[2] && pdf_tmp->out[3]==padding[3])
+
+  if (pdf_tmp->out[0] == padding[0] &&
+      pdf_tmp->out[1] == padding[1] &&
+      pdf_tmp->out[2] == padding[2] &&
+      pdf_tmp->out[3] == padding[3])
   {
     return snprintf ((char *) dst_buf, dst_sz, "%s    (user password not set)", (char *) src_buf);
   }
@@ -500,14 +516,15 @@ int module_build_plain_postprocess (MAYBE_UNUSED const hashconfig_t *hashconfig,
   const u8 *u8OutPadPtr;
   u8OutPadPtr = (u8*) u32OutPadPtr;
 
-  bool remove_padding=false;
-  int i_padding=0;
-  for(int i=0;i<16;i++)
+  bool remove_padding = false;
+  int i_padding = 0;
+
+  for (int i = 0; i < 16; i++)
   {
-    if(u8OutBufPtr[i]==u8OutPadPtr[i_padding] || remove_padding)
+    if (u8OutBufPtr[i] == u8OutPadPtr[i_padding] || remove_padding)
     {
-    u8OutBufPtr[i]=0x0;
-    remove_padding=true;
+      u8OutBufPtr[i] = 0x0;
+      remove_padding = true;
     }
   }
 
@@ -516,9 +533,13 @@ int module_build_plain_postprocess (MAYBE_UNUSED const hashconfig_t *hashconfig,
   //   TODO would be better to actually also verify the u-value whether we've retrieved the correct user-password,
   //     however, we'd need to include a lot of code/complexity here to do so (or call into 10500 kernel).
   //     this seems relevant: run_kernel (hashcat_ctx, device_param, KERN_RUN_3, 0, 1, false, 0)
-  if(pdf_tmp->out[0]==src_buf[0] && pdf_tmp->out[1]==src_buf[1] && pdf_tmp->out[2]==src_buf[2] && pdf_tmp->out[3]==src_buf[3])
+
+  if (pdf_tmp->out[0] == src_buf[0] &&
+      pdf_tmp->out[1] == src_buf[1] &&
+      pdf_tmp->out[2] == src_buf[2] &&
+      pdf_tmp->out[3] == src_buf[3])
   {
-    if(pdf->u_pass_len==0)
+    if (pdf->u_pass_len == 0)
     {
       // we seem to only have recovered the user-password as we don't have one yet
       return snprintf ((char *) dst_buf, dst_sz, "(user password=%s)", (char *) src_buf);
@@ -541,7 +562,7 @@ int module_hash_encode (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSE
   pdf_t *pdf = (pdf_t *) esalt_buf;
   if (pdf->id_len == 32)
   {
-    line_len = snprintf (line_buf, line_size, "$pdf$%d*%d*%d*%d*%d*%d*%08x%08x%08x%08x%08x%08x%08x%08x*%d*%08x%08x%08x%08x%08x%08x%08x%08x*%d*%08x%08x%08x%08x%08x%08x%08x%08x*%s",
+    line_len = snprintf (line_buf, line_size, "$pdf$%d*%d*%d*%d*%d*%d*%08x%08x%08x%08x%08x%08x%08x%08x*%d*%08x%08x%08x%08x%08x%08x%08x%08x*%d*%08x%08x%08x%08x%08x%08x%08x%08x%s",
       pdf->V,
       pdf->R,
       128,
@@ -579,7 +600,7 @@ int module_hash_encode (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSE
   }
   else
   {
-    line_len = snprintf (line_buf, line_size, "$pdf$%d*%d*%d*%d*%d*%d*%08x%08x%08x%08x*%d*%08x%08x%08x%08x%08x%08x%08x%08x*%d*%08x%08x%08x%08x%08x%08x%08x%08x*%s",
+    line_len = snprintf (line_buf, line_size, "$pdf$%d*%d*%d*%d*%d*%d*%08x%08x%08x%08x*%d*%08x%08x%08x%08x%08x%08x%08x%08x*%d*%08x%08x%08x%08x%08x%08x%08x%08x%s",
       pdf->V,
       pdf->R,
       128,
@@ -624,6 +645,7 @@ void module_init (module_ctx_t *module_ctx)
   module_ctx->module_benchmark_esalt          = MODULE_DEFAULT;
   module_ctx->module_benchmark_hook_salt      = MODULE_DEFAULT;
   module_ctx->module_benchmark_mask           = MODULE_DEFAULT;
+  module_ctx->module_benchmark_charset        = MODULE_DEFAULT;
   module_ctx->module_benchmark_salt           = MODULE_DEFAULT;
   module_ctx->module_build_plain_postprocess  = module_build_plain_postprocess;
   module_ctx->module_deep_comp_kernel         = MODULE_DEFAULT;
@@ -642,6 +664,7 @@ void module_init (module_ctx_t *module_ctx)
   module_ctx->module_hash_binary_count        = MODULE_DEFAULT;
   module_ctx->module_hash_binary_parse        = MODULE_DEFAULT;
   module_ctx->module_hash_binary_save         = MODULE_DEFAULT;
+  module_ctx->module_hash_decode_postprocess  = MODULE_DEFAULT;
   module_ctx->module_hash_decode_potfile      = MODULE_DEFAULT;
   module_ctx->module_hash_decode_zero_hash    = MODULE_DEFAULT;
   module_ctx->module_hash_decode              = module_hash_decode;

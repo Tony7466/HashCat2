@@ -1,5 +1,4 @@
 fix_makefile.patch
 add_kfreebsd_support.diff
 fix-spelling-error.patch
-change-path-to-ioapi.h.patch
 Don-t-strip-executables-when-DEBUG-0.patch

@@ -8,10 +8,10 @@ Last-Update: 2020-06-18
  1 file changed, 1 deletion(-)
 
 diff --git a/src/user_options.c b/src/user_options.c
-index ef97d2b..ca51ba2 100644
+index 4dd2dce..f247db7 100644
 --- a/src/user_options.c
 +++ b/src/user_options.c
-@@ -115,7 +115,6 @@ static const struct option long_options[] =
+@@ -119,7 +119,6 @@ static const struct option long_options[] =
    {"segment-size",              required_argument, NULL, IDX_SEGMENT_SIZE},
    {"self-test-disable",         no_argument,       NULL, IDX_SELF_TEST_DISABLE},
    {"separator",                 required_argument, NULL, IDX_SEPARATOR},

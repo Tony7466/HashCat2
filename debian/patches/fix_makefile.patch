@@ -5,16 +5,16 @@ Subject: Fix Makefile to suit our needs
 * Inject CPPFLAGS and LDFLAGS where appropriate for better hardening.
 
 Origin: vendor
-Last-Update: 2021-12-22
+Last-Update: 2022-10-04
 ---
  src/Makefile | 10 +++++-----
  1 file changed, 5 insertions(+), 5 deletions(-)
 
 diff --git a/src/Makefile b/src/Makefile
-index e538b6c..468ae23 100644
+index 64f54db..f82580b 100644
 --- a/src/Makefile
 +++ b/src/Makefile
-@@ -293,7 +293,7 @@ endif
+@@ -306,7 +306,7 @@ endif
  ##
  
  ifeq ($(UNAME),Linux)
@@ -23,7 +23,7 @@ index e538b6c..468ae23 100644
  CFLAGS_NATIVE           += -DWITH_HWMON
  LFLAGS_NATIVE           := $(LFLAGS)
  LFLAGS_NATIVE           += -lpthread
-@@ -304,7 +304,7 @@ endif # Linux
+@@ -317,7 +317,7 @@ endif # Linux
  
  ifeq ($(UNAME),FreeBSD)
  ifndef PORTNAME
@@ -32,16 +32,16 @@ index e538b6c..468ae23 100644
  LFLAGS_NATIVE           := $(LFLAGS)
  LFLAGS_NATIVE           += -lpthread
  LFLAGS_NATIVE           += -lm
-@@ -314,7 +314,7 @@ endif # FreeBSD
+@@ -333,7 +333,7 @@ endif # NetBSD
  
  ifeq ($(UNAME),Darwin)
- export MACOSX_DEPLOYMENT_TARGET=10.9
+ export MACOSX_DEPLOYMENT_TARGET=10.15
 -CFLAGS_NATIVE           := $(CFLAGS)
 +CFLAGS_NATIVE           := $(CFLAGS) $(CPPFLAGS)
  CFLAGS_NATIVE           += -DWITH_HWMON
  
  ifeq ($(shell test $(DARWIN_VERSION) -le 15; echo $$?), 0)
-@@ -329,7 +329,7 @@ LFLAGS_NATIVE           += -liconv
+@@ -361,7 +361,7 @@ endif
  endif # Darwin
  
  ifeq ($(UNAME),CYGWIN)
@@ -50,7 +50,7 @@ index e538b6c..468ae23 100644
  CFLAGS_NATIVE           += -DWITH_HWMON
  LFLAGS_NATIVE           := $(LFLAGS)
  LFLAGS_NATIVE           += -Wl,--dynamicbase
-@@ -339,7 +339,7 @@ LFLAGS_NATIVE           += -liconv
+@@ -371,7 +371,7 @@ LFLAGS_NATIVE           += -liconv
  endif # CYGWIN
  
  ifeq ($(UNAME),MSYS2)

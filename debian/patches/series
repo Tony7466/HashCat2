@@ -2,3 +2,4 @@ fix_makefile.patch
 add_kfreebsd_support.diff
 fix-spelling-error.patch
 Don-t-strip-executables-when-DEBUG-0.patch
+Update-shebangs.patch

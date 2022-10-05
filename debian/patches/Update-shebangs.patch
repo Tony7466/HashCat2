@@ -1,0 +1,175 @@
+From: Sophie Brun <sophie@offensive-security.com>
+Date: Wed, 5 Oct 2022 15:24:53 +0200
+Subject: Update shebangs
+
+Use correct shebangs for Debian:
+- /usr/bin/perl instead of /usr/bin/env perl
+- /usr/bin/env python3 instead of /usr/bin/env python
+---
+ tools/aescrypt2hashcat.pl         | 2 +-
+ tools/benchmark_deep.pl           | 2 +-
+ tools/bitwarden2hashcat.py        | 2 +-
+ tools/cryptoloop2hashcat.py       | 2 +-
+ tools/exodus2hashcat.py           | 2 +-
+ tools/metamask2hashcat.py         | 2 +-
+ tools/mozilla2hashcat.py          | 2 +-
+ tools/radmin3_to_hashcat.pl       | 2 +-
+ tools/recursivefiles2sha256sum.pl | 2 +-
+ tools/securenotes2hashcat.pl      | 2 +-
+ tools/sqlcipher2hashcat.pl        | 2 +-
+ tools/test.pl                     | 2 +-
+ tools/test_rules.pl               | 2 +-
+ tools/virtualbox2hashcat.py       | 2 +-
+ tools/vmwarevmx2hashcat.py        | 2 +-
+ 15 files changed, 15 insertions(+), 15 deletions(-)
+
+diff --git a/tools/aescrypt2hashcat.pl b/tools/aescrypt2hashcat.pl
+index 8cb2c6e..1c20ab6 100755
+--- a/tools/aescrypt2hashcat.pl
++++ b/tools/aescrypt2hashcat.pl
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env perl
++#!/usr/bin/perl
+ 
+ ##
+ ## Author......: See docs/credits.txt
+diff --git a/tools/benchmark_deep.pl b/tools/benchmark_deep.pl
+index 59fa5d7..184fb74 100755
+--- a/tools/benchmark_deep.pl
++++ b/tools/benchmark_deep.pl
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env perl
++#!/usr/bin/perl
+ 
+ ##
+ ## Author......: See docs/credits.txt
+diff --git a/tools/bitwarden2hashcat.py b/tools/bitwarden2hashcat.py
+index 04ae244..d4dc68c 100755
+--- a/tools/bitwarden2hashcat.py
++++ b/tools/bitwarden2hashcat.py
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env python
++#!/usr/bin/env python3
+ """Utility to extract Bitwarden hash for hashcat from Google Chrome / Firefox / Desktop local data"""
+ 
+ #
+diff --git a/tools/cryptoloop2hashcat.py b/tools/cryptoloop2hashcat.py
+index b6c5167..3530415 100755
+--- a/tools/cryptoloop2hashcat.py
++++ b/tools/cryptoloop2hashcat.py
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env python
++#!/usr/bin/env python3
+ # -*- coding: utf-8 -*-
+ 
+ # Author: Gabriele 'matrix' Gristina
+diff --git a/tools/exodus2hashcat.py b/tools/exodus2hashcat.py
+index 9fdc695..b022836 100755
+--- a/tools/exodus2hashcat.py
++++ b/tools/exodus2hashcat.py
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env python
++#!/usr/bin/env python3
+ 
+ # Author......: See docs/credits.txt
+ # License.....: MIT
+diff --git a/tools/metamask2hashcat.py b/tools/metamask2hashcat.py
+index 5d286ff..ada43ff 100755
+--- a/tools/metamask2hashcat.py
++++ b/tools/metamask2hashcat.py
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env python
++#!/usr/bin/env python3
+ # -*- coding: utf-8 -*-
+ 
+ # Author: Gabriele 'matrix' Gristina
+diff --git a/tools/mozilla2hashcat.py b/tools/mozilla2hashcat.py
+index 8e7f152..7b1ea6b 100755
+--- a/tools/mozilla2hashcat.py
++++ b/tools/mozilla2hashcat.py
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env python
++#!/usr/bin/env python3
+ #
+ # Script to extract the "hash" from a password protected key3.db or key4.db file.
+ #
+diff --git a/tools/radmin3_to_hashcat.pl b/tools/radmin3_to_hashcat.pl
+index e096fbd..2694bd7 100755
+--- a/tools/radmin3_to_hashcat.pl
++++ b/tools/radmin3_to_hashcat.pl
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env perl
++#!/usr/bin/perl
+ 
+ ##
+ ## Author......: See docs/credits.txt
+diff --git a/tools/recursivefiles2sha256sum.pl b/tools/recursivefiles2sha256sum.pl
+index 4166c27..0c3992e 100755
+--- a/tools/recursivefiles2sha256sum.pl
++++ b/tools/recursivefiles2sha256sum.pl
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env perl
++#!/usr/bin/perl
+ 
+ ##
+ ## This script was created to be used in conjunction with Hashcat mode 29700 (Keepass in keyfile only mode).
+diff --git a/tools/securenotes2hashcat.pl b/tools/securenotes2hashcat.pl
+index 43d638c..ec46995 100755
+--- a/tools/securenotes2hashcat.pl
++++ b/tools/securenotes2hashcat.pl
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env perl
++#!/usr/bin/perl
+ 
+ ##
+ ## Author......: See docs/credits.txt
+diff --git a/tools/sqlcipher2hashcat.pl b/tools/sqlcipher2hashcat.pl
+index 930523e..91d226f 100755
+--- a/tools/sqlcipher2hashcat.pl
++++ b/tools/sqlcipher2hashcat.pl
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env perl
++#!/usr/bin/perl
+ 
+ ##
+ ## Author......: See docs/credits.txt
+diff --git a/tools/test.pl b/tools/test.pl
+index 2ea8b09..7e13991 100755
+--- a/tools/test.pl
++++ b/tools/test.pl
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env perl
++#!/usr/bin/perl
+ 
+ ##
+ ## Author......: See docs/credits.txt
+diff --git a/tools/test_rules.pl b/tools/test_rules.pl
+index 2b8ef36..c4a9a34 100755
+--- a/tools/test_rules.pl
++++ b/tools/test_rules.pl
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env perl
++#!/usr/bin/perl
+ 
+ ##
+ ## Author......: See docs/credits.txt
+diff --git a/tools/virtualbox2hashcat.py b/tools/virtualbox2hashcat.py
+index 4bffbd1..803065d 100755
+--- a/tools/virtualbox2hashcat.py
++++ b/tools/virtualbox2hashcat.py
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env python
++#!/usr/bin/env python3
+ # -*- coding: utf-8 -*-
+ 
+ # Based on "pyvboxdie-cracker" (https://github.com/axcheron/pyvboxdie-cracker) (MIT license)
+diff --git a/tools/vmwarevmx2hashcat.py b/tools/vmwarevmx2hashcat.py
+index 015b2a6..f6fbba6 100755
+--- a/tools/vmwarevmx2hashcat.py
++++ b/tools/vmwarevmx2hashcat.py
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env python
++#!/usr/bin/env python3
+ # -*- coding: utf-8 -*-
+ 
+ # Based on "pyvmx-cracker" (https://github.com/axcheron/pyvmx-cracker) (MIT license)

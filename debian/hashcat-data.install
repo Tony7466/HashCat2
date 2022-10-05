@@ -1,9 +1,10 @@
 usr/share/hashcat/OpenCL
 usr/share/hashcat/hashcat.hcstat2
-usr/share/hashcat/hashcat.hctune
+usr/share/hashcat/tunings usr/share/hashcat
 usr/share/doc/hashcat/charsets usr/share/hashcat
 usr/share/doc/hashcat/masks usr/share/hashcat
 usr/share/doc/hashcat/rules usr/share/hashcat
 usr/share/doc/hashcat/layouts usr/share/hashcat
+usr/share/doc/hashcat/tools usr/share/hashcat
 usr/share/doc/hashcat/docs
 usr/share/doc/hashcat/extra

@@ -1,2 +1,2 @@
 # It's a plugin, not a shared library
-shared-library-lacks-prerequisites usr/lib/hashcat/modules/module_02000.so
+shared-library-lacks-prerequisites [usr/lib/hashcat/modules/module_02000.so]

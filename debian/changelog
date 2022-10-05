@@ -1,3 +1,21 @@
+hashcat (6.2.6+ds1-1) unstable; urgency=medium
+
+  * Team Upload.
+
+  [ Debian Janitor ]
+  * Bump debhelper from old 12 to 13.
+
+  [ Sophie Brun ]
+  * New upstream version 6.2.6+ds1
+  * Refresh patches
+  * Bump Standards-Version to 4.6.1
+  * Install new files: tunings/* tools/*
+  * Add missing dep Python3
+  * Update lintian-overrides
+  * Add a patch to fix lintian warnings about shebangs
+
+ -- Sophie Brun <sophie@offensive-security.com>  Thu, 06 Oct 2022 11:50:50 +0200
+
 hashcat (6.2.5+ds1-2) unstable; urgency=medium
 
   * Team Upload.

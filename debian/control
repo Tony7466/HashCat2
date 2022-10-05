@@ -69,7 +69,7 @@ Description: World's fastest and most advanced password recovery utility
 Package: hashcat-data
 Architecture: all
 Multi-Arch: foreign
-Depends: ${misc:Depends}
+Depends: ${misc:Depends}, python3
 Suggests: hashcat
 Replaces: hashcat (<= 2.00-0kali3)
 Description: Data files for hashcat advanced password recovery utility
@@ -77,4 +77,4 @@ Description: Data files for hashcat advanced password recovery utility
  seven unique modes of attack for over 100 optimized hashing algorithms.
  .
  This package contains the data files for hashcat, including charsets,
- rules, salts, and tables.
+ rules, salts, tables and Python tools.

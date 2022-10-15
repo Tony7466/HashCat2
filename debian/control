@@ -69,7 +69,7 @@ Description: World's fastest and most advanced password recovery utility
 Package: hashcat-data
 Architecture: all
 Multi-Arch: foreign
-Depends: ${misc:Depends}, python3
+Depends: ${misc:Depends}, python3:any
 Suggests: hashcat
 Description: Data files for hashcat advanced password recovery utility
  Hashcat is an advanced CPU/GPU-based password recovery utility supporting
